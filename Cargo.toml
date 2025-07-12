@@ -1,0 +1,25 @@
+[workspace]
+
+members = [ 
+    "uxar-bins","uxar"
+]
+
+resolver = "3"
+
+[workspace.dependencies]
+argh = { version = "0.1.13", features = ["serde"] }
+axum = { version = "0.8.4", features = ["macros", "ws", "multipart", "http2"] }
+axum-extra = { version = "0.10.1", features = ["typed-header", "query", "multipart", "form", "cookie", "cookie-private", "cookie-signed"] }
+chrono = { version = "0.4.41", features = ["serde"] }
+indexmap = { version = "2.10.0", features = ["serde"] }
+rand = { version = "0.9.1", features = ["serde"] }
+serde = { version = "1.0.219", features = ["derive", "rc", "serde_derive"] }
+serde_json = { version = "1.0.140", features = ["indexmap", "raw_value"] }
+tokio = { version = "1.46.1", features = ["full"] }
+uuid = { version = "1.17.0", features=["v4", "v7"]}
+sqlx = { version = "0.8.6", features = ["chrono", "postgres", "runtime-tokio", "uuid"] }
+minijinja = "2.11.0"
+blake3 = "1.8.2"
+dotenvy = "0.15.7"
+tower = "0.5.2"
+thiserror = "2.0.12"

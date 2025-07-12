@@ -1,0 +1,37 @@
+[package]
+name = "uxar"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argh = {workspace = true}
+axum = {workspace = true}
+axum-extra = {workspace = true}
+chrono = {workspace = true}
+indexmap = {workspace = true}
+rand = {workspace = true}
+serde = {workspace = true}
+serde_json = {workspace = true}
+tokio = {workspace = true}
+uuid = {workspace = true}
+sqlx = {workspace = true}
+minijinja = { workspace = true, features = ["loader"] }
+blake3 = {workspace = true}
+dotenvy = {workspace = true}
+tower = {workspace = true}
+thiserror = {workspace = true}
+mime_guess = "2.0.5"
+include_dir = { version = "0.7.4", features = ["glob"] }
+url = "2.5.4"
+async-trait = "0.1.88"
+tower-http = {version="0.6.2", features=["catch-panic", "normalize-path"]}
+strum = { version = "0.27.1", features = ["derive", "strum_macros"] }
+jsonwebtoken = "9.3.1"
+strum_macros = "0.27.1"
+axum-jsonschema = "0.8.0"
+utoipa = { version = "5.4.0", features = ["auto_into_responses", "axum_extras", "debug", "chrono", "url", "uuid", "openapi_extensions"] }
+garde = { version = "0.22.0", features = ["full", "pattern"] }
+anyhow = { version = "1.0.98", features = ["backtrace"] }
+schemars = "1.0.4"
+jsonschema = "0.30.0"
+time = "0.3.41"
