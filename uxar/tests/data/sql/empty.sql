@@ -1,0 +1,2 @@
+--@empty_tag
+-- just a tag, no SQL

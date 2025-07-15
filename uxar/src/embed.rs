@@ -1,6 +1,5 @@
 use std::collections::VecDeque;
-
-
+pub use uxar_macros::embed;
 
 pub enum File{
     Embed(include_dir::File<'static>),
@@ -12,6 +11,10 @@ impl File {
     pub fn base_name(&self) -> Option<&str> {
         self.path().file_name()
             .and_then(|name| name.to_str())
+    }
+
+    pub fn is_embedded(&self) -> bool {
+        matches!(self, File::Embed(_))
     }
 
     pub fn path(&self) -> &std::path::Path {
@@ -44,9 +47,13 @@ pub enum Dir {
 
 impl Dir {
 
-    pub fn new(path: &std::path::Path) -> Self {
+    pub fn new(path: &'static str) -> Self {
         let base = env!("CARGO_MANIFEST_DIR");
         Dir::Path(std::path::PathBuf::from(base).join(path))
+    }
+
+    pub fn is_embedded(&self) -> bool {
+        matches!(self, Dir::Embed(_))
     }
 
     pub fn path(&self) -> &std::path::Path {
@@ -109,6 +116,10 @@ impl Entry {
         }
     }
 
+    pub fn is_embedded(&self) -> bool {
+        matches!(self, Entry::File(File::Embed(_))) || matches!(self, Entry::Dir(Dir::Embed(_)))
+    }
+
     pub const fn is_file(&self) -> bool {
         matches!(self, Entry::File(_))
     }
@@ -164,28 +175,3 @@ impl DirSet {
 }
 
 
-/// Creates a `Dir` that points to an embedded directory in release mode,
-/// and a file-system directory in debug mode, rooted at `CARGO_MANIFEST_DIR`.
-///
-/// # Example
-/// ```
-/// let dir = embed!("static");
-/// ```
-#[macro_export]
-macro_rules! embed {
-    ($path:literal) => {
-        {
-            #[cfg(debug_assertions)]
-            {
-                $crate::Dir::new(std::path::Path::new($path))
-            }
-            #[cfg(not(debug_assertions))]
-            {
-                $crate::Dir::Embed(include_dir::include_dir!($path))
-            }
-        }
-    };
-    ($path:expr) => {
-        compile_error!("`embed!()` macro only accepts string literals (e.g., \"static\", \"templates\")");
-    };
-}

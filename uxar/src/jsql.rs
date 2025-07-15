@@ -1,8 +1,11 @@
 use axum::response::IntoResponse;
 use sqlx::{
-    Arguments, Database, IntoArguments, PgPool, Postgres, query::Query, QueryBuilder,
+    Arguments, IntoArguments, PgPool, Postgres, query::{Query}, Execute,
     postgres::PgArguments,
 };
+
+use crate::{db::DbError, errors::ToProblem};
+
 
 pub async fn jsql_get<'q, A>(
     pool: &PgPool,
@@ -10,7 +13,7 @@ pub async fn jsql_get<'q, A>(
     strict: bool,
 ) -> axum::response::Response
 where
-    A: Arguments<'q> + Send,
+    for<'r> A: IntoArguments<'r, Postgres> + Default + Send,
 {
     jsql_get_strict(pool, query, true).await
 }
@@ -18,12 +21,11 @@ where
 pub async fn jsql_first<'q, A>(
     pool: &PgPool,
     mut query: Query<'q, Postgres, A>,
-    strict: bool,
 ) -> axum::response::Response
 where
-    A: Arguments<'q> + Send,
+    for<'r> A: IntoArguments<'r, Postgres> + Default + Send,
 {
-    jsql_get_strict(pool, query, strict).await
+    jsql_get_strict(pool, query, false).await
 }
 
 async fn jsql_get_strict<'q, A>(
@@ -32,13 +34,17 @@ async fn jsql_get_strict<'q, A>(
     strict: bool,
 ) -> axum::response::Response
 where
-    A: Arguments<'q> + Send,
+    for<'r> A: IntoArguments<'r, Postgres> + Default + Send,
 {
+
+    let sql_src = query.sql();                 // &str
+    let args = query.take_arguments().unwrap_or_default().unwrap_or_default();
+
     let wrapped_query = format!(
         "SELECT COALESCE(JSONB_AGG(jql), '[]'::jsonb) FROM ({} ) jql",
-        query.sql()
+        sql_src
     );
-    match sqlx::query_scalar_with(wrapped_query.as_str(), query.take_arguments())
+    match sqlx::query_scalar_with(wrapped_query.as_str(), args)
         .fetch_one(pool)
         .await
     {
@@ -47,17 +53,9 @@ where
             match result {
                 serde_json::Value::Array(arr) => {
                     if strict && arr.len() > 1 {
-                        return (
-                            axum::http::StatusCode::BAD_REQUEST,
-                            "Query returned more than one row".to_string(),
-                        )
-                            .into_response();
+                        return DbError::MultipleObjects.to_problem().into_response();
                     } else if strict && arr.is_empty() {
-                        return (
-                            axum::http::StatusCode::NOT_FOUND,
-                            "No results found".to_string(),
-                        )
-                            .into_response();
+                        return DbError::DoesNotExist.to_problem().into_response();
                     } else {
                         let result = &arr[0];
                         return (
@@ -68,11 +66,7 @@ where
                     }
                 }
                 _ => {
-                    return (
-                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("Internal server error: {:?}", result),
-                    )
-                        .into_response();
+                    return DbError::Temporary.to_problem().into_response();
                 }
             }
         }
@@ -84,12 +78,22 @@ where
     }
 }
 
-pub async fn jsql_all(pool: &PgPool, query: &str) -> axum::response::Response {
+
+pub async fn jsql_all<'q, A>(
+    pool: &PgPool,
+    mut query: Query<'q, Postgres, A>,
+) -> axum::response::Response
+where
+    for<'r> A: IntoArguments<'r, Postgres> + Default + Send,
+{
+    let sql_src = query.sql();                 // &str
+    let args = query.take_arguments().unwrap_or_default().unwrap_or_default();
+
     let wrapped_query = format!(
         "SELECT COALESCE(JSONB_AGG(jql)::text, '[]') FROM ({}) jql",
-        query
+        sql_src
     );
-    match sqlx::query_scalar(&wrapped_query).fetch_one(pool).await {
+    match sqlx::query_scalar_with(&wrapped_query, args).fetch_one(pool).await {
         Ok(result) => {
             let result: String = result;
             (

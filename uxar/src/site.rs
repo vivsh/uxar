@@ -1,20 +1,25 @@
 use argh;
 use axum::body::Body;
-use axum::{Extension, Router, http::Request};
+use axum::extract::Request;
+use axum::http::Uri;
+use axum::{Extension, Router, ServiceExt as _};
 use chrono::format;
 use include_dir::{Dir, DirEntry, File};
+use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{PgPool, pool};
-use tower_http::catch_panic::CatchPanicLayer;
-use tower_http::normalize_path::NormalizePathLayer;
 use std::any::Any;
 use std::collections::VecDeque;
 use std::net::{SocketAddr, ToSocketAddrs as _};
 use std::{any::TypeId, collections::HashMap, path::PathBuf, sync::Arc};
+use tower::{Layer as _, ServiceExt};
+use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::services::ServeDir;
 
-use crate::app::Application;
-use crate::auth::{self, Authenticator};
 use crate::IntoApplication;
+use crate::app::Application;
+use crate::auth::Authenticator;
+use crate::db::DbExecutor;
+use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
 use crate::{
     cmd::{NestedCommand, SiteCommand},
     conf::SiteConf,
@@ -116,10 +121,15 @@ impl SiteBuilder {
     }
 
     pub async fn build(self) -> Result<Site, SiteError> {
-        
-        let router = self.router
-            .route_layer(NormalizePathLayer::trim_trailing_slash())
-            .route_layer(CatchPanicLayer::new());
+        let project_dir = Site::project_dir();
+
+        let mut router = self.router;
+
+        for static_dir in &self.conf.static_dirs {
+            let path = project_dir.join(&static_dir.path);
+            let serve_dir = ServeDir::new(&path).append_index_html_on_directories(false);
+            router = router.route_service(&static_dir.url, serve_dir);
+        }
 
         let mut env = minijinja::Environment::new();
 
@@ -159,14 +169,11 @@ impl SiteBuilder {
             }
         }
 
-        let mut entries = Vec::new();
-        for file in self.static_files {
-            entries.push(DirEntry::File(file));
-        }
-
-        let dir = Dir::new("", &entries);
-
         let authenticator = Authenticator::new(&self.conf.auth, &self.conf.secret_key);
+        router = router
+            .fallback(redirect_trailing_slash_on_404)
+            .layer(CatchPanicLayer::new());
+
         let site = Site {
             inner: Arc::new(SiteInner {
                 conf: self.conf,
@@ -226,11 +233,11 @@ impl Site {
     }
 
     pub fn authenticator(&self) -> &Authenticator {
-        &self.inner.authenticator   
+        &self.inner.authenticator
     }
 
-    pub fn db(&self) -> &PgPool {
-        &self.inner.pool
+    pub fn db(&self) -> DbExecutor<'_> {
+        DbExecutor::new(&self.inner.pool)
     }
 
     /// Mainly needed for testing purposes.
@@ -255,7 +262,8 @@ impl Site {
         let addr: SocketAddr = format!("{}:{}", host, port)
             .to_socket_addrs()
             .ok()
-            .and_then(|mut iter| iter.next()).ok_or_else(|| {
+            .and_then(|mut iter| iter.next())
+            .ok_or_else(|| {
                 SiteError::ConfigError(format!(
                     "Failed to resolve address for {}:{}. Ensure the address is valid.",
                     host, port
@@ -268,7 +276,9 @@ impl Site {
             println!("Server running at http://{}", addr);
         }
 
-        axum::serve(listener, self.router().into_make_service())
+        let service = tower::util::MapRequestLayer::new(rewrite_request_path).layer(self.router());
+
+        axum::serve(listener, service.into_make_service())
             .with_graceful_shutdown(Self::shutdown_signal(verbose))
             .await?;
 
@@ -289,11 +299,10 @@ impl Site {
         let cmd: SiteCommand = argh::from_env();
         match cmd.nested {
             NestedCommand::Init(_) => {}
-            NestedCommand::Serve(s) => {
+            NestedCommand::Serve(_) => {
                 self.serve_forver(cmd.verbose).await?;
             }
         }
         Ok(())
     }
 }
-

@@ -24,7 +24,7 @@ mime_guess = "2.0.5"
 include_dir = { version = "0.7.4", features = ["glob"] }
 url = "2.5.4"
 async-trait = "0.1.88"
-tower-http = {version="0.6.2", features=["catch-panic", "normalize-path"]}
+tower-http = {version="0.6.2", features=["catch-panic", "normalize-path", "fs"]}
 strum = { version = "0.27.1", features = ["derive", "strum_macros"] }
 jsonwebtoken = "9.3.1"
 strum_macros = "0.27.1"
@@ -35,3 +35,15 @@ anyhow = { version = "1.0.98", features = ["backtrace"] }
 schemars = "1.0.4"
 jsonschema = "0.30.0"
 time = "0.3.41"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["regex", "serde", "env-filter", "parking_lot", "chrono", "serde_json"] }
+http-serde = "2.1.1"
+serde_urlencoded = "0.7"
+
+uxar-macros = { path = "../uxar-macros" }
+once_cell = { version = "1.21.3", features = ["parking_lot"] }
+axum-test = "17.3.0"
+
+[dev-dependencies]
+tempfile = "3"
+
