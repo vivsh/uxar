@@ -1,17 +1,11 @@
 use std::collections::HashMap;
 
 use axum::Router;
-use include_dir::Dir;
-use serde::{de::DeserializeOwned};
+use super::embed::Dir;
+use serde::{de::DeserializeOwned, Deserialize};
 
-use crate::Site;
+use crate::{site::Service, Site};
 
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Migratable{
-    Table,
-    Opaque,
-}
 
 
 /// A very naive attempt to develop a django application-like structure in Rust. 
@@ -19,24 +13,30 @@ pub enum Migratable{
 /// All router, templates, static files, and migrations will be consumed one-time by the parent site.
 /// Application conf will be stored in the site and can be accessed by handlers using extensions.
 /// This is a trait that defines the basic structure of an application.
-/// It provides methods to get the router, templates, and static files.
-/// The deserialize trait helps to extract application configuration from the site configuration toml file.
-/// Application struct's typename will be used as the key to extract the application configuration 
+/// It provides methods to get the router, templates, migrations, tagged-sql and static files.
 /// from the site configuration toml file.
 pub trait Application: Send + 'static{
     
     fn router(&self)->Router<Site>;
 
-    fn template_dir(&self)->Dir<'static>{
-        Dir::new("", &[])
+    fn templates_dir(&self)->Option<Dir>{
+        None
     }
 
-    fn static_dir(&self)->Dir<'static>{
-        Dir::new("", &[])
+    fn static_dir(&self)->Option<Dir>{
+        None
     }
 
-    fn migration_dir(&self)->Dir<'static>{
-        Dir::new("", &[])
+    fn migration_dir(&self)->Option<Dir>{
+        None    
+    }
+
+    fn sql_dir(&self)->Option<Dir>{
+        None
+    }
+
+    fn services(&self) -> Vec<Box<dyn Service>> {
+        Vec::new()
     }
 
     fn start(&mut self, site: Site){}
@@ -46,7 +46,8 @@ pub trait Application: Send + 'static{
 }
 
 
-pub struct RouterApplication(pub Router<Site>);
+#[derive(Clone, Debug)]
+pub struct RouterApplication( pub Router<Site>);
 
 
 impl Application for RouterApplication {

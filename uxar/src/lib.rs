@@ -11,6 +11,7 @@ mod roles;
 mod validation;
 mod views;
 mod layers;
+mod watch;
 pub mod db;
 pub mod embed;
 pub mod testing;
@@ -20,7 +21,7 @@ mod defer;
 
 
 pub use site::{Site, SiteError};
-pub use conf::SiteConf;
+pub use conf::{SiteConf, StaticDir};
 pub use app::{Application, IntoApplication};
 pub use host::{HostService};
 pub use axum::extract::{FromRequest, Json, Path, State, FromRequestParts};

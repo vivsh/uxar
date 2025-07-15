@@ -1,31 +1,31 @@
-use argh;
-use axum::body::Body;
-use axum::extract::Request;
-use axum::http::Uri;
-use axum::{Extension, Router, ServiceExt as _};
-use chrono::format;
-use include_dir::{Dir, DirEntry, File};
-use sqlx::PgPool;
-use sqlx::postgres::PgPoolOptions;
-use std::any::Any;
-use std::collections::VecDeque;
-use std::net::{SocketAddr, ToSocketAddrs as _};
-use std::{any::TypeId, collections::HashMap, path::PathBuf, sync::Arc};
-use tower::{Layer as _, ServiceExt};
-use tower_http::catch_panic::CatchPanicLayer;
-use tower_http::services::ServeDir;
-
-use crate::IntoApplication;
-use crate::app::Application;
+use crate::app::{self, Application};
 use crate::auth::Authenticator;
 use crate::db::DbExecutor;
 use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
+use crate::{IntoApplication, embed, watch};
 use crate::{
     cmd::{NestedCommand, SiteCommand},
     conf::SiteConf,
 };
+use argh;
+use axum::body::Body;
+use axum::extract::Request;
+use axum::{Extension, Router, ServiceExt as _};
+use futures;
+use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
+use std::any::Any;
+use std::collections::VecDeque;
+use std::fs;
+use std::io;
+use std::net::{SocketAddr, ToSocketAddrs as _};
+use std::{any::TypeId, collections::HashMap, path::PathBuf, sync::Arc};
+use tower::Layer as _;
+use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::services::ServeDir;
 
-use thiserror::Error;
+use std::path::Path;
+use thiserror::Error; // Import the Path type
 
 #[derive(Debug, Error)]
 pub enum SiteError {
@@ -48,33 +48,53 @@ pub enum SiteError {
     IOError(#[from] std::io::Error),
 }
 
-fn collect_files(dir: include_dir::Dir<'static>, store: &mut Vec<File<'static>>) {
+fn collect_files(dir: embed::Dir, store: &mut Vec<embed::File>) {
     let binding = [dir];
-    let mut stack: VecDeque<&include_dir::Dir<'static>> = VecDeque::from_iter(&binding);
+    let mut stack: VecDeque<embed::Dir> = VecDeque::from_iter(binding);
     while let Some(current_dir) = stack.pop_front() {
-        for subdir in current_dir.dirs() {
-            stack.push_back(subdir);
-        }
-        for file in current_dir.files() {
-            store.push(file.clone());
+        for subdir in current_dir.entries() {
+            match subdir {
+                embed::Entry::File(file) => store.push(file),
+                embed::Entry::Dir(subdir) => stack.push_back(subdir),
+            }
         }
     }
 }
 
+/// Recursively iterates through a given directory and yields `File` objects.
+pub fn iter_files_recursively<P: AsRef<Path>>(
+    dir: P,
+) -> impl Iterator<Item = io::Result<fs::File>> {
+    fn visit_dirs(dir: &Path) -> io::Result<Vec<PathBuf>> {
+        let mut files = Vec::new();
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                files.extend(visit_dirs(&path)?);
+            } else {
+                files.push(path);
+            }
+        }
+        Ok(files)
+    }
+
+    let files = visit_dirs(dir.as_ref()).unwrap_or_else(|_| Vec::new());
+    files.into_iter().map(|path| fs::File::open(path))
+}
+
 pub struct SiteBuilder {
     conf: SiteConf,
-    static_files: Vec<File<'static>>,
-    template_files: Vec<File<'static>>,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     router: Router<Site>,
+    apps: Vec<Arc<dyn Application>>,
 }
 
 impl SiteBuilder {
     fn new(conf: SiteConf) -> Self {
         Self {
             conf,
-            static_files: Vec::new(),
-            template_files: Vec::new(),
+            apps: Vec::new(),
             router: Router::new(),
             services: HashMap::new(),
         }
@@ -91,14 +111,11 @@ impl SiteBuilder {
         let app = app.into_app();
         let mut router = app.router();
 
-        collect_files(app.static_dir(), &mut self.static_files);
-
-        collect_files(app.template_dir(), &mut self.template_files);
-
         let app = Arc::new(app);
+        let app_clone = Arc::clone(&app);
         router = router.layer(axum::middleware::from_fn(
             move |mut req: Request<Body>, next: axum::middleware::Next| {
-                let app = Arc::clone(&app);
+                let app = app_clone.clone();
                 async move {
                     req.extensions_mut().insert(Extension(app));
                     next.run(req).await
@@ -112,12 +129,62 @@ impl SiteBuilder {
             self.router = self.router.nest(path, router);
         }
 
+        self.apps.push(app);
+
         self
     }
 
     pub async fn run(self) -> Result<(), SiteError> {
         let site = self.build().await?;
         site.run().await
+    }
+
+    fn inject_templates(
+        apps: &[Arc<dyn Application>],
+        conf: &SiteConf,
+        project_dir: &Path,
+        env: &mut minijinja::Environment,
+    ) -> Result<(), SiteError> {
+        let mut dir_vec = Vec::new();
+
+        for app in apps {
+            if let Some(dir) = app.templates_dir() {
+                dir_vec.push(dir);
+            }
+        }
+
+        // iterate over files in conf.templates_dir
+        if let Some(templates_dir) = &conf.templates_dir {
+            let path = project_dir.join(templates_dir);
+            dir_vec.push(embed::Dir::Path {
+                root: path.clone(),
+                path,
+            });
+        }
+
+        for file in embed::DirSet::new(dir_vec).walk() {
+            let path = file.path();
+            let name = path.to_string_lossy().to_string();
+            let content = file.read_bytes_sync().map_err(|e| {
+                SiteError::ConfigError(format!(
+                    "Failed to read template file: {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
+            let body = String::from_utf8(content).map_err(|e| {
+                SiteError::ConfigError(format!(
+                    "Invalid UTF-8 in template file: {}: {}",
+                    path.display(),
+                    e
+                ))
+            })?;
+            if let Err(err) = env.add_template_owned(name, body) {
+                return Err(SiteError::TemplateError(err));
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn build(self) -> Result<Site, SiteError> {
@@ -128,7 +195,7 @@ impl SiteBuilder {
         for static_dir in &self.conf.static_dirs {
             let path = project_dir.join(&static_dir.path);
             let serve_dir = ServeDir::new(&path).append_index_html_on_directories(false);
-            router = router.route_service(&static_dir.url, serve_dir);
+            router = router.nest_service(&static_dir.url, serve_dir);
         }
 
         let mut env = minijinja::Environment::new();
@@ -143,11 +210,11 @@ impl SiteBuilder {
             query.insert(key.to_string(), value.to_string());
         }
         let max_connections = query
-            .remove("max_connections")
+            .remove("max")
             .and_then(|s| s.parse().ok())
             .unwrap_or(10);
         let min_connections = query
-            .remove("min_connections")
+            .remove("min")
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);
 
@@ -157,17 +224,7 @@ impl SiteBuilder {
             .connect(&db_url)
             .await?;
 
-        for file in self.template_files {
-            let path = file
-                .path()
-                .to_str()
-                .expect(&format!("Invalid UTF-8 path: {:?}", file.path()));
-            let body = String::from_utf8(file.contents().to_vec())
-                .expect(&format!("Invalid UTF-8 content in file: {:?}", file.path()));
-            if let Err(err) = env.add_template_owned(path, body) {
-                panic!("Failed to add template: {}, Error: {}", path, err);
-            }
-        }
+        Self::inject_templates(&self.apps, &self.conf, &project_dir, &mut env)?;
 
         let authenticator = Authenticator::new(&self.conf.auth, &self.conf.secret_key);
         router = router
@@ -176,6 +233,7 @@ impl SiteBuilder {
 
         let site = Site {
             inner: Arc::new(SiteInner {
+                start_time: std::time::Instant::now(),
                 conf: self.conf,
                 services: self.services,
                 pool,
@@ -195,6 +253,7 @@ impl<T: Send + Sync + Any> Service for T {} // Blanket impl
 
 #[derive(Clone, Debug)]
 struct SiteInner {
+    start_time: std::time::Instant,
     conf: SiteConf,
     authenticator: Authenticator,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
@@ -213,10 +272,14 @@ impl Site {
         SiteBuilder::new(conf)
     }
 
-    pub fn render_template(
+    pub fn uptime(&self) -> std::time::Duration {
+        self.inner.start_time.elapsed()
+    }
+
+    pub fn render_template<S: serde::Serialize>(
         &self,
         template_name: &str,
-        context: &minijinja::value::Value,
+        context: &S,
     ) -> Result<String, minijinja::Error> {
         self.inner
             .template_env
@@ -278,24 +341,20 @@ impl Site {
 
         let service = tower::util::MapRequestLayer::new(rewrite_request_path).layer(self.router());
 
+        let touch_reload = self.inner.conf.touch_reload.clone();
         axum::serve(listener, service.into_make_service())
-            .with_graceful_shutdown(Self::shutdown_signal(verbose))
+            .with_graceful_shutdown(watch::shutdown_signal(touch_reload))
             .await?;
 
         Ok(())
     }
 
-    async fn shutdown_signal(verbose: bool) {
-        use tokio::signal;
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
-        if verbose {
-            println!("Signal received, starting graceful shutdown");
-        }
-    }
-
     async fn run(self) -> Result<(), SiteError> {
+        if self.inner.conf.log_init{
+            tracing_subscriber::fmt()
+                .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+                .init();
+        }
         let cmd: SiteCommand = argh::from_env();
         match cmd.nested {
             NestedCommand::Init(_) => {}
@@ -304,5 +363,15 @@ impl Site {
             }
         }
         Ok(())
+    }
+}
+
+impl axum::extract::FromRequest<Site> for Site {
+    type Rejection = axum::http::StatusCode;
+
+    // Suppress the unused variable warning for `req` in `from_request`
+    #[allow(unused_variables)]
+    async fn from_request(req: Request<Body>, state: &Site) -> Result<Self, Self::Rejection> {
+        Ok(state.clone())
     }
 }

@@ -26,6 +26,10 @@ pub struct SiteConf {
 
     pub templates_dir: Option<String>,
 
+    pub touch_reload: Option<String>,
+
+    pub log_init: bool,
+
     pub auth: AuthConf,
 }
 
@@ -39,7 +43,9 @@ impl Default for SiteConf {
             secret_key: "".to_string(),
             static_dirs: vec![],
             upload_dir: None,
+            touch_reload: None,
             templates_dir: None,
+            log_init: true,
             auth: AuthConf::default(),
         }
     }

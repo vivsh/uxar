@@ -1,31 +1,33 @@
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use uxar::embed::{embed, File, Dir, Entry, DirSet};
-use once_cell::sync::Lazy;
+
 
 #[test]
 fn test_file_path_and_read() {
-    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/embed/foo.txt");
-    let file = File::Path(file_path.clone());
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let file_path = root.join("tests/data/embed/foo.txt");
+    let file = File::Path { root, path: file_path.clone() };
     assert_eq!(file.base_name(), Some("foo.txt"));
     assert!(!file.is_embedded());
-    assert_eq!(file.path(), file_path.as_path());
+    assert_eq!(file.path(), PathBuf::from("tests/data/embed/foo.txt"));
     let bytes = file.read_bytes_sync().unwrap();
     assert_eq!(bytes, b"hello world\n");
 }
 
 #[tokio::test]
 async fn test_file_path_async_read() {
-    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/data/embed/foo.txt");
-    println!(">>>> {:?}", file_path);
-    let file = File::Path(file_path);
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let file_path = root.join("tests/data/embed/foo.txt");
+    let file = File::Path { root, path: file_path };
     let bytes = file.read_bytes_async().await.unwrap();
     assert_eq!(bytes, b"hello world\n");
 }
 
 #[test]
 fn test_file_path_nonexistent() {
-    let file_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("uxar/tests/data/embed/does_not_exist.txt");
-    let file = File::Path(file_path);
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let file_path = root.join("uxar/tests/data/embed/does_not_exist.txt");
+    let file = File::Path { root, path: file_path };
     assert!(file.read_bytes_sync().is_err());
 }
 

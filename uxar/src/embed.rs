@@ -3,14 +3,18 @@ pub use uxar_macros::embed;
 
 pub enum File{
     Embed(include_dir::File<'static>),
-    Path(std::path::PathBuf),
+    Path { root: std::path::PathBuf, path: std::path::PathBuf },
 }
 
 impl File {
 
     pub fn base_name(&self) -> Option<&str> {
-        self.path().file_name()
-            .and_then(|name| name.to_str())
+        match self {
+            File::Embed(file) => file.path().file_name()
+                .and_then(|name| name.to_str()),
+            File::Path { path, .. } => path.file_name()
+                .and_then(|name| name.to_str()),            
+        }
     }
 
     pub fn is_embedded(&self) -> bool {
@@ -20,21 +24,21 @@ impl File {
     pub fn path(&self) -> &std::path::Path {
         match self {
             File::Embed(file) => file.path(),
-            File::Path(path) => path.as_path(),
+            File::Path { root, path } => path.strip_prefix(root).unwrap_or(path),
         }
     }
 
     pub fn read_bytes_sync(&self) -> std::io::Result<Vec<u8>> {
         match self {
             File::Embed(file) => Ok(file.contents().to_vec()),
-            File::Path(path_buf) => std::fs::read(path_buf),
+            File::Path { path, .. } => std::fs::read(path),
         }
     }
 
     pub async fn read_bytes_async(&self) -> std::io::Result<Vec<u8>> {
         match self {
             File::Embed(file) => Ok(file.contents().to_vec()),
-            File::Path(path_buf) => tokio::fs::read(path_buf).await,
+            File::Path { path, .. } => tokio::fs::read(path).await,
         }
     }
 }
@@ -42,26 +46,31 @@ impl File {
 
 pub enum Dir {
     Embed(include_dir::Dir<'static>),
-    Path(std::path::PathBuf),
+    Path { root: std::path::PathBuf, path: std::path::PathBuf },
 }
 
 impl Dir {
 
+    pub fn empty() -> Self {
+        Dir::Embed(include_dir::Dir::new("", &[]))
+    }
+
     pub fn new(path: &'static str) -> Self {
         let base = env!("CARGO_MANIFEST_DIR");
-        Dir::Path(std::path::PathBuf::from(base).join(path))
+        Dir::Path { root: std::path::PathBuf::from(base).join(path), path: std::path::PathBuf::from(base).join(path) }
     }
 
     pub fn is_embedded(&self) -> bool {
         matches!(self, Dir::Embed(_))
     }
 
-    pub fn path(&self) -> &std::path::Path {
+    pub fn path(&self) -> &std::path::Path{
         match self {
             Dir::Embed(dir) => dir.path(),
-            Dir::Path(path) => path.as_path(),
+            Dir::Path { root, path } => path.strip_prefix(root).unwrap_or(path),
         }
     }
+    
 
     pub fn entries(&self) -> Vec<Entry> {
         match self {
@@ -69,15 +78,21 @@ impl Dir {
                 .map(|file| Entry::File(File::Embed(file.clone())))
                 .chain(dir.dirs().map(|subdir| Entry::Dir(Dir::Embed(subdir.clone()))))
                 .collect(),
-            Dir::Path(path_buf) => {
+            Dir::Path { root, path } => {
                 let mut entries = Vec::new();
-                if let Ok(entries_iter) = std::fs::read_dir(path_buf) {
+                if let Ok(entries_iter) = std::fs::read_dir(path) {
                     for entry in entries_iter.flatten() {
-                        let path = entry.path();
-                        if path.is_file() {
-                            entries.push(Entry::File(File::Path(path)));
-                        } else if path.is_dir() {
-                            entries.push(Entry::Dir(Dir::Path(path)));
+                        let entry_path = entry.path();
+                        if entry_path.is_file() {
+                            entries.push(Entry::File(File::Path {
+                                root: root.clone(),
+                                path: entry_path,
+                            }));
+                        } else if entry_path.is_dir() {
+                            entries.push(Entry::Dir(Dir::Path {
+                                root: root.clone(),
+                                path: entry_path,
+                            }));
                         }
                     }
                 }
@@ -89,10 +104,10 @@ impl Dir {
     pub fn get_file(&self, name: &str) -> Option<File> {
         match self {
             Dir::Embed(dir) => dir.get_file(name).map(|file| File::Embed(file.clone())),
-            Dir::Path(path_buf) => {
-                let path = path_buf.join(name);
+            Dir::Path { root, path } => {
+                let path = path.join(name);
                 if path.is_file() {
-                    Some(File::Path(path))
+                    Some(File::Path { root: root.clone(), path })
                 } else {
                     None
                 }

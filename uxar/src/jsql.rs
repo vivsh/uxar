@@ -20,7 +20,7 @@ where
 
 pub async fn jsql_first<'q, A>(
     pool: &PgPool,
-    mut query: Query<'q, Postgres, A>,
+    query: Query<'q, Postgres, A>,
 ) -> axum::response::Response
 where
     for<'r> A: IntoArguments<'r, Postgres> + Default + Send,
@@ -28,7 +28,7 @@ where
     jsql_get_strict(pool, query, false).await
 }
 
-async fn jsql_get_strict<'q, A>(
+pub async fn jsql_get_strict<'q, A>(
     pool: &PgPool,
     mut query: Query<'q, Postgres, A>,
     strict: bool,

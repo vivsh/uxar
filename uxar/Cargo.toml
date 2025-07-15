@@ -43,6 +43,8 @@ serde_urlencoded = "0.7"
 uxar-macros = { path = "../uxar-macros" }
 once_cell = { version = "1.21.3", features = ["parking_lot"] }
 axum-test = "17.3.0"
+notify = "8.1.0"
+futures = "0.3.31"
 
 [dev-dependencies]
 tempfile = "3"

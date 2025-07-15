@@ -1,40 +1,42 @@
-use axum::Router;
-use uxar::{embed::{Entry, Dir, embed}, Application, IntoApplication, Site, SiteConf, embed};
+use axum::{response::Response, Router};
+use uxar::{
+    db, embed::{self, embed, Dir, DirSet, Entry}, Application, IntoApplication, Site, SiteConf
+};
 
 
+async fn handle_sql(site: Site) -> Response{
+    let query = "SELECT * FROM users WHERE id = $1";
+    return uxar::db::jsql_all(site.db().pool(), sqlx::query(query)).await;
+}
 
 #[tokio::main]
 async fn main() {
-    let dir: Dir = embed!("tests", true);
-    for d in dir.entries() {
-        println!("Entry: {:?}", d.path());
-        if let Entry::File(file) = d {
-            println!("File: {:?}", file.base_name());
-            println!("Path: {}", file.path().display());
-            println!("Contents: {:?}", file.read_bytes_async().await.unwrap().len());
-        }
-    }
+    // let dir: Dir = embed!("tests");
+    // let dirset = DirSet::new(vec![dir]);
+    // for d in dirset.walk() {
+    //     println!("Entry: {:?}", d.path());
+    //     {
+    //         println!("File: {:?}", d.base_name());
+    //         println!("Path: {}", d.path().display());
+    //         println!("Contents: {:?}", d.read_bytes_async().await.unwrap().len());
+    //     }
+    // }
 
+    let conf = SiteConf {
+        ..SiteConf::from_env()
+    };
 
-    
-    // let conf = SiteConf{
-    //     host: "localhost".into(),
-    //     port: 8080,
-    //     database: "postgres:///uxar".into(),
-    //     ..Default::default()
-    // };
+    let router = Router::new().fallback(|| async { "<h1>Hello, Uxar!</h1>" });
 
-    // let router = Router::<Site>::new().fallback(|| async {
-    //     "<h1>Hello, Uxar!</h1>"
-    // });
+    let router2 = Router::new().route(
+        "/earth/",
+        axum::routing::get(|| async { "<h1>Fallback Route</h1>" }),
+    );
 
-
-    // let router2 = Router::<Site>::new().route("/earth/", axum::routing::get(|| async { "<h1>Fallback Route</h1>" }));
-
-    // Site::builder(conf)
-    // .mount("", router)
-    // .mount("/world", router2)
-    // .run().await
-    //     .expect("Failed to build site");
-
+    Site::builder(conf)
+        .mount("", router)
+        .mount("/world", router2)
+        .run()
+        .await
+        .expect("Failed to build site");
 }
