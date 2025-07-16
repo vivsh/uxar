@@ -155,7 +155,7 @@ impl SiteBuilder {
 
         // iterate over files in conf.templates_dir
         if let Some(templates_dir) = &conf.templates_dir {
-            let path = project_dir.join(templates_dir);
+            let path = crate::conf::project_dir().join(templates_dir);
             dir_vec.push(embed::Dir::Path {
                 root: path.clone(),
                 path,
@@ -188,7 +188,7 @@ impl SiteBuilder {
     }
 
     pub async fn build(self) -> Result<Site, SiteError> {
-        let project_dir = Site::project_dir();
+        let project_dir = PathBuf::from(&self.conf.project_dir);        ;
 
         let mut router = self.router;
 
@@ -233,6 +233,7 @@ impl SiteBuilder {
 
         let site = Site {
             inner: Arc::new(SiteInner {
+                project_dir,
                 start_time: std::time::Instant::now(),
                 conf: self.conf,
                 services: self.services,
@@ -254,6 +255,7 @@ impl<T: Send + Sync + Any> Service for T {} // Blanket impl
 #[derive(Clone, Debug)]
 struct SiteInner {
     start_time: std::time::Instant,
+    project_dir: PathBuf,
     conf: SiteConf,
     authenticator: Authenticator,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
@@ -274,6 +276,10 @@ impl Site {
 
     pub fn uptime(&self) -> std::time::Duration {
         self.inner.start_time.elapsed()
+    }
+
+    pub fn project_dir(&self) -> &Path {
+        self.inner.project_dir.as_path()
     }
 
     pub fn render_template<S: serde::Serialize>(
@@ -309,14 +315,6 @@ impl Site {
         router
     }
 
-    fn project_dir() -> PathBuf {
-        if let Some(manifest_dir) = std::env::var_os("CARGO_MANIFEST_DIR") {
-            PathBuf::from(manifest_dir)
-        } else {
-            std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
-        }
-    }
-
     async fn serve_forver(self, verbose: bool) -> Result<(), SiteError> {
         let host = self.inner.conf.host.clone();
         let port = self.inner.conf.port;
@@ -342,6 +340,7 @@ impl Site {
         let service = tower::util::MapRequestLayer::new(rewrite_request_path).layer(self.router());
 
         let touch_reload = self.inner.conf.touch_reload.clone();
+        
         axum::serve(listener, service.into_make_service())
             .with_graceful_shutdown(watch::shutdown_signal(touch_reload))
             .await?;

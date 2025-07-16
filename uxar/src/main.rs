@@ -6,7 +6,7 @@ use uxar::{
 
 async fn handle_sql(site: Site) -> Response{
     let query = "SELECT * FROM users WHERE id = $1";
-    return uxar::db::jsql_all(site.db().pool(), sqlx::query(query)).await;
+    return uxar::db::jsql_all(site.db().pool(), sqlx::query(query).bind(1)).await;
 }
 
 #[tokio::main]

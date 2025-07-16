@@ -1,6 +1,19 @@
+use std::path::PathBuf;
+
 use crate::{app::Application, auth::AuthConf};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+
+
+pub fn project_dir() -> PathBuf {
+    if let Some(manifest_dir) = std::env::var_os("CARGO_MANIFEST_DIR") {
+        PathBuf::from(manifest_dir)
+    } else {
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+    }
+}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StaticDir {
@@ -38,7 +51,7 @@ impl Default for SiteConf {
         Self {
             host: "localhost".to_string(),
             port: 8080,
-            project_dir: ".".to_string(),
+            project_dir: project_dir().as_os_str().to_string_lossy().to_string(),
             database: "".to_string(),
             secret_key: "".to_string(),
             static_dirs: vec![],

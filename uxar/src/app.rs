@@ -35,10 +35,6 @@ pub trait Application: Send + 'static{
         None
     }
 
-    fn services(&self) -> Vec<Box<dyn Service>> {
-        Vec::new()
-    }
-
     fn start(&mut self, site: Site){}
 
     fn stop(&mut self, site: Site){}
