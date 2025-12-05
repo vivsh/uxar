@@ -1,8 +1,8 @@
 [workspace]
 
 members = [ 
-  "uxar"
-, "uxar-db", "uxar-macros"]
+  "uxar", 
+  "uxar-macros"]
 
 resolver = "3"
 

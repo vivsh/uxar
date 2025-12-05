@@ -15,7 +15,7 @@ mod watch;
 pub mod db;
 pub mod embed;
 pub mod testing;
-
+pub mod cron;
 
 mod defer;
 

@@ -61,6 +61,8 @@ fn collect_files(dir: embed::Dir, store: &mut Vec<embed::File>) {
     }
 }
 
+pub type SiteCallback = fn(&Site)->();
+
 /// Recursively iterates through a given directory and yields `File` objects.
 pub fn iter_files_recursively<P: AsRef<Path>>(
     dir: P,
@@ -88,6 +90,8 @@ pub struct SiteBuilder {
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     router: Router<Site>,
     apps: Vec<Arc<dyn Application>>,
+    startup_callback: Option<SiteCallback>,
+    shutdown_callback: Option<SiteCallback>,
 }
 
 impl SiteBuilder {
@@ -97,6 +101,8 @@ impl SiteBuilder {
             apps: Vec::new(),
             router: Router::new(),
             services: HashMap::new(),
+            startup_callback: None,
+            shutdown_callback: None,
         }
     }
 
@@ -243,6 +249,10 @@ impl SiteBuilder {
                 router,
             }),
         };
+
+        if let Some(callback) = self.startup_callback {
+            callback(&site);
+        }
 
         Ok(site)
     }
