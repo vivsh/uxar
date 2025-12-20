@@ -1,14 +1,46 @@
-mod embed;
 
+mod schemable;
+mod scannable;
+mod validatable;
+mod bindable;
+mod filterable;
+mod recordable;
+mod viewable;
+
+use proc_macro::TokenStream;
 extern crate proc_macro;
 
 
-/// Embed a directory at compile time, returning a `Dir` enum. The path should be a literal string 
-/// and relative to the crate root.
-/// embed!("dir")                 → Dir::new (debug) / Dir::Embed (release)
-/// embed!("dir", true)           → Dir::Embed (always)
-/// embed!("dir", false)          → Dir::new  (debug) / Dir::Embed (release)
-#[proc_macro]
-pub fn embed(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    embed::embed(input)
+#[proc_macro_derive(Schemable, attributes(column))]
+pub fn derive_schemable(input: TokenStream) -> TokenStream {
+    schemable::derive_schemable(input)
+}
+
+
+#[proc_macro_derive(Scannable, attributes(column))]
+pub fn derive_scannable(input: TokenStream) -> TokenStream {
+    scannable::derive_scannable(input)
+}
+
+
+#[proc_macro_derive(Bindable, attributes(column))]
+pub fn derive_bindable(input: TokenStream) -> TokenStream {
+    bindable::derive_bindable(input)
+}
+
+
+#[proc_macro_derive(Filterable, attributes(filterable, filter))]
+pub fn derive_filterable(input: TokenStream) -> TokenStream {
+    filterable::derive_filterable(input)
+}
+
+
+#[proc_macro_attribute]
+pub fn action(attr: TokenStream, item: TokenStream) -> TokenStream {
+    viewable::parse_action(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn viewable(attr: TokenStream, item: TokenStream) -> TokenStream {
+    viewable::parse_viewable(attr, item)
 }

@@ -5,7 +5,6 @@ use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum_extra::extract::cookie::{self, Cookie};
 use axum_extra::extract::CookieJar;
-use axum_extra::headers::Header;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Validation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -60,10 +59,6 @@ impl Default for AuthConf {
     }
 }
 
-
-fn extract_typed<T: Header>(parts: &Parts) -> Option<T> {
-    T::decode(&mut parts.headers.values()).ok()
-}
 
 fn extract_token(parts: &Parts) -> Option<&str> {
     let header = parts.headers.get(header::AUTHORIZATION)?;
@@ -167,7 +162,7 @@ impl Authenticator {
             .map_err(|e| AuthError::from(&e))
     }
 
-    pub fn extract(&self, parts: &Parts, aud: Vec<String>, refresh: bool) -> Result<AuthUser, AuthError> {
+    pub fn extract_claims(&self, parts: &Parts, refresh: bool) -> Result<JWTClaim, AuthError> {
         let cookies_conf = if refresh{
             &self.refresh_cookie_conf
         } else {
@@ -186,9 +181,14 @@ impl Authenticator {
                     })
             })
             .ok_or(AuthError::MissingToken)?;
-        let claims = self.decode(&token)?;
+        let claims = self.decode(&token)?;        
+        return Ok(claims);
+    }
+
+    pub fn extract_user(&self, parts: &Parts, aud: &[&str], refresh: bool) -> Result<AuthUser, AuthError> {
+        let claims = self.extract_claims(parts, refresh)?;
         if !claims.aud.is_empty() && !aud.is_empty() {
-            if !claims.aud.iter().any(|a| aud.contains(a)) {
+            if !claims.aud.iter().any(|a| {aud.iter().any(|&b| a == b)}) {
                 return Err(AuthError::Forbidden);
             }
         }
@@ -196,7 +196,8 @@ impl Authenticator {
         return Ok(user);
     }
 
-    pub fn create_token_pair(&self, user: AuthUser, aud: Vec<String>) -> Result<TokenPair, AuthError> {
+    pub fn create_token_pair(&self, user: AuthUser, aud: &[&str]) -> Result<TokenPair, AuthError> {
+        let aud: Vec<String> = aud.iter().map(|&s| s.to_string()).collect();
         let access_claims = JWTClaim::new(&user, "", aud.clone(), self.access_ttl);
         let access_token = self.encode(&access_claims)?;
         let mut refresh_claims = JWTClaim::new(&user, "", aud, self.refresh_ttl);
@@ -216,11 +217,16 @@ impl Authenticator {
         } else {
             self.access_cookie_same_site
         };
+        let access_ttl = if refresh {
+            self.refresh_ttl
+        } else {
+            self.access_ttl
+        };
         if let Some(conf) = cookie_conf {
             let c = Cookie::build((&conf.name, token))
                 .path(conf.path.as_str())
-                .max_age(time::Duration::seconds(self.access_ttl))
-                .http_only(true)
+                .max_age(time::Duration::seconds(access_ttl))
+                .http_only(conf.http_only)
                 .same_site(same_site)
                 .secure(conf.secure)
                 .build();
@@ -241,9 +247,9 @@ impl Authenticator {
         }
     }
 
-    pub fn refresh(&self, parts: &Parts, aud: Vec<String>) -> Result<TokenPair, AuthError> {
+    pub fn refresh(&self, parts: &Parts, aud: &[&str]) -> Result<TokenPair, AuthError> {
         // generate refresh token and bind it to cookie just like login
-        let user = self.extract(parts, aud.clone(), true)?;
+        let user = self.extract_user(parts, aud, true)?;
         let pair = self.create_token_pair(user, aud)?;
         return Ok(pair)
     }
@@ -366,9 +372,9 @@ impl axum::extract::FromRequestParts<Site> for AuthUser {
     type Rejection = AuthError;
 
     async fn from_request_parts(parts: &mut Parts, site: &Site) -> Result<Self, Self::Rejection> {
-        let refresh = true;
+        let refresh = false;
         let auth = site.authenticator();
-        let user_result = auth.extract(parts, Vec::new(), refresh);
+        let user_result = auth.extract_user(parts, &[], refresh);
         let user = user_result?;
         Ok(user)
     }
@@ -383,26 +389,3 @@ pub trait AuthBackend{
 
 }
 
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::auth;
-    use crate::conf::SiteConf;
-    use crate::site::Site;
-    use axum::http::{Request, StatusCode};
-    use axum::response::IntoResponse;
-    use axum_extra::extract::cookie::{Cookie, CookieJar};
-    use std::sync::Arc;
-
-    #[tokio::test]
-    async fn test_authenticator() {
-        let conf = SiteConf {
-            secret_key: "secret".to_string(),
-            ..Default::default()
-        };
-
-    }
-
-}
-        

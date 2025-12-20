@@ -9,7 +9,10 @@ proc-macro = true
 
 [dependencies]
 include_dir = { version = "0.7.4", features = ["glob"] }
-proc-macro2 = "1.0.95"
-quote = "1.0.40"
-syn = { version = "2.0.104", features = ["full"] }
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+darling = "0.20"
+heck = "0.4"
+
 tokio = {workspace = true}

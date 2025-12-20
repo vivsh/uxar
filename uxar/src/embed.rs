@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-pub use uxar_macros::embed;
 
 pub enum File{
     Embed(include_dir::File<'static>),

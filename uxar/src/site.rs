@@ -1,6 +1,6 @@
-use crate::app::{self, Application};
+use crate::app::{Application};
 use crate::auth::Authenticator;
-use crate::db::DbExecutor;
+use crate::db::{DbError, DbPool};
 use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
 use crate::{IntoApplication, embed, watch};
 use crate::{
@@ -11,13 +11,10 @@ use argh;
 use axum::body::Body;
 use axum::extract::Request;
 use axum::{Extension, Router, ServiceExt as _};
-use futures;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use tokio::sync::mpsc;
 use std::any::Any;
-use std::collections::VecDeque;
-use std::fs;
-use std::io;
 use std::net::{SocketAddr, ToSocketAddrs as _};
 use std::{any::TypeId, collections::HashMap, path::PathBuf, sync::Arc};
 use tower::Layer as _;
@@ -29,8 +26,8 @@ use thiserror::Error; // Import the Path type
 
 #[derive(Debug, Error)]
 pub enum SiteError {
-    #[error("Database connection error: {0}")]
-    DatabaseConnectionError(#[from] sqlx::Error),
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] DbError),
 
     #[error("Service not found for type: {0}")]
     ServiceNotFound(String),
@@ -48,50 +45,12 @@ pub enum SiteError {
     IOError(#[from] std::io::Error),
 }
 
-fn collect_files(dir: embed::Dir, store: &mut Vec<embed::File>) {
-    let binding = [dir];
-    let mut stack: VecDeque<embed::Dir> = VecDeque::from_iter(binding);
-    while let Some(current_dir) = stack.pop_front() {
-        for subdir in current_dir.entries() {
-            match subdir {
-                embed::Entry::File(file) => store.push(file),
-                embed::Entry::Dir(subdir) => stack.push_back(subdir),
-            }
-        }
-    }
-}
-
-pub type SiteCallback = fn(&Site)->();
-
-/// Recursively iterates through a given directory and yields `File` objects.
-pub fn iter_files_recursively<P: AsRef<Path>>(
-    dir: P,
-) -> impl Iterator<Item = io::Result<fs::File>> {
-    fn visit_dirs(dir: &Path) -> io::Result<Vec<PathBuf>> {
-        let mut files = Vec::new();
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                files.extend(visit_dirs(&path)?);
-            } else {
-                files.push(path);
-            }
-        }
-        Ok(files)
-    }
-
-    let files = visit_dirs(dir.as_ref()).unwrap_or_else(|_| Vec::new());
-    files.into_iter().map(|path| fs::File::open(path))
-}
 
 pub struct SiteBuilder {
     conf: SiteConf,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     router: Router<Site>,
     apps: Vec<Arc<dyn Application>>,
-    startup_callback: Option<SiteCallback>,
-    shutdown_callback: Option<SiteCallback>,
 }
 
 impl SiteBuilder {
@@ -101,8 +60,6 @@ impl SiteBuilder {
             apps: Vec::new(),
             router: Router::new(),
             services: HashMap::new(),
-            startup_callback: None,
-            shutdown_callback: None,
         }
     }
 
@@ -228,7 +185,7 @@ impl SiteBuilder {
             .max_connections(max_connections)
             .min_connections(min_connections)
             .connect(&db_url)
-            .await?;
+            .await.map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?;
 
         Self::inject_templates(&self.apps, &self.conf, &project_dir, &mut env)?;
 
@@ -250,17 +207,22 @@ impl SiteBuilder {
             }),
         };
 
-        if let Some(callback) = self.startup_callback {
-            callback(&site);
-        }
-
         Ok(site)
     }
 }
 
 pub trait Service: 'static + Send + Sync + std::any::Any {}
 
+
 impl<T: Send + Sync + Any> Service for T {} // Blanket impl
+
+
+pub trait SignalHandler: 'static + Send + Sync {
+
+    fn handle_signal(&self, site: &Site, object: &dyn Any);
+
+}
+
 
 #[derive(Clone, Debug)]
 struct SiteInner {
@@ -315,8 +277,8 @@ impl Site {
         &self.inner.authenticator
     }
 
-    pub fn db(&self) -> DbExecutor<'_> {
-        DbExecutor::new(&self.inner.pool)
+    pub fn db(&self) -> DbPool<'_> {
+        DbPool::new(&self.inner.pool)
     }
 
     /// Mainly needed for testing purposes.
@@ -325,7 +287,7 @@ impl Site {
         router
     }
 
-    async fn serve_forver(self, verbose: bool) -> Result<(), SiteError> {
+    async fn serve_forever(self, verbose: bool) -> Result<(), SiteError> {
         let host = self.inner.conf.host.clone();
         let port = self.inner.conf.port;
 
@@ -358,6 +320,18 @@ impl Site {
         Ok(())
     }
 
+    pub async fn notify_stream(
+        &self,
+        topics: &[&str],
+        capacity: usize,
+    ) -> Result<mpsc::Receiver<crate::db::Notify>, SiteError> {
+        let db_url = self.inner.conf.database.clone();
+        let receiver = crate::db::DbPool::consume_notify(&db_url, topics, capacity)
+            .await
+            .map_err(|e| SiteError::DatabaseError(e))?;
+        Ok(receiver)
+    }
+
     async fn run(self) -> Result<(), SiteError> {
         if self.inner.conf.log_init{
             tracing_subscriber::fmt()
@@ -368,7 +342,7 @@ impl Site {
         match cmd.nested {
             NestedCommand::Init(_) => {}
             NestedCommand::Serve(_) => {
-                self.serve_forver(cmd.verbose).await?;
+                self.serve_forever(cmd.verbose).await?;
             }
         }
         Ok(())
