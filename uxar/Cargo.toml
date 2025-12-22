@@ -29,8 +29,6 @@ strum = { version = "0.27.1", features = ["derive", "strum_macros"] }
 jsonwebtoken = "9.3.1"
 strum_macros = "0.27.1"
 axum-jsonschema = "0.8.0"
-utoipa = { version = "5.4.0", features = ["auto_into_responses", "axum_extras", "debug", "chrono", "url", "uuid", "openapi_extensions"] }
-garde = { version = "0.22.0", features = ["full", "pattern"] }
 anyhow = { version = "1.0.98", features = ["backtrace"] }
 schemars = "1.0.4"
 jsonschema = "0.30.0"
@@ -47,6 +45,7 @@ axum-test = "17.3.0"
 notify = "^8.1"
 futures = "0.3.31"
 twox-hash = "1.6"
+regex = "1.12.2"
 
 [dev-dependencies]
 tempfile = "3"

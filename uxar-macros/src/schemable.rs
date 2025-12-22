@@ -4,10 +4,59 @@ use quote::quote;
 use darling::{FromDeriveInput, FromField};
 use syn::{DeriveInput, parse_macro_input};
 
+/// Helper to extract OpenAPI validation constraints from field attributes
+fn field_validation_constraints(field: &SchemableField) -> proc_macro2::TokenStream {
+    let mut constraints = Vec::new();
+
+    // String format constraints
+    if field.email {
+        constraints.push(quote! { .format("email") });
+    }
+    if field.url {
+        constraints.push(quote! { .format("uri") });
+    }
+    if field.uuid {
+        constraints.push(quote! { .format("uuid") });
+    }
+
+    // Length constraints
+    if let Some(min) = field.min_length {
+        constraints.push(quote! { .min_length(#min) });
+    }
+    if let Some(max) = field.max_length {
+        constraints.push(quote! { .max_length(#max) });
+    }
+
+    // Value constraints
+    if let Some(ref min) = field.min_value {
+        if let Ok(min_lit) = syn::parse_str::<syn::Lit>(min) {
+            constraints.push(quote! { .minimum(#min_lit) });
+        }
+    }
+    if let Some(ref max) = field.max_value {
+        if let Ok(max_lit) = syn::parse_str::<syn::Lit>(max) {
+            constraints.push(quote! { .maximum(#max_lit) });
+        }
+    }
+
+    // Pattern constraint
+    if let Some(ref pattern) = field.pattern {
+        constraints.push(quote! { .pattern(#pattern) });
+    }
+
+    // Required constraint (non-empty)
+    if field.non_empty {
+        constraints.push(quote! { .min_length(1) });
+    }
+
+    quote! { #(#constraints)* }
+}
+
+
 
 
 #[derive(FromField)]
-#[darling(attributes(column))]
+#[darling(attributes(column, validate))]
 pub(crate) struct SchemableField {
     /// The field identifier (filled by darling)
     pub ident: Option<syn::Ident>,
@@ -41,6 +90,34 @@ pub(crate) struct SchemableField {
     /// Whether this column is updatable
     #[darling(default)]
     pub updatable: Option<bool>,
+
+    // Validation attributes (for OpenAPI schema constraints)
+    #[darling(default)]
+    pub email: bool,
+
+    #[darling(default)]
+    pub url: bool,
+
+    #[darling(default)]
+    pub uuid: bool,
+
+    #[darling(default)]
+    pub min_length: Option<usize>,
+
+    #[darling(default)]
+    pub max_length: Option<usize>,
+
+    #[darling(default)]
+    pub min_value: Option<String>,
+
+    #[darling(default)]
+    pub max_value: Option<String>,
+
+    #[darling(default)]
+    pub pattern: Option<String>,
+
+    #[darling(default)]
+    pub non_empty: bool,
 }
 
 

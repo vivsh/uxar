@@ -7,7 +7,8 @@ mod migrations;
 mod errors;
 mod auth;
 mod roles;
-mod validation;
+pub mod validation;
+mod validators;
 mod layers;
 mod tasks;
 mod watch;
@@ -24,5 +25,7 @@ pub use app::{Application, IntoApplication};
 pub use host::{HostService};
 pub use axum::extract::{FromRequest, Json, Path, State, FromRequestParts};
 pub use axum_extra::extract::{Query, Form, TypedHeader, Multipart};
-pub use auth::{AuthUser, AuthConf, AuthError};
+pub use auth::{AuthUser, AuthConf, AuthError};pub use validation::{Valid, ValidRejection, Validate, ValidationReport, ValidationError};
 
+// Re-export proc macros
+pub use uxar_macros::Validatable;

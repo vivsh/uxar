@@ -5,7 +5,7 @@ mod validatable;
 mod bindable;
 mod filterable;
 mod recordable;
-mod viewable;
+mod routable;
 
 use proc_macro::TokenStream;
 extern crate proc_macro;
@@ -35,12 +35,18 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 }
 
 
+#[proc_macro_derive(Validatable, attributes(validate))]
+pub fn derive_validatable(input: TokenStream) -> TokenStream {
+    validatable::derive_validatable(input)
+}
+
+
 #[proc_macro_attribute]
-pub fn action(attr: TokenStream, item: TokenStream) -> TokenStream {
-    viewable::parse_action(attr, item)
+pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream {
+    routable::parse_action(attr, item)
 }
 
 #[proc_macro_attribute]
-pub fn viewable(attr: TokenStream, item: TokenStream) -> TokenStream {
-    viewable::parse_viewable(attr, item)
+pub fn routable(attr: TokenStream, item: TokenStream) -> TokenStream {
+    routable::parse_routable(attr, item)
 }

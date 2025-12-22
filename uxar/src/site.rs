@@ -2,15 +2,17 @@ use crate::app::{Application};
 use crate::auth::Authenticator;
 use crate::db::{DbError, DbPool};
 use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
+use crate::views::Routable;
 use crate::{IntoApplication, embed, watch};
 use crate::{
+    views,
     cmd::{NestedCommand, SiteCommand},
     conf::SiteConf,
 };
 use argh;
 use axum::body::Body;
 use axum::extract::Request;
-use axum::{Extension, Router, ServiceExt as _};
+use axum::{Extension, Router as AxumRouter, ServiceExt as _};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::mpsc;
@@ -49,7 +51,7 @@ pub enum SiteError {
 pub struct SiteBuilder {
     conf: SiteConf,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-    router: Router<Site>,
+    router: views::Router,
     apps: Vec<Arc<dyn Application>>,
 }
 
@@ -58,7 +60,7 @@ impl SiteBuilder {
         Self {
             conf,
             apps: Vec::new(),
-            router: Router::new(),
+            router: views::Router::new(),
             services: HashMap::new(),
         }
     }
@@ -70,30 +72,13 @@ impl SiteBuilder {
     }
 
     /// Mount an application to the site at a specific path. axum::Router can also be used as an application.
-    pub fn mount<A: IntoApplication>(mut self, path: &str, app: A) -> Self {
-        let app = app.into_app();
-        let mut router = app.router();
+    pub fn mount<R:  views::Routable>(mut self, path: &str, namespace: &str, app: R) -> Self {
+       self.router = self.router.mount(path, namespace, app);
+        self
+    }
 
-        let app = Arc::new(app);
-        let app_clone = Arc::clone(&app);
-        router = router.layer(axum::middleware::from_fn(
-            move |mut req: Request<Body>, next: axum::middleware::Next| {
-                let app = app_clone.clone();
-                async move {
-                    req.extensions_mut().insert(Extension(app));
-                    next.run(req).await
-                }
-            },
-        ));
-
-        if path.is_empty() {
-            self.router = self.router.merge(router);
-        } else {
-            self.router = self.router.nest(path, router);
-        }
-
-        self.apps.push(app);
-
+    pub fn merge<R: views::Routable>(mut self, other: R) -> Self {
+        self.router = self.router.merge(other);
         self
     }
 
@@ -153,7 +138,7 @@ impl SiteBuilder {
     pub async fn build(self) -> Result<Site, SiteError> {
         let project_dir = PathBuf::from(&self.conf.project_dir);        ;
 
-        let mut router = self.router;
+        let (mut router, metas) = self.router.into_router_parts();
 
         for static_dir in &self.conf.static_dirs {
             let path = project_dir.join(&static_dir.path);
@@ -194,6 +179,10 @@ impl SiteBuilder {
             .fallback(redirect_trailing_slash_on_404)
             .layer(CatchPanicLayer::new());
 
+        let inspector = views::RouterMeta::new(metas);
+
+        // let router = views::Router::from_parts(metas, router);
+
         let site = Site {
             inner: Arc::new(SiteInner {
                 project_dir,
@@ -204,6 +193,7 @@ impl SiteBuilder {
                 authenticator,
                 template_env: env,
                 router,
+                view_inspeector: inspector,
             }),
         };
 
@@ -232,8 +222,9 @@ struct SiteInner {
     authenticator: Authenticator,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     pool: PgPool,
-    router: Router<Site>,
+    router: axum::Router<Site>,
     template_env: minijinja::Environment<'static>,
+    view_inspeector: views::RouterMeta,
 }
 
 #[derive(Debug, Clone)]
@@ -252,6 +243,10 @@ impl Site {
 
     pub fn project_dir(&self) -> &Path {
         self.inner.project_dir.as_path()
+    }
+
+    pub fn reverse(&self, name: &str, args: &[(&str, &str)]) -> Option<String> {
+        self.inner.view_inspeector.reverse(name, args)
     }
 
     pub fn render_template<S: serde::Serialize>(
@@ -282,9 +277,12 @@ impl Site {
     }
 
     /// Mainly needed for testing purposes.
-    pub fn router(&self) -> Router {
-        let router: Router = self.inner.router.clone().with_state(self.clone());
-        router
+    /// and before running the server.
+    pub fn router(&self) -> axum::Router {
+        let router = self.inner.router
+            .clone();
+
+        router.with_state(self.clone())
     }
 
     async fn serve_forever(self, verbose: bool) -> Result<(), SiteError> {
