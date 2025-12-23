@@ -9,7 +9,7 @@ use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaIn
 /// Naive query builder
 /// currently strings containing ? are not escaped.
 /// This is a basic implementation and may be extended in future.
-pub struct Query {
+pub struct Statement {
     sql: String,
     order_by: Option<(String, bool)>,
     limit: Option<(i64, i64)>,
@@ -18,7 +18,7 @@ pub struct Query {
     where_done: bool,
 }
 
-impl Query {
+impl Statement {
     pub fn new() -> Self {
         Self {
             sql: String::new(),
@@ -158,7 +158,7 @@ impl Query {
     }
 
     pub fn raw(sql: &str) -> Self {
-        let mut qs = Query::new();
+        let mut qs = Statement::new();
         qs = qs.push(sql);
         qs
     }

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use sqlx::Postgres;
 use sqlx::TypeInfo;
 
-use crate::db::{models::TableModel, query::Query};
+use crate::db::{models::TableModel, query::Statement};
 
 #[derive(Debug, Clone)]
 pub enum ColumnKind {
@@ -120,25 +120,25 @@ pub trait Bindable: SchemaInfo + Sized {
 }
 
 pub trait Filterable {
-    fn filter_query(&self, qs: Query) -> Query;
+    fn filter_query(&self, qs: Statement) -> Statement;
 }
 
 pub trait Model: SchemaInfo + Scannable + Bindable{
 
-    fn select() -> Query {
-        Query::new().select::<Self>()
+    fn select() -> Statement {
+        Statement::new().select::<Self>()
     }
 
-    fn insert(item: &Self) -> Query {
-        Query::new().insert::<Self>(item)
+    fn insert(item: &Self) -> Statement {
+        Statement::new().insert::<Self>(item)
     }
 
-    fn update(item: &Self) -> Query {
-        Query::new().update::<Self>(item)
+    fn update(item: &Self) -> Statement {
+        Statement::new().update::<Self>(item)
     }
 
-    fn delete() -> Query {
-        Query::new().delete::<Self>()
+    fn delete() -> Statement {
+        Statement::new().delete::<Self>()
     }
 
 }

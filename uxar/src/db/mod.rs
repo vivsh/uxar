@@ -5,7 +5,7 @@ mod interfaces;
 mod migrations;
 mod models;
 
-pub use query::{Query,};
+pub use query::{Statement,};
 pub use uxar_macros::{Model, Filterable};
 pub use executor::*;
 pub use interfaces::{
