@@ -187,25 +187,25 @@ impl Query {
     }
 
     pub fn select<M: Model>(mut self) -> Self {
-        let source = M::name();
+        let source = M::schema_name();
         self = self.select_from::<M>(source, "");
         self
     }
 
     pub fn insert<M: Model>(mut self, item: &M) -> Self {
-        let source = M::name();
+        let source = M::schema_name();
         self = self.insert_into::<M>(item, source);
         self
     }
 
     pub fn update<M: Model>(mut self, item: &M) -> Self {
-        let source = M::name();
+        let source = M::schema_name();
         self = self.update_into::<M>(item, source);
         self
     }
 
     pub fn delete<M: Model>(mut self) -> Self {
-        let source = M::name();
+        let source = M::schema_name();
         self.sql.push_str("DELETE FROM ");
         self.sql.push_str(source);
         self
@@ -219,7 +219,7 @@ impl Query {
 
     pub fn select_from<T: Model>(mut self, source: &str, alias: &str) -> Self {
         self.sql.push_str("SELECT ");
-        Self::walk_readable_columns(&mut self.sql, alias, T::schema());
+        Self::walk_readable_columns(&mut self.sql, alias, T::schema_fields());
         self.sql.push_str(" FROM ");
         self.sql.push_str(source);
         if !alias.is_empty() {
@@ -231,19 +231,19 @@ impl Query {
 
     pub fn returning<M: Model>(mut self) -> Self {
         self.sql.push_str(" RETURNING ");
-        Self::walk_readable_columns(&mut self.sql, "", M::schema());
+        Self::walk_readable_columns(&mut self.sql, "", M::schema_fields());
         self
     }
 
     pub fn returning_with<T: Model>(mut self) -> Self {
         self.sql.push_str(" RETURNING ");
-        Self::walk_readable_columns(&mut self.sql, "", T::schema());
+        Self::walk_readable_columns(&mut self.sql, "", T::schema_fields());
         self
     }
 
     fn writable_column_names<T: Model>() -> Vec<&'static str> {
         let mut cols = Vec::new();
-        for col_spec in T::schema().iter().filter(|c| c.can_insert() || c.can_update()) {
+        for col_spec in T::schema_fields().iter().filter(|c| c.can_insert() || c.can_update()) {
             cols.push(col_spec.db_column);
         }
         cols

@@ -98,10 +98,11 @@ impl ColumnSpec {
 
 /// Provides schema metadata for database types.
 /// 
-/// Implemented automatically by `#[derive(Schemable)]`.
+/// Implemented automatically by `#[derive(Model)]`.
 pub trait SchemaInfo {
-    fn schema() -> &'static [ColumnSpec];
-    fn name() -> &'static str;
+    fn schema_fields() -> &'static [ColumnSpec];
+    fn schema_name() -> &'static str;
+    fn table_name() -> Option<&'static str>;
 }
 
 pub trait Scannable: Sized{

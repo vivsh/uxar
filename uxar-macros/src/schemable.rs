@@ -247,10 +247,16 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
     let generics = input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    // Determine crate path (where Schemable & ColumnSpec live)
+    // Determine crate path (where Model & ColumnSpec live)
     let crate_path: syn::Path = input
         .crate_path
         .unwrap_or_else(|| syn::parse_quote!(uxar::db));
+
+    // Generate table name expression
+    let table_name_expr = match input.db_table {
+        Some(table) => quote! { Some(#table) },
+        None => quote! { None },
+    };
 
     // Collect columns from darling-parsed data
     let fields = match input.data {
@@ -456,11 +462,14 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         }
 
         impl #impl_generics ::#crate_path::SchemaInfo for #ident #ty_generics #where_clause {
-            fn schema() -> &'static [::#crate_path::ColumnSpec] {
+            fn schema_fields() -> &'static [::#crate_path::ColumnSpec] {
                 Self::SCHEMA
             }
-            fn name() -> &'static str {
+            fn schema_name() -> &'static str {
                 Self::NAME
+            }
+            fn table_name() -> Option<&'static str> {
+                #table_name_expr
             }
         }
     };
