@@ -105,8 +105,10 @@ impl <T: SchemaInfo + Scannable + Bindable> Schemable for T {
     
 }
 
-pub trait Recordable {
-    fn into_table_model() -> TableModel;
+pub trait Recordable: Schemable {
+    fn into_table_model() -> TableModel;    
+
+    fn table_name() -> &'static str;
 }
 
 pub fn rust_to_pg_type<T: sqlx::Type<Postgres>>() -> String {
