@@ -43,8 +43,8 @@ impl<'a> WhereClauseBuilder<'a> {
         let ty_string = quote::quote!(#ty).to_string();
         if self.seen_types.insert(ty_string) {
             self.get_where_clause().predicates.push(syn::parse_quote! {
-                for<'q> &'q #ty: ::sqlx::Encode<'q, ::sqlx::Postgres>
-                    + ::sqlx::Type<::sqlx::Postgres>
+                for<'q> &'q #ty: ::uxar::db::sqlx::Encode<'q, ::uxar::db::sqlx::Postgres>
+                    + ::uxar::db::sqlx::Type<::uxar::db::sqlx::Postgres>
                     + ::core::marker::Send
             });
         }

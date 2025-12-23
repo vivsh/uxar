@@ -103,18 +103,18 @@ pub(crate) fn derive_scannable_impl(input: &DeriveInput) -> proc_macro2::TokenSt
                 #ident: {
                     // decode the column as JSON value from postgres
                     let value: ::serde_json::Value =
-                        ::sqlx::Row::try_get::<::serde_json::Value, _>(row, *start_idx)?;
+                        ::uxar::db::sqlx::Row::try_get::<::serde_json::Value, _>(row, *start_idx)?;
                     *start_idx += 1;
 
                     ::serde_json::from_value::<#ty>(value)
-                        .map_err(|e| ::sqlx::Error::Decode(Box::new(e)))?
+                        .map_err(|e| ::uxar::db::sqlx::Error::Decode(Box::new(e)))?
                 }
             }
         } else {
             // scalar field; sequential scan using sqlx
             quote! {
                 #ident: {
-                    let value = ::sqlx::Row::try_get::<#ty, _>(row, *start_idx)?;
+                    let value = ::uxar::db::sqlx::Row::try_get::<#ty, _>(row, *start_idx)?;
                     *start_idx += 1;
                     value
                 }

@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 
-use crate::{app::Application, auth::AuthConf};
+use crate::{auth::AuthConf};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 
 
