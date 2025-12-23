@@ -1,8 +1,7 @@
 
 use sqlx::postgres::{PgArguments, PgRow};
 use sqlx::{Arguments};
-use crate::db::interfaces::Bindable;
-use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaInfo};
+use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaInfo, Schemable};
 
 
 
@@ -10,16 +9,17 @@ use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaIn
 /// Naive query builder
 /// currently strings containing ? are not escaped.
 /// This is a basic implementation and may be extended in future.
-pub struct Query {
+pub struct Query<T=()> {
     sql: String,
     order_by: Option<(String, bool)>,
     limit: Option<(i64, i64)>,
     args: PgArguments,
     error: Option<DbError>,
     where_done: bool,
+    _marker: std::marker::PhantomData<T>,
 }
 
-impl Query {
+impl<M> Query<M> {
     pub fn new() -> Self {
         Self {
             sql: String::new(),
@@ -28,10 +28,19 @@ impl Query {
             args: PgArguments::default(),
             error: None,
             where_done: false,
+            _marker: std::marker::PhantomData,
         }
     }
 
-    pub fn bind<T>(mut self, val: T) -> Self
+    pub fn bind(mut self, val: M) -> Self
+    where
+        M: for<'q> sqlx::Encode<'q, sqlx::Postgres> + sqlx::Type<sqlx::Postgres> + Send + 'static,
+    {
+       self = self.bind_with(val);
+       self
+    }
+
+    pub fn bind_with<T>(mut self, val: T) -> Self
     where
         T: for<'q> sqlx::Encode<'q, sqlx::Postgres> + sqlx::Type<sqlx::Postgres> + Send + 'static,
     {
@@ -119,23 +128,23 @@ impl Query {
         session.execute(self).await
     }
 
-    pub async fn one<S: DBSession, T>(self, session: &mut S) -> Result<T, DbError>
+    pub async fn one<S: DBSession>(self, session: &mut S) -> Result<M, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         session.fetch_one(self).await
     }
 
-    pub async fn all<S: DBSession, T>(self, session: &mut S) -> Result<Vec<T>, DbError>
+    pub async fn all<S: DBSession>(self, session: &mut S) -> Result<Vec<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         session.fetch_all(self).await
     }
 
-    pub async fn first<S: DBSession, T>(self, session: &mut S) -> Result<Option<T>, DbError>
+    pub async fn first<S: DBSession>(self, session: &mut S) -> Result<Option<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         session.fetch_optional(self).await
     }
@@ -187,7 +196,25 @@ impl Query {
         }
     }
 
-    pub fn push_select<T: SchemaInfo>(mut self, source: &str, alias: &str) -> Self {
+    pub fn select(mut self) -> Self where M: Schemable {
+        let source = M::name();
+        self = self.select_with::<M>(source, "");
+        self
+    }
+
+    pub fn insert<T: Schemable>(mut self, item: &T) -> Self {
+        let source = T::name();
+        self = self.insert_with::<T>(item, source);
+        self
+    }
+
+    pub fn update<T: Schemable>(mut self, item: &T) -> Self {
+        let source = T::name();
+        self = self.update_with::<T>(item, source);
+        self
+    }
+
+    pub fn select_with<T: Schemable>(mut self, source: &str, alias: &str) -> Self {
         self.sql.push_str("SELECT ");
         Self::walk_readable_columns(&mut self.sql, alias, T::schema());
         self.sql.push_str(" FROM ");
@@ -199,7 +226,7 @@ impl Query {
         self
     }
 
-    fn writable_column_names<T: Bindable>() -> Vec<&'static str> {
+    fn writable_column_names<T: Schemable>() -> Vec<&'static str> {
         let mut cols = Vec::new();
         for col_spec in T::schema().iter().filter(|c| c.can_insert() || c.can_update()) {
             cols.push(col_spec.db_column);
@@ -207,7 +234,7 @@ impl Query {
         cols
     }
 
-    pub fn push_update<T: Bindable>(mut self, source: &str, item: &T) -> Self {
+    pub fn update_with<T: Schemable>(mut self, item: &T, source: &str) -> Self {
         self.sql.push_str("UPDATE ");
         self.sql.push_str(source);
         self.sql.push_str(" SET ");
@@ -225,7 +252,7 @@ impl Query {
         self
     }
 
-    pub fn push_insert<T: Bindable>(mut self, source: &str, item: &T) -> Self {
+    pub fn insert_with<T: Schemable>(mut self, item: &T, source: &str) -> Self {
         self.sql.push_str("INSERT INTO ");
         self.sql.push_str(source);
         self.sql.push_str(" (");
@@ -250,7 +277,7 @@ impl Query {
         self
     }
 
-    pub fn push_insert_many<T: Bindable>(mut self, source: &str, items: &[T]) -> Self {
+    pub fn insert_many_with<T: Schemable>(mut self, items: &[T], source: &str) -> Self {
         if items.is_empty() {
             return self;
         }

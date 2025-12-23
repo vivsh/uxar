@@ -84,58 +84,29 @@ pub trait Scannable: Sized{
         let mut idx = 0;
         Self::scan_row_ordered(row, &mut idx)
     }
-
-    fn select_from(source: &str) -> Query where Self: SchemaInfo {
-        let mut qs = Query::new();
-        qs = qs.push_select::<Self>(source, "");
-        qs
-    }
 }
 
 
 pub trait Bindable: SchemaInfo + Sized {
-
     fn bind_values(&self, args: &mut crate::db::PgArguments) -> Result<(), crate::db::SqlxError>;
-
-    fn insert_into(&self, source: &str) -> Query {
-        let mut qs = Query::new();
-        qs = qs.push_insert::<Self>(source, self);
-        qs
-    }
-
-    fn update_into(&self, source: &str) -> Query {
-        let mut qs = Query::new();
-        qs = qs.push_update::<Self>(source, self);
-        qs
-    }
 }
 
 pub trait Filterable {
-    fn filter_query(&self, qs: Query) -> Query;
+    fn filter_query<B>(&self, qs: Query<B>) -> Query<B>;
 }
 
-pub trait Model: SchemaInfo + Scannable + Bindable{
-    fn to_select()-> Query {
-        <Self as Scannable>::select_from(Self::name())
-    }
-
-    fn to_insert(&self) -> Query {
-        <Self as Bindable>::insert_into(self, Self::name())
-    }
-
-    fn to_update(&self) -> Query {
-        <Self as Bindable>::update_into(self, Self::name())
-    }
+pub trait Schemable: SchemaInfo + Scannable + Bindable{
+    fn query()-> Query<Self> {Query::new()}
 }
 
-impl <T: SchemaInfo + Scannable + Bindable> Model for T {
+impl <T: SchemaInfo + Scannable + Bindable> Schemable for T {
     
 }
 
-pub trait Recordable{
+pub trait Recordable {
     fn into_table_model() -> TableModel;
 }
 
-pub fn rust_type_to_pg_type<T: sqlx::Type<Postgres>>() -> String {
+pub fn rust_to_pg_type<T: sqlx::Type<Postgres>>() -> String {
     T::type_info().name().to_string()
 }

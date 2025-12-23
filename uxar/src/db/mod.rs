@@ -8,7 +8,12 @@ mod models;
 pub use query::{Query,};
 pub use uxar_macros::{Schemable, Filterable};
 pub use executor::*;
-pub use interfaces::{ColumnSpec, ColumnValidation, SchemaInfo, ColumnKind, Scannable,  Bindable, Filterable, Model};
+pub use interfaces::{
+    ColumnSpec, ColumnValidation, SchemaInfo, ColumnKind, 
+    Scannable, Bindable, Filterable, Schemable, Recordable,
+    rust_to_pg_type,
+};
+pub use models::{TableModel, ColumnModel};
 
 // Re-export sqlx types so macros don't need direct sqlx dependency
 pub use sqlx;

@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uxar::{
-    Path, Site, SiteConf, db::{Model, Schemable}, validation::Validate, views::{self, IntoResponse, Routable, routable, route}
+    Path, Site, SiteConf, db::{Schemable},views::{self, IntoResponse, Routable, routable, route}
 
 };
 
@@ -34,14 +34,13 @@ async fn handle_sql(site: Site) -> views::Response {
         kind: 2,
     };
 
-    let q = User::to_select().filter("kind = 1").count(&mut tx)
+    let q = User::query().select_with::<User>("users", "").filter("kind = 1").count(&mut tx)
         .await
         .expect("asdasd asdada");
 
     println!("\n\nUser count with kind=1: {};\n\n", q);
 
-    let users: Vec<User> = User::to_select()
-        .filter("is_active AND kind = 1")
+    let users: Vec<User> = User::query().select_with::<User>("users", "").filter("is_active AND kind = 1")
         .all(&mut tx)
         .await
         .map_err(|e| {

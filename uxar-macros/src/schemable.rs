@@ -7,7 +7,7 @@ use syn::{DeriveInput, parse_macro_input};
 
 
 #[derive(FromField)]
-#[darling(attributes(column))]
+#[darling(attributes(column, db))]
 pub(crate) struct SchemableField {
     /// The field identifier (filled by darling)
     pub ident: Option<syn::Ident>,
@@ -42,6 +42,27 @@ pub(crate) struct SchemableField {
     #[darling(default)]
     pub updatable: Option<bool>,
 
+    // DB constraint attributes
+    #[darling(default)]
+    pub primary_key: bool,
+
+    #[darling(default)]
+    pub unique: bool,
+
+    #[darling(default)]
+    pub unique_group: Option<String>,
+
+    #[darling(default)]
+    pub indexed: bool,
+
+    #[darling(default)]
+    pub index_type: Option<String>,
+
+    #[darling(default)]
+    pub default: Option<String>,
+
+    #[darling(default)]
+    pub check: Option<String>,
 }
 
 #[derive(Default)]
@@ -198,6 +219,9 @@ pub(crate) struct SchemableInput {
 
     #[darling(default)]
     name: Option<String>,
+
+    #[darling(default)]
+    table_name: Option<String>,
 
     data: Data<darling::util::Ignored, SchemableField>,
 }
@@ -389,7 +413,7 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
     }
 
 
-    let expanded = quote! {
+    let schema_info_impl = quote! {
         impl #impl_generics #ident #ty_generics #where_clause {
             pub const SCHEMA: &'static [::#crate_path::ColumnSpec] = &[
                 #(#column_specs),*
@@ -407,6 +431,135 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         }
     };
 
+    // Generate Recordable impl if table_name is specified
+    let recordable_impl = if let Some(table_name) = input.table_name {
+        generate_recordable_impl(&ident, &table_name, &fields, &crate_path, &impl_generics, &ty_generics, where_clause)
+    } else {
+        quote! {}
+    };
+
+    let expanded = quote! {
+        #schema_info_impl
+        #recordable_impl
+    };
+
     expanded.into()
 
+}
+
+fn generate_recordable_impl(
+    ident: &syn::Ident,
+    table_name: &str,
+    fields: &[SchemableField],
+    crate_path: &syn::Path,
+    impl_generics: &syn::ImplGenerics,
+    ty_generics: &syn::TypeGenerics,
+    where_clause: Option<&syn::WhereClause>,
+) -> proc_macro2::TokenStream {
+    let mut column_inits = Vec::new();
+
+    for field in fields {
+        if field.skip {
+            continue;
+        }
+
+        let field_name = field.ident.as_ref().unwrap();
+        let field_name_str = field_name.to_string();
+        let db_column = field.db_column.as_ref()
+            .map(|s| s.as_str())
+            .unwrap_or(&field_name_str);
+        
+        let ty = &field.ty;
+        
+        // Determine if nullable based on Option<T>
+        let is_nullable = is_option_type(ty);
+        
+        // Get PostgreSQL type name
+        let pg_type_call = if is_nullable {
+            // For Option<T>, we need to get the inner type
+            if let Some(inner_ty) = extract_option_inner_type(ty) {
+                quote! { ::#crate_path::rust_to_pg_type::<#inner_ty>() }
+            } else {
+                quote! { String::from("text") }
+            }
+        } else {
+            quote! { ::#crate_path::rust_to_pg_type::<#ty>() }
+        };
+
+        let primary_key = field.primary_key;
+        let unique = field.unique;
+        let unique_group = if let Some(ref grp) = field.unique_group {
+            quote! { Some(#grp.to_string()) }
+        } else {
+            quote! { None }
+        };
+        let indexed = field.indexed;
+        let index_type = if let Some(ref idx_type) = field.index_type {
+            quote! { Some(#idx_type.to_string()) }
+        } else {
+            quote! { None }
+        };
+        let default = if let Some(ref def) = field.default {
+            quote! { Some(#def.to_string()) }
+        } else {
+            quote! { None }
+        };
+        let check = if let Some(ref chk) = field.check {
+            quote! { Some(#chk.to_string()) }
+        } else {
+            quote! { None }
+        };
+
+        column_inits.push(quote! {
+            {
+                let mut col = ::#crate_path::ColumnModel::new(
+                    #db_column.to_string(),
+                    #pg_type_call
+                );
+                col.is_nullable = #is_nullable;
+                col.primary_key = #primary_key;
+                col.unique = #unique;
+                col.unique_group = #unique_group;
+                col.indexed = #indexed;
+                col.index_type = #index_type;
+                col.default = #default;
+                col.check = #check;
+                col
+            }
+        });
+    }
+
+    quote! {
+        impl #impl_generics ::#crate_path::Recordable for #ident #ty_generics #where_clause {
+            fn into_table_model() -> ::#crate_path::TableModel {
+                let mut table = ::#crate_path::TableModel::new(#table_name.to_string());
+                #(table.add_column(#column_inits);)*
+                table
+            }
+        }
+    }
+}
+
+fn is_option_type(ty: &syn::Type) -> bool {
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            return segment.ident == "Option";
+        }
+    }
+    false
+}
+
+fn extract_option_inner_type(ty: &syn::Type) -> Option<&syn::Type> {
+    if let syn::Type::Path(type_path) = ty {
+        if let Some(segment) = type_path.path.segments.last() {
+            if segment.ident == "Option" {
+                if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                    if let Some(syn::GenericArgument::Type(inner_ty)) = args.args.first() {
+                        return Some(inner_ty);
+                    }
+                }
+            }
+        }
+    }
+    None
 }

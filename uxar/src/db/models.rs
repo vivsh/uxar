@@ -13,6 +13,19 @@ pub struct TableModel{
     pub columns: Vec<ColumnModel>,
 }
 
+impl TableModel {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            columns: Vec::new(),
+        }
+    }
+
+    pub fn add_column(&mut self, column: ColumnModel) {
+        self.columns.push(column);
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct TableDelta{
@@ -26,8 +39,31 @@ pub struct ColumnModel{
     pub data_type: String,
     pub width: Option<u32>,
     pub is_nullable: bool,
+    pub primary_key: bool,
     pub unique: bool,
     pub unique_group: Option<String>,
+    pub indexed: bool,
+    pub index_type: Option<String>,
+    pub default: Option<String>,
+    pub check: Option<String>,
+}
+
+impl ColumnModel {
+    pub fn new(name: String, data_type: String) -> Self {
+        Self {
+            name,
+            data_type,
+            width: None,
+            is_nullable: false,
+            primary_key: false,
+            unique: false,
+            unique_group: None,
+            indexed: false,
+            index_type: None,
+            default: None,
+            check: None,
+        }
+    }
 }
 
 

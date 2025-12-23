@@ -115,29 +115,29 @@ impl IntoResponse for DbError {
 }
 
 pub trait DBSession {
-    async fn execute(&mut self, qs: Query) -> Result<u64, DbError>;
+    async fn execute<M>(&mut self, qs: Query<M>) -> Result<u64, DbError>;
 
-    async fn fetch_one<T>(&mut self, qs: Query) -> Result<T, DbError>
+    async fn fetch_one<M>(&mut self, qs: Query<M>) -> Result<M, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin;
-
-    async fn fetch_all<T>(&mut self, qs: Query) -> Result<Vec<T>, DbError>
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin;
+        
+    async fn fetch_all<M>(&mut self, qs: Query<M>) -> Result<Vec<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin;
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin;
 
-    async fn fetch_optional<T>(&mut self, qs: Query) -> Result<Option<T>, DbError>
+    async fn fetch_optional<M>(&mut self, qs: Query<M>) -> Result<Option<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin;
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin;
 
-    async fn fetch_scalar<T>(&mut self, qs: Query) -> Result<T, DbError>
+    async fn fetch_scalar<T, B>(&mut self, qs: Query<B>) -> Result<T, DbError>
     where
         for<'d> T: sqlx::Decode<'d, Postgres> + sqlx::Type<Postgres> + Send + Unpin;
 
-    async fn fetch_json_first(&mut self, qs: Query) -> Result<String, DbError>;
+    async fn fetch_json_first<T>(&mut self, qs: Query<T>) -> Result<String, DbError>;
 
-    async fn fetch_json_one(&mut self, qs: Query) -> Result<String, DbError>;
+    async fn fetch_json_one<T>(&mut self, qs: Query<T>) -> Result<String, DbError>;
 
-    async fn fetch_json_all(&mut self, qs: Query) -> Result<String, DbError>;
+    async fn fetch_json_all<T>(&mut self, qs: Query<T>) -> Result<String, DbError>;
 }
 
 pub struct DbTransaction<'a> {
@@ -208,14 +208,14 @@ impl<'a> DbPool<'a> {
 }
 
 impl DBSession for DbPool<'_> {
-    async fn execute(&mut self, qs: Query) -> Result<u64, DbError> {
+    async fn execute<M>(&mut self, qs: Query<M>) -> Result<u64, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         let res = query.execute(self.pool).await.map_err(DbError::from)?;
         Ok(res.rows_affected())
     }
 
-    async fn fetch_scalar<T>(&mut self, qs: Query) -> Result<T, DbError>
+    async fn fetch_scalar<T, B>(&mut self, qs: Query<B>) -> Result<T, DbError>
     where
         for<'d> T: sqlx::Decode<'d, Postgres> + sqlx::Type<Postgres> + Send + Unpin,
     {
@@ -224,46 +224,46 @@ impl DBSession for DbPool<'_> {
         query.fetch_one(self.pool).await.map_err(DbError::from)
     }
 
-    async fn fetch_one<T>(&mut self, qs: Query) -> Result<T, DbError>
+    async fn fetch_one<M>(&mut self, qs: Query<M>) -> Result<M, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_as_with(&sql, args);
         query.fetch_one(self.pool).await.map_err(DbError::from)
     }
 
-    async fn fetch_all<T>(&mut self, qs: Query) -> Result<Vec<T>, DbError>
+    async fn fetch_all<M>(&mut self, qs: Query<M>) -> Result<Vec<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_as_with(&sql, args);
         query.fetch_all(self.pool).await.map_err(DbError::from)
     }
 
-    async fn fetch_optional<T>(&mut self, qs: Query) -> Result<Option<T>, DbError>
+    async fn fetch_optional<M>(&mut self, qs: Query<M>) -> Result<Option<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_as_with(&sql, args);
         query.fetch_optional(self.pool).await.map_err(DbError::from)
     }
 
-    async fn fetch_json_first(&mut self, qs: Query) -> Result<String, DbError> {
+    async fn fetch_json_first<B>(&mut self, qs: Query<B>) -> Result<String, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(self.pool, query, false).await
     }
 
-    async fn fetch_json_one(&mut self, qs: Query) -> Result<String, DbError> {
+    async fn fetch_json_one<B>(&mut self, qs: Query<B>) -> Result<String, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(self.pool, query, true).await
     }
 
-    async fn fetch_json_all(&mut self, qs: Query) -> Result<String, DbError> {
+    async fn fetch_json_all<B>(&mut self, qs: Query<B>) -> Result<String, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         jsql_all(self.pool, query).await
@@ -271,7 +271,7 @@ impl DBSession for DbPool<'_> {
 }
 
 impl DBSession for DbTransaction<'_> {
-    async fn execute(&mut self, qs: Query) -> Result<u64, DbError> {
+    async fn execute<M>(&mut self, qs: Query<M>) -> Result<u64, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         let res = query
@@ -281,7 +281,7 @@ impl DBSession for DbTransaction<'_> {
         Ok(res.rows_affected())
     }
 
-    async fn fetch_scalar<T>(&mut self, qs: Query) -> Result<T, DbError>
+    async fn fetch_scalar<T, B>(&mut self, qs: Query<B>) -> Result<T, DbError>
     where
         for<'d> T: sqlx::Decode<'d, Postgres> + sqlx::Type<Postgres> + Send + Unpin,
     {
@@ -293,9 +293,9 @@ impl DBSession for DbTransaction<'_> {
             .map_err(DbError::from)
     }
 
-    async fn fetch_one<T>(&mut self, qs: Query) -> Result<T, DbError>
+    async fn fetch_one<M>(&mut self, qs: Query<M>) -> Result<M, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_as_with(&sql, args);
@@ -305,9 +305,9 @@ impl DBSession for DbTransaction<'_> {
             .map_err(DbError::from)
     }
 
-    async fn fetch_all<T>(&mut self, qs: Query) -> Result<Vec<T>, DbError>
+    async fn fetch_all<M>(&mut self, qs: Query<M>) -> Result<Vec<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_as_with(&sql, args);
@@ -317,9 +317,9 @@ impl DBSession for DbTransaction<'_> {
             .map_err(DbError::from)
     }
 
-    async fn fetch_optional<T>(&mut self, qs: Query) -> Result<Option<T>, DbError>
+    async fn fetch_optional<M>(&mut self, qs: Query<M>) -> Result<Option<M>, DbError>
     where
-        T: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
+        M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_as_with(&sql, args);
@@ -329,19 +329,19 @@ impl DBSession for DbTransaction<'_> {
             .map_err(DbError::from)
     }
 
-    async fn fetch_json_first(&mut self, qs: Query) -> Result<String, DbError> {
+    async fn fetch_json_first<B>(&mut self, qs: Query<B>) -> Result<String, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(&mut *self.transaction, query, false).await
     }
 
-    async fn fetch_json_one(&mut self, qs: Query) -> Result<String, DbError> {
+    async fn fetch_json_one<B>(&mut self, qs: Query<B>) -> Result<String, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(&mut *self.transaction, query, true).await
     }
 
-    async fn fetch_json_all(&mut self, qs: Query) -> Result<String, DbError> {
+    async fn fetch_json_all<B>(&mut self, qs: Query<B>) -> Result<String, DbError> {
         let (sql, args) = qs.into_parts()?;
         let query = sqlx::query_with(&sql, args);
         jsql_all(&mut *self.transaction, query).await

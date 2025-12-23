@@ -16,7 +16,9 @@ extern crate proc_macro;
 /// Implements: SchemaInfo, Scannable, Bindable, and Validatable traits.
 /// 
 /// Use `#[derive(Validatable)]` if you only need validation without database operations.
-#[proc_macro_derive(Schemable, attributes(column, validate, schemable))]
+/// 
+/// If `table_name` is specified, also implements Recordable for migration support.
+#[proc_macro_derive(Schemable, attributes(column, validate, schemable, db))]
 pub fn derive_schemable(input: TokenStream) -> TokenStream {
     model::derive_model(input)
 }
