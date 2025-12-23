@@ -6,9 +6,9 @@ mod migrations;
 mod models;
 
 pub use query::{Query,};
-pub use uxar_macros::{Schemable, Scannable, Bindable, Filterable, Model};
+pub use uxar_macros::{Schemable, Filterable};
 pub use executor::*;
-pub use interfaces::{ColumnSpec, ColumnValidation, Schemable, ColumnKind, Scannable,  Bindable, Filterable, Model};
+pub use interfaces::{ColumnSpec, ColumnValidation, SchemaInfo, ColumnKind, Scannable,  Bindable, Filterable, Model};
 
 // Re-export sqlx types so macros don't need direct sqlx dependency
 pub use sqlx;

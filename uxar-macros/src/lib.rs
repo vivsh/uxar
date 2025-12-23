@@ -12,21 +12,14 @@ use proc_macro::TokenStream;
 extern crate proc_macro;
 
 
+/// Derives database schema traits for a type.
+/// 
+/// Implements: SchemaInfo, Scannable, Bindable, and Validatable traits.
+/// 
+/// Use `#[derive(Validatable)]` if you only need validation without database operations.
 #[proc_macro_derive(Schemable, attributes(column, validate, schemable))]
 pub fn derive_schemable(input: TokenStream) -> TokenStream {
-    schemable::derive_schemable(input)
-}
-
-
-#[proc_macro_derive(Scannable, attributes(column))]
-pub fn derive_scannable(input: TokenStream) -> TokenStream {
-    scannable::derive_scannable(input)
-}
-
-
-#[proc_macro_derive(Bindable, attributes(column))]
-pub fn derive_bindable(input: TokenStream) -> TokenStream {
-    bindable::derive_bindable(input)
+    model::derive_model(input)
 }
 
 
@@ -36,15 +29,13 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 }
 
 
+/// Derives validation trait for a type.
+/// 
+/// Use this for types that need validation but don't interact with the database.
+/// Database models should use `#[derive(Schemable)]` which includes validation.
 #[proc_macro_derive(Validatable, attributes(validate))]
 pub fn derive_validatable(input: TokenStream) -> TokenStream {
     validatable::derive_validatable(input)
-}
-
-
-#[proc_macro_derive(Model, attributes(column, validate, model))]
-pub fn derive_model(input: TokenStream) -> TokenStream {
-    model::derive_model(input)
 }
 
 

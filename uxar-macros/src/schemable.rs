@@ -396,7 +396,7 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
             pub const NAME: &'static str = #schema_name;
         }
 
-        impl #impl_generics ::#crate_path::Schemable for #ident #ty_generics #where_clause {
+        impl #impl_generics ::#crate_path::SchemaInfo for #ident #ty_generics #where_clause {
             fn schema() -> &'static [::#crate_path::ColumnSpec] {
                 Self::SCHEMA
             }

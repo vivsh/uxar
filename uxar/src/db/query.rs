@@ -2,7 +2,7 @@
 use sqlx::postgres::{PgArguments, PgRow};
 use sqlx::{Arguments};
 use crate::db::interfaces::Bindable;
-use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, Schemable};
+use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaInfo};
 
 
 
@@ -187,7 +187,7 @@ impl Query {
         }
     }
 
-    pub fn push_select<T: Schemable>(mut self, source: &str, alias: &str) -> Self {
+    pub fn push_select<T: SchemaInfo>(mut self, source: &str, alias: &str) -> Self {
         self.sql.push_str("SELECT ");
         Self::walk_readable_columns(&mut self.sql, alias, T::schema());
         self.sql.push_str(" FROM ");

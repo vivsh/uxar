@@ -1,4 +1,7 @@
 
+use sqlx::Postgres;
+use sqlx::TypeInfo;
+
 use crate::db::{models::TableModel, query::Query};
 
 #[derive(Debug, Clone)]
@@ -66,7 +69,10 @@ impl ColumnSpec {
     }
 }
 
-pub trait Schemable {
+/// Provides schema metadata for database types.
+/// 
+/// Implemented automatically by `#[derive(Schemable)]`.
+pub trait SchemaInfo {
     fn schema() -> &'static [ColumnSpec];
     fn name() -> &'static str;
 }
@@ -79,7 +85,7 @@ pub trait Scannable: Sized{
         Self::scan_row_ordered(row, &mut idx)
     }
 
-    fn select_from(source: &str) -> Query where Self: Schemable {
+    fn select_from(source: &str) -> Query where Self: SchemaInfo {
         let mut qs = Query::new();
         qs = qs.push_select::<Self>(source, "");
         qs
@@ -87,7 +93,7 @@ pub trait Scannable: Sized{
 }
 
 
-pub trait Bindable: Schemable + Sized {
+pub trait Bindable: SchemaInfo + Sized {
 
     fn bind_values(&self, args: &mut crate::db::PgArguments) -> Result<(), crate::db::SqlxError>;
 
@@ -108,7 +114,7 @@ pub trait Filterable {
     fn filter_query(&self, qs: Query) -> Query;
 }
 
-pub trait Model: Schemable + Scannable + Bindable{
+pub trait Model: SchemaInfo + Scannable + Bindable{
     fn to_select()-> Query {
         <Self as Scannable>::select_from(Self::name())
     }
@@ -122,10 +128,14 @@ pub trait Model: Schemable + Scannable + Bindable{
     }
 }
 
-impl <T: Schemable + Scannable + Bindable> Model for T {
+impl <T: SchemaInfo + Scannable + Bindable> Model for T {
     
 }
 
 pub trait Recordable{
     fn into_table_model() -> TableModel;
+}
+
+pub fn rust_type_to_pg_type<T: sqlx::Type<Postgres>>() -> String {
+    T::type_info().name().to_string()
 }
