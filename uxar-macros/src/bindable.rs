@@ -19,6 +19,7 @@ pub(crate) struct BindableInput {
     data: Data<darling::util::Ignored, SchemableField>,
 }
 
+#[allow(dead_code)]
 pub fn derive_bindable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     derive_bindable_impl(&input).into()

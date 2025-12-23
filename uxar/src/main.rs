@@ -1,19 +1,19 @@
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uxar::{
-    Path, Site, SiteConf, db::{Model}, validation::Validate, views::{self, IntoResponse, Routable, routable, route}
+    Path, Site, SiteConf, db::{Model, Schemable}, validation::Validate, views::{self, IntoResponse, Routable, routable, route}
 
 };
 
-#[derive(Debug, Model)]
+#[derive(Debug, Schemable)]
 struct Address {
     street: String,
     city: String,
     zip: String,
 }
 
-#[derive(Debug, Serialize,Deserialize, Model)]
-#[model(name = "users_user")]
+#[derive(Debug, Serialize,Deserialize, Schemable)]
+#[schemable(name = "users_user")]
 struct User {
     id: i32,
     username: String,

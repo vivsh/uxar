@@ -202,6 +202,7 @@ pub(crate) struct SchemableInput {
     data: Data<darling::util::Ignored, SchemableField>,
 }
 
+#[allow(dead_code)]
 pub (crate) fn derive_schemable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     derive_schemable_impl(&input).into()

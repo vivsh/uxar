@@ -19,6 +19,7 @@ pub(crate) struct ScannableInput {
     data: Data<darling::util::Ignored, SchemableField>,
 }
 
+#[allow(dead_code)]
 pub fn derive_scannable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     derive_scannable_impl(&input).into()

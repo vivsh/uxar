@@ -4,7 +4,6 @@ mod scannable;
 mod validatable;
 mod bindable;
 mod filterable;
-mod recordable;
 mod routable;
 mod model;
 
