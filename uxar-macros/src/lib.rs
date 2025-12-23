@@ -25,7 +25,7 @@ extern crate proc_macro;
 /// - `name = "custom_name"` - Override the schema name (defaults to struct name)
 /// - `table_name = "table_name"` - Database table name (enables Recordable trait)
 /// 
-/// ## `#[column(...)]` - Field mapping attributes
+/// ## `#[field(...)]` - Field mapping attributes
 /// - `db_column = "column_name"` - Database column name (defaults to field name)
 /// - `skip` - Exclude field from schema
 /// - `flatten` - Flatten nested struct fields
@@ -45,10 +45,10 @@ extern crate proc_macro;
 /// - `default = "value"` - Default value expression
 /// - `check = "expression"` - CHECK constraint
 /// 
-/// Note: Currently, both `#[column(...)]` and `#[db(...)]` accept all attributes.
-/// The recommendation is to use `#[column(...)]` for field mapping and `#[db(...)]` 
+/// Note: Currently, both `#[field(...)]` and `#[db(...)]` accept all attributes.
+/// The recommendation is to use `#[field(...)]` for field mapping and `#[db(...)]` 
 /// for database constraints, but they can be used interchangeably.
-#[proc_macro_derive(Schemable, attributes(column, validate, schemable, db))]
+#[proc_macro_derive(Schemable, attributes(field, validate, schemable, db))]
 pub fn derive_schemable(input: TokenStream) -> TokenStream {
     model::derive_model(input)
 }

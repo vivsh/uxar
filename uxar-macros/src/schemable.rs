@@ -7,7 +7,7 @@ use syn::{DeriveInput, parse_macro_input};
 
 
 #[derive(FromField)]
-#[darling(attributes(column, db))]
+#[darling(attributes(field, db))]
 pub(crate) struct SchemableField {
     /// The field identifier (filled by darling)
     pub ident: Option<syn::Ident>,

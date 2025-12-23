@@ -5,7 +5,7 @@ use uxar::db::{Schemable, Recordable};
 #[derive(Schemable, Debug)]
 #[schemable(table_name = "users")]
 struct User {
-    #[column(primary_key)]
+    #[field(primary_key)]
     #[db(unique, indexed)]
     id: i32,
 

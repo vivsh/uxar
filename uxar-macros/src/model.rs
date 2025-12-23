@@ -9,7 +9,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// #[derive(Model)]
 /// #[model(crate = "uxar::db")]
 /// struct User {
-///     #[column(db_column = "user_email")]
+///     #[field(db_column = "user_email")]
 ///     #[validate(email)]
 ///     email: String,
 /// }
