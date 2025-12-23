@@ -60,22 +60,51 @@ Features:
 
 ### Database
 
-Lightweight query builder and ORM-lite features:
+Type-safe query builder with schema-driven development:
 
 ```rust
-let users: Vec<User> = User::select_from("users")
-    .filter("is_active AND kind = ?")
-    .bind(1)
+#[derive(Model, Debug)]
+#[model(db_table = "users")]
+struct User {
+    #[field(primary_key)]
+    id: i32,
+    
+    #[field(unique, db_indexed)]
+    email: String,
+    
+    #[field(db_check = "age >= 18")]
+    age: i32,
+    
+    bio: Option<String>,  // Automatically detected as nullable
+}
+
+// Type-safe query building
+let users: Vec<User> = User::query()
+    .select()
+    .filter("is_active = ?")
+    .bind(true)
     .all(&mut tx)
     .await?;
 ```
 
 Key components:
-- **Schema definitions**: `Schemable` derive macro for column metadata with validation integration
-- **Scannable/Bindable**: Traits for type-safe row scanning and parameter binding
-- **Query builder**: Fluent API with filter chaining, ordering, slicing
-- **Filterable**: Trait for type-safe WHERE clause building
-- **JSON aggregation**: Helper methods for Postgres `JSONB_AGG` queries
+- **Model derive macro**: Generates schema metadata with validation integration
+  - Field-level attributes: `primary_key`, `unique`, `unique_group`, `db_column`
+  - Database constraints: `db_indexed`, `db_index_type`, `db_default`, `db_check`
+  - Query control: `selectable`, `insertable`, `updatable` for fine-grained access
+  - Automatic nullable detection from `Option<T>` types
+- **Scannable/Bindable**: Type-safe row scanning and parameter binding
+- **Query builder**: Fluent API with `select()`, `insert()`, `update()`, `filter()`, `order_by()`, `slice()`
+- **Filterable**: Trait for composable WHERE clauses
+- **JSON aggregation**: Built-in `fetch_json_*` methods for Postgres `JSONB_AGG` queries
+
+Schema metadata in `ColumnSpec` includes:
+- Column type and nullability
+- Validation rules (integrated with validation framework)
+- Database constraints (primary keys, unique constraints, indexes, checks)
+- Query visibility (selectable/insertable/updatable flags)
+
+The `Model` trait combines `SchemaInfo`, `Scannable`, and `Bindable` for comprehensive type-safe database operations.
 
 
 ### Routing
@@ -132,7 +161,9 @@ Supported validators:
 - `regex`, `alphanumeric`, `slug`, `digits`
 - `non_empty`
 
-Validation metadata is integrated into `ColumnSpec` via the `Schemable` macro for database schema generation and OpenAPI documentation.
+Validation metadata is integrated into `ColumnSpec` via the `Model` macro for database schema generation and OpenAPI documentation.
+
+The `Validatable` trait can be used standalone for types that don't interact with the database, while `Model` includes validation automatically.
 
 ## Non-Goals
 

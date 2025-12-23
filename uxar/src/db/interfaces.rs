@@ -1,4 +1,6 @@
 
+use std::collections::HashMap;
+
 use sqlx::Postgres;
 use sqlx::TypeInfo;
 
@@ -37,11 +39,20 @@ pub struct ColumnSpec {
     pub kind: ColumnKind,
     pub name: &'static str,
     pub db_column: &'static str,
+    pub nullable: bool,
     pub selectable: bool,
     pub insertable: bool,
     pub updatable: bool,
     pub primary_key: bool,
     pub validation: Option<ColumnValidation>,
+    
+    // DB-specific constraints (only filled when table_name is present)
+    pub unique: bool,
+    pub unique_group: Option<&'static str>,
+    pub db_indexed: bool,
+    pub db_index_type: Option<&'static str>,
+    pub db_default: Option<&'static str>,
+    pub db_check: Option<&'static str>,
 }
 
 impl ColumnSpec {
@@ -50,24 +61,38 @@ impl ColumnSpec {
             kind: ColumnKind::Scalar,
             name: "",
             db_column: "",
+            nullable: false,
             selectable: true,
             insertable: true,
             updatable: true,
             primary_key: false,
             validation: None,
+            unique: false,
+            unique_group: None,
+            db_indexed: false,
+            db_index_type: None,
+            db_default: None,
+            db_check: None,
         }
     }
 
+    pub fn is_scalar_or_json(&self) -> bool {
+        matches!(self.kind, ColumnKind::Scalar | ColumnKind::Json)
+    }
+
+    /// Check if this column should be included in SELECT queries
     pub fn can_select(&self) -> bool {
-        self.selectable && matches!(self.kind, ColumnKind::Scalar | ColumnKind::Json)
+        self.selectable && self.is_scalar_or_json()
     }
 
+    /// Check if this column should be included in INSERT queries
     pub fn can_insert(&self) -> bool {
-        self.insertable && matches!(self.kind, ColumnKind::Scalar | ColumnKind::Json)
+        self.insertable && self.is_scalar_or_json()
     }
 
+    /// Check if this column should be included in UPDATE queries
     pub fn can_update(&self) -> bool {
-        self.updatable && matches!(self.kind, ColumnKind::Scalar | ColumnKind::Json)
+        self.updatable && self.is_scalar_or_json() && !self.primary_key
     }
 }
 
@@ -94,21 +119,31 @@ pub trait Bindable: SchemaInfo + Sized {
 }
 
 pub trait Filterable {
-    fn filter_query<B>(&self, qs: Query<B>) -> Query<B>;
+    fn filter_query(&self, qs: Query) -> Query;
 }
 
-pub trait Schemable: SchemaInfo + Scannable + Bindable{
-    fn query()-> Query<Self> {Query::new()}
+pub trait Model: SchemaInfo + Scannable + Bindable{
+
+    fn select() -> Query {
+        Query::new().select::<Self>()
+    }
+
+    fn insert(item: &Self) -> Query {
+        Query::new().insert::<Self>(item)
+    }
+
+    fn update(item: &Self) -> Query {
+        Query::new().update::<Self>(item)
+    }
+
+    fn delete() -> Query {
+        Query::new().delete::<Self>()
+    }
+
 }
 
-impl <T: SchemaInfo + Scannable + Bindable> Schemable for T {
+impl <T: SchemaInfo + Scannable + Bindable> Model for T {
     
-}
-
-pub trait Recordable: Schemable {
-    fn into_table_model() -> TableModel;    
-
-    fn table_name() -> &'static str;
 }
 
 pub fn rust_to_pg_type<T: sqlx::Type<Postgres>>() -> String {

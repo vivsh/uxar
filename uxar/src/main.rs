@@ -1,19 +1,19 @@
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uxar::{
-    Path, Site, SiteConf, db::{Schemable},views::{self, IntoResponse, Routable, routable, route}
+    Path, Site, SiteConf, db::{Model},views::{self, IntoResponse, Routable, routable, route}
 
 };
 
-#[derive(Debug, Schemable)]
+#[derive(Debug, Model)]
 struct Address {
     street: String,
     city: String,
     zip: String,
 }
 
-#[derive(Debug, Serialize,Deserialize, Schemable)]
-#[schemable(name = "users_user")]
+#[derive(Debug, Serialize,Deserialize, Model)]
+#[model(db_table = "users_user")]
 struct User {
     id: i32,
     username: String,
@@ -34,13 +34,13 @@ async fn handle_sql(site: Site) -> views::Response {
         kind: 2,
     };
 
-    let q = User::query().select_with::<User>("users", "").filter("kind = 1").count(&mut tx)
+    let q = User::select().filter("kind = 1").count(&mut tx)
         .await
         .expect("asdasd asdada");
 
     println!("\n\nUser count with kind=1: {};\n\n", q);
 
-    let users: Vec<User> = User::query().select_with::<User>("users", "").filter("is_active AND kind = 1")
+    let users: Vec<User> = User::select().filter("is_active AND kind = 1")
         .all(&mut tx)
         .await
         .map_err(|e| {

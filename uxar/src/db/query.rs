@@ -1,7 +1,7 @@
 
 use sqlx::postgres::{PgArguments, PgRow};
 use sqlx::{Arguments};
-use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaInfo, Schemable};
+use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaInfo, Model};
 
 
 
@@ -9,17 +9,16 @@ use crate::db::{ColumnKind, ColumnSpec, DBSession, DbError, Filterable, SchemaIn
 /// Naive query builder
 /// currently strings containing ? are not escaped.
 /// This is a basic implementation and may be extended in future.
-pub struct Query<T=()> {
+pub struct Query {
     sql: String,
     order_by: Option<(String, bool)>,
     limit: Option<(i64, i64)>,
     args: PgArguments,
     error: Option<DbError>,
     where_done: bool,
-    _marker: std::marker::PhantomData<T>,
 }
 
-impl<M> Query<M> {
+impl Query {
     pub fn new() -> Self {
         Self {
             sql: String::new(),
@@ -28,19 +27,10 @@ impl<M> Query<M> {
             args: PgArguments::default(),
             error: None,
             where_done: false,
-            _marker: std::marker::PhantomData,
         }
     }
 
-    pub fn bind(mut self, val: M) -> Self
-    where
-        M: for<'q> sqlx::Encode<'q, sqlx::Postgres> + sqlx::Type<sqlx::Postgres> + Send + 'static,
-    {
-       self = self.bind_with(val);
-       self
-    }
-
-    pub fn bind_with<T>(mut self, val: T) -> Self
+    pub fn bind<T>(mut self, val: T) -> Self
     where
         T: for<'q> sqlx::Encode<'q, sqlx::Postgres> + sqlx::Type<sqlx::Postgres> + Send + 'static,
     {
@@ -128,21 +118,21 @@ impl<M> Query<M> {
         session.execute(self).await
     }
 
-    pub async fn one<S: DBSession>(self, session: &mut S) -> Result<M, DbError>
+    pub async fn one<S: DBSession, M>(self, session: &mut S) -> Result<M, DbError>
     where
         M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         session.fetch_one(self).await
     }
 
-    pub async fn all<S: DBSession>(self, session: &mut S) -> Result<Vec<M>, DbError>
+    pub async fn all<S: DBSession, M>(self, session: &mut S) -> Result<Vec<M>, DbError>
     where
         M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
         session.fetch_all(self).await
     }
 
-    pub async fn first<S: DBSession>(self, session: &mut S) -> Result<Option<M>, DbError>
+    pub async fn first<S: DBSession, M>(self, session: &mut S) -> Result<Option<M>, DbError>
     where
         M: for<'r> sqlx::FromRow<'r, PgRow> + Send + Unpin,
     {
@@ -196,25 +186,38 @@ impl<M> Query<M> {
         }
     }
 
-    pub fn select(mut self) -> Self where M: Schemable {
+    pub fn select<M: Model>(mut self) -> Self {
         let source = M::name();
-        self = self.select_with::<M>(source, "");
+        self = self.select_from::<M>(source, "");
         self
     }
 
-    pub fn insert<T: Schemable>(mut self, item: &T) -> Self {
-        let source = T::name();
-        self = self.insert_with::<T>(item, source);
+    pub fn insert<M: Model>(mut self, item: &M) -> Self {
+        let source = M::name();
+        self = self.insert_into::<M>(item, source);
         self
     }
 
-    pub fn update<T: Schemable>(mut self, item: &T) -> Self {
-        let source = T::name();
-        self = self.update_with::<T>(item, source);
+    pub fn update<M: Model>(mut self, item: &M) -> Self {
+        let source = M::name();
+        self = self.update_into::<M>(item, source);
         self
     }
 
-    pub fn select_with<T: Schemable>(mut self, source: &str, alias: &str) -> Self {
+    pub fn delete<M: Model>(mut self) -> Self {
+        let source = M::name();
+        self.sql.push_str("DELETE FROM ");
+        self.sql.push_str(source);
+        self
+    }
+
+    pub fn delete_from(mut self, source: &str) -> Self {
+        self.sql.push_str("DELETE FROM ");
+        self.sql.push_str(source);
+        self
+    }
+
+    pub fn select_from<T: Model>(mut self, source: &str, alias: &str) -> Self {
         self.sql.push_str("SELECT ");
         Self::walk_readable_columns(&mut self.sql, alias, T::schema());
         self.sql.push_str(" FROM ");
@@ -226,7 +229,19 @@ impl<M> Query<M> {
         self
     }
 
-    fn writable_column_names<T: Schemable>() -> Vec<&'static str> {
+    pub fn returning<M: Model>(mut self) -> Self {
+        self.sql.push_str(" RETURNING ");
+        Self::walk_readable_columns(&mut self.sql, "", M::schema());
+        self
+    }
+
+    pub fn returning_with<T: Model>(mut self) -> Self {
+        self.sql.push_str(" RETURNING ");
+        Self::walk_readable_columns(&mut self.sql, "", T::schema());
+        self
+    }
+
+    fn writable_column_names<T: Model>() -> Vec<&'static str> {
         let mut cols = Vec::new();
         for col_spec in T::schema().iter().filter(|c| c.can_insert() || c.can_update()) {
             cols.push(col_spec.db_column);
@@ -234,7 +249,7 @@ impl<M> Query<M> {
         cols
     }
 
-    pub fn update_with<T: Schemable>(mut self, item: &T, source: &str) -> Self {
+    pub fn update_into<T: Model>(mut self, item: &T, source: &str) -> Self {
         self.sql.push_str("UPDATE ");
         self.sql.push_str(source);
         self.sql.push_str(" SET ");
@@ -252,7 +267,7 @@ impl<M> Query<M> {
         self
     }
 
-    pub fn insert_with<T: Schemable>(mut self, item: &T, source: &str) -> Self {
+    pub fn insert_into<T: Model>(mut self, item: &T, source: &str) -> Self {
         self.sql.push_str("INSERT INTO ");
         self.sql.push_str(source);
         self.sql.push_str(" (");
@@ -277,7 +292,7 @@ impl<M> Query<M> {
         self
     }
 
-    pub fn insert_many_with<T: Schemable>(mut self, items: &[T], source: &str) -> Self {
+    pub fn insert_many_with<T: Model>(mut self, items: &[T], source: &str) -> Self {
         if items.is_empty() {
             return self;
         }
@@ -316,6 +331,7 @@ impl<M> Query<M> {
         self
     }
 
+
     pub fn wrap(mut self, prefix: &str, suffix: &str) -> Self {
         let trimmed = self.sql.trim_end();
         let old_sql = trimmed.strip_suffix(";").unwrap_or(trimmed).trim_end().to_string();
@@ -342,3 +358,4 @@ impl<M> Query<M> {
     }
 
 }
+

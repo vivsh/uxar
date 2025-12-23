@@ -55,7 +55,7 @@ pub(crate) fn derive_scannable_impl(input: &DeriveInput) -> proc_macro2::TokenSt
         for f in &fields {
             let ty = &f.ty;
 
-            // skipped fields must be Default
+            // skipped or non-selectable fields must be Default
             if f.skip || !f.selectable.unwrap_or(true) {
                 if history.insert(ty.clone()) == false {
                     continue;

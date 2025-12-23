@@ -52,13 +52,13 @@ fn validate_path(path: &str, span: proc_macro2::Span) -> Result<(), syn::Error> 
         ));
     }
     
-    // Check for trailing slash (except root)
-    if path.len() > 1 && path.ends_with('/') {
-        return Err(syn::Error::new(
-            span,
-            format!("Route path should not end with '/': '{}'. Use '{}' instead.", path, path.trim_end_matches('/'))
-        ));
-    }
+    // // Check for trailing slash (except root)
+    // if path.len() > 1 && path.ends_with('/') {
+    //     return Err(syn::Error::new(
+    //         span,
+    //         format!("Route path should not end with '/': '{}'. Use '{}' instead.", path, path.trim_end_matches('/'))
+    //     ));
+    // }
     
     Ok(())
 }

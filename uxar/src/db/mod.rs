@@ -6,11 +6,11 @@ mod migrations;
 mod models;
 
 pub use query::{Query,};
-pub use uxar_macros::{Schemable, Filterable};
+pub use uxar_macros::{Model, Filterable};
 pub use executor::*;
 pub use interfaces::{
     ColumnSpec, ColumnValidation, SchemaInfo, ColumnKind, 
-    Scannable, Bindable, Filterable, Schemable, Recordable,
+    Scannable, Bindable, Filterable, Model,
     rust_to_pg_type,
 };
 pub use models::{TableModel, ColumnModel};

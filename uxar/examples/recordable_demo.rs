@@ -1,24 +1,23 @@
-// Example showing Recordable trait generation with table_name
+// Example showing db_table attribute for migration hints
 
-use uxar::db::{Schemable, Recordable};
+use uxar::db::Model;
 
-#[derive(Schemable, Debug)]
-#[schemable(table_name = "users")]
+#[derive(Model, Debug)]
+#[model(db_table = "users")]
 struct User {
-    #[field(primary_key)]
-    #[db(unique, indexed)]
+    #[field(primary_key, unique, db_indexed)]
     id: i32,
 
-    #[db(unique, indexed)]
+    #[field(unique, db_indexed)]
     email: String,
 
-    #[db(unique_group = "username_org")]
+    #[field(unique_group = "username_org")]
     username: String,
 
-    #[db(unique_group = "username_org")]
+    #[field(unique_group = "username_org")]
     organization_id: i32,
 
-    #[db(check = "age >= 18", default = "18")]
+    #[field(db_check = "age >= 18", db_default = "18")]
     age: i32,
 
     // Optional field - will be nullable
@@ -26,15 +25,12 @@ struct User {
 }
 
 fn main() {
-    // Get the table model for migrations
-    let table_model = User::into_table_model();
+    println!("User schema: {} with {} columns", User::NAME, User::SCHEMA.len());
+    println!("\nColumns:");
     
-    println!("Table: {}", table_model.name);
-    println!("Columns:");
-    
-    for col in &table_model.columns {
-        println!("  - {} ({})", col.name, col.data_type);
-        println!("    nullable: {}", col.is_nullable);
+    for col in User::SCHEMA {
+        println!("  - {} ({})", col.name, col.db_column);
+        println!("    nullable: {}", col.nullable);
         
         if col.primary_key {
             println!("    PRIMARY KEY");
@@ -45,13 +41,13 @@ fn main() {
         if let Some(ref grp) = col.unique_group {
             println!("    UNIQUE GROUP: {}", grp);
         }
-        if col.indexed {
+        if col.db_indexed {
             println!("    INDEXED");
         }
-        if let Some(ref def) = col.default {
+        if let Some(ref def) = col.db_default {
             println!("    DEFAULT: {}", def);
         }
-        if let Some(ref chk) = col.check {
+        if let Some(ref chk) = col.db_check {
             println!("    CHECK: {}", chk);
         }
     }

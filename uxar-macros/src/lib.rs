@@ -17,39 +17,42 @@ extern crate proc_macro;
 /// 
 /// Use `#[derive(Validatable)]` if you only need validation without database operations.
 /// 
-/// If `table_name` is specified, also implements Recordable for migration support.
-/// 
 /// # Attributes
 /// 
-/// ## `#[schemable(...)]` - Type-level attributes
+/// ## `#[model(...)]` - Type-level attributes
 /// - `name = "custom_name"` - Override the schema name (defaults to struct name)
-/// - `table_name = "table_name"` - Database table name (enables Recordable trait)
+/// - `db_table = "table_name"` - Optional database table name (for documentation/migration hints)
 /// 
-/// ## `#[field(...)]` - Field mapping attributes
-/// - `db_column = "column_name"` - Database column name (defaults to field name)
+/// ## `#[field(...)]` - Field attributes (Django-style db_ prefix for DB constraints)
+/// 
+/// ### General field mapping
 /// - `skip` - Exclude field from schema
 /// - `flatten` - Flatten nested struct fields
 /// - `json` - Store as JSON
 /// - `reference` - Reference to another type
 /// - `selectable = false` - Exclude from SELECT queries
-/// - `insertable = false` - Exclude from INSERT queries
+/// - `insertable = false` - Exclude from INSERT queries  
 /// - `updatable = false` - Exclude from UPDATE queries
-/// - `primary_key` - Mark as primary key (also stored in ColumnSpec)
 /// 
-/// ## `#[db(...)]` - Database constraint attributes (only used with table_name)
+/// ### Database constraints (optional, for migration generation)
+/// - `db_column = "column_name"` - Database column name (defaults to field name)
 /// - `primary_key` - Mark as primary key
 /// - `unique` - Add UNIQUE constraint
 /// - `unique_group = "group_name"` - Composite unique constraint
-/// - `indexed` - Create database index
-/// - `index_type = "btree"` - Index type (btree, hash, gin, etc.)
-/// - `default = "value"` - Default value expression
-/// - `check = "expression"` - CHECK constraint
+/// - `db_indexed` - Create database index
+/// - `db_index_type = "btree"` - Index type (btree, hash, gin, etc.)
+/// - `db_default = "value"` - Default value expression
+/// - `db_check = "expression"` - CHECK constraint
 /// 
-/// Note: Currently, both `#[field(...)]` and `#[db(...)]` accept all attributes.
-/// The recommendation is to use `#[field(...)]` for field mapping and `#[db(...)]` 
-/// for database constraints, but they can be used interchangeably.
-#[proc_macro_derive(Schemable, attributes(field, validate, schemable, db))]
-pub fn derive_schemable(input: TokenStream) -> TokenStream {
+/// ## `#[validate(...)]` - Validation attributes
+/// - `email` - Validate email format
+/// - `url` - Validate URL format
+/// - `min_length = n` - Minimum string length
+/// - `max_length = n` - Maximum string length
+/// - `regex = "pattern"` - Regex pattern validation
+/// - And more validation rules...
+#[proc_macro_derive(Model, attributes(field, validate, model))]
+pub fn derive_model(input: TokenStream) -> TokenStream {
     model::derive_model(input)
 }
 

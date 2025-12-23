@@ -7,17 +7,13 @@ use syn::{DeriveInput, parse_macro_input};
 
 
 #[derive(FromField)]
-#[darling(attributes(field, db))]
+#[darling(attributes(field))]
 pub(crate) struct SchemableField {
     /// The field identifier (filled by darling)
     pub ident: Option<syn::Ident>,
     pub ty: syn::Type,
 
-    /// Optional column name override: #[schemable(column = "my_col")]
-    #[darling(default)]
-    pub db_column: Option<String>,
-
-    /// Skip this field in schema: #[schemable(skip)]
+    /// Skip this field in schema: #[field(skip)]
     #[darling(default)]
     pub skip: bool,
 
@@ -30,19 +26,21 @@ pub(crate) struct SchemableField {
     #[darling(default)]
     pub reference: bool,
 
-    /// Whether this column is selectable
+    // Field visibility in queries
     #[darling(default)]
     pub selectable: Option<bool>,
 
-    /// Whether this column is insertable
     #[darling(default)]
     pub insertable: Option<bool>,
 
-    /// Whether this column is updatable
     #[darling(default)]
     pub updatable: Option<bool>,
 
-    // DB constraint attributes
+    // DB-specific attributes (Django-style db_ prefix)
+    /// DB column name override: #[field(db_column = "my_col")]
+    #[darling(default)]
+    pub db_column: Option<String>,
+
     #[darling(default)]
     pub primary_key: bool,
 
@@ -53,16 +51,16 @@ pub(crate) struct SchemableField {
     pub unique_group: Option<String>,
 
     #[darling(default)]
-    pub indexed: bool,
+    pub db_indexed: bool,
 
     #[darling(default)]
-    pub index_type: Option<String>,
+    pub db_index_type: Option<String>,
 
     #[darling(default)]
-    pub default: Option<String>,
+    pub db_default: Option<String>,
 
     #[darling(default)]
-    pub check: Option<String>,
+    pub db_check: Option<String>,
 }
 
 #[derive(Default)]
@@ -209,7 +207,7 @@ fn extract_validation(attrs: &[syn::Attribute]) -> Option<ValidationAttrs> {
 
 
 #[derive(FromDeriveInput)]
-#[darling(attributes(schemable))]
+#[darling(attributes(model))]
 pub(crate) struct SchemableInput {
     ident: syn::Ident,
     generics: syn::Generics,
@@ -221,7 +219,7 @@ pub(crate) struct SchemableInput {
     name: Option<String>,
 
     #[darling(default)]
-    table_name: Option<String>,
+    db_table: Option<String>,
 
     data: Data<darling::util::Ignored, SchemableField>,
 }
@@ -260,7 +258,7 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         _ => {
             return syn::Error::new_spanned(
                 ident,
-                "Schemable only supports structs with named fields",
+                "Model only supports structs with named fields",
             )
             .into_compile_error();
         }
@@ -273,7 +271,7 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
             _ => {
                 return syn::Error::new_spanned(
                     ident,
-                    "Schemable only supports structs with named fields",
+                    "Model only supports structs with named fields",
                 )
                 .into_compile_error();
             }
@@ -281,7 +279,7 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         _ => {
             return syn::Error::new_spanned(
                 ident,
-                "Schemable only supports structs",
+                "Model only supports structs",
             )
             .into_compile_error();
         }
@@ -316,26 +314,6 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         } else {
             quote! { ::#crate_path::ColumnKind::Scalar }
         };
-
-        // Flags: default true, then override, then apply skip
-        let mut selectable = true;
-        let mut insertable = true;
-        let mut updatable = true;
-
-        if let Some(v) = field.selectable {
-            selectable = v;
-        }
-        if let Some(v) = field.insertable {
-            insertable = v;
-        }
-        if let Some(v) = field.updatable {
-            updatable = v;
-        }
-        if field.skip {
-            selectable = false;
-            insertable = false;
-            updatable = false;
-        }
 
         // Extract validation from raw field attributes
         let raw_field = &raw_fields[idx];
@@ -400,17 +378,69 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
             quote! { None }
         };
 
+        // Determine selectable/insertable/updatable flags
+        let mut selectable = true;
+        let mut insertable = true;
+        let mut updatable = true;
+
+        if let Some(v) = field.selectable {
+            selectable = v;
+        }
+        if let Some(v) = field.insertable {
+            insertable = v;
+        }
+        if let Some(v) = field.updatable {
+            updatable = v;
+        }
+        if field.skip {
+            selectable = false;
+            insertable = false;
+            updatable = false;
+        }
+
+        // Detect if field is Option<T> for nullable
+        let nullable = is_option_type(ty);
+
         let primary_key = field.primary_key;
+        let unique = field.unique;
+        let unique_group = if let Some(ref grp) = field.unique_group {
+            quote! { Some(#grp) }
+        } else {
+            quote! { None }
+        };
+        let db_indexed = field.db_indexed;
+        let db_index_type = if let Some(ref idx_type) = field.db_index_type {
+            quote! { Some(#idx_type) }
+        } else {
+            quote! { None }
+        };
+        let db_default = if let Some(ref def) = field.db_default {
+            quote! { Some(#def) }
+        } else {
+            quote! { None }
+        };
+        let db_check = if let Some(ref chk) = field.db_check {
+            quote! { Some(#chk) }
+        } else {
+            quote! { None }
+        };
 
         column_specs.push(quote! {
             ::#crate_path::ColumnSpec {
                 kind: #kind_expr,
                 name: #field_name_literal,
                 db_column: #db_column,
+                nullable: #nullable,
                 selectable: #selectable,
                 insertable: #insertable,
                 updatable: #updatable,
                 primary_key: #primary_key,
+                unique: #unique,
+                unique_group: #unique_group,
+                db_indexed: #db_indexed,
+                db_index_type: #db_index_type,
+                db_default: #db_default,
+                db_check: #db_check,
                 validation: #validation_expr,
             }
         });
@@ -435,16 +465,8 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         }
     };
 
-    // Generate Recordable impl if table_name is specified
-    let recordable_impl = if let Some(table_name) = input.table_name {
-        generate_recordable_impl(&ident, &table_name, &fields, &crate_path, &impl_generics, &ty_generics, where_clause)
-    } else {
-        quote! {}
-    };
-
     let expanded = quote! {
         #schema_info_impl
-        #recordable_impl
     };
 
     expanded.into()
@@ -460,7 +482,7 @@ fn generate_recordable_impl(
     ty_generics: &syn::TypeGenerics,
     where_clause: Option<&syn::WhereClause>,
 ) -> proc_macro2::TokenStream {
-    let mut column_inits = Vec::new();
+    let mut get_db_column_type_arms = Vec::new();
 
     for field in fields {
         if field.skip {
@@ -469,9 +491,6 @@ fn generate_recordable_impl(
 
         let field_name = field.ident.as_ref().unwrap();
         let field_name_str = field_name.to_string();
-        let db_column = field.db_column.as_ref()
-            .map(|s| s.as_str())
-            .unwrap_or(&field_name_str);
         
         let ty = &field.ty;
         
@@ -490,55 +509,23 @@ fn generate_recordable_impl(
             quote! { ::#crate_path::rust_to_pg_type::<#ty>() }
         };
 
-        let primary_key = field.primary_key;
-        let unique = field.unique;
-        let unique_group = if let Some(ref grp) = field.unique_group {
-            quote! { Some(#grp.to_string()) }
-        } else {
-            quote! { None }
-        };
-        let indexed = field.indexed;
-        let index_type = if let Some(ref idx_type) = field.index_type {
-            quote! { Some(#idx_type.to_string()) }
-        } else {
-            quote! { None }
-        };
-        let default = if let Some(ref def) = field.default {
-            quote! { Some(#def.to_string()) }
-        } else {
-            quote! { None }
-        };
-        let check = if let Some(ref chk) = field.check {
-            quote! { Some(#chk.to_string()) }
-        } else {
-            quote! { None }
-        };
-
-        column_inits.push(quote! {
-            {
-                let mut col = ::#crate_path::ColumnModel::new(
-                    #db_column.to_string(),
-                    #pg_type_call
-                );
-                col.is_nullable = #is_nullable;
-                col.primary_key = #primary_key;
-                col.unique = #unique;
-                col.unique_group = #unique_group;
-                col.indexed = #indexed;
-                col.index_type = #index_type;
-                col.default = #default;
-                col.check = #check;
-                col
-            }
+        // Build match arm for get_db_column_type
+        get_db_column_type_arms.push(quote! {
+            #field_name_str => Some(#pg_type_call),
         });
     }
 
     quote! {
         impl #impl_generics ::#crate_path::Recordable for #ident #ty_generics #where_clause {
-            fn into_table_model() -> ::#crate_path::TableModel {
-                let mut table = ::#crate_path::TableModel::new(#table_name.to_string());
-                #(table.add_column(#column_inits);)*
-                table
+            fn table_name() -> &'static str {
+                #table_name
+            }
+
+            fn get_db_column_type<D>(name: &str) -> Option<String> {
+                match name {
+                    #(#get_db_column_type_arms)*
+                    _ => None,
+                }
             }
         }
     }
