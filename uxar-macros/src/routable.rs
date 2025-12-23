@@ -12,6 +12,57 @@ pub(crate) fn parse_action(_attr: TokenStream, item: TokenStream) -> TokenStream
     item
 }
 
+// Validate HTTP method at compile time
+fn validate_http_method(method: &str, span: proc_macro2::Span) -> Result<(), syn::Error> {
+    const VALID_METHODS: &[&str] = &["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"];
+    
+    let method_upper = method.to_uppercase();
+    if !VALID_METHODS.contains(&method_upper.as_str()) {
+        return Err(syn::Error::new(
+            span,
+            format!(
+                "Unsupported HTTP method '{}'. Supported methods: {}",
+                method,
+                VALID_METHODS.join(", ")
+            )
+        ));
+    }
+    
+    Ok(())
+}
+
+// Validate URL path format
+fn validate_path(path: &str, span: proc_macro2::Span) -> Result<(), syn::Error> {
+    if path.is_empty() {
+        return Err(syn::Error::new(span, "Route path cannot be empty"));
+    }
+    
+    if !path.starts_with('/') {
+        return Err(syn::Error::new(
+            span,
+            format!("Route path must start with '/'. Found: '{}'", path)
+        ));
+    }
+    
+    // Check for double slashes
+    if path.contains("//") {
+        return Err(syn::Error::new(
+            span,
+            format!("Route path contains double slashes: '{}'", path)
+        ));
+    }
+    
+    // Check for trailing slash (except root)
+    if path.len() > 1 && path.ends_with('/') {
+        return Err(syn::Error::new(
+            span,
+            format!("Route path should not end with '/': '{}'. Use '{}' instead.", path, path.trim_end_matches('/'))
+        ));
+    }
+    
+    Ok(())
+}
+
 #[derive(Debug, FromMeta)]
 struct ActionArgs {
     /// Optional logical name; default: method ident
@@ -67,6 +118,7 @@ struct ResponseSpec {
 struct ViewableArgs {
     /// Optional group name (unused for now)
     #[darling(default)]
+    #[allow(dead_code)]
     name: Option<String>,
 
     /// Optional base path; e.g. "/api"
@@ -153,7 +205,7 @@ fn parse_action_args(
     fn_item: &ImplItemFn,
 ) -> Result<(ImplItemFn, ActionArgs), TokenStream> {
     let nested = match &attr.meta {
-        Meta::List(list) => darling::ast::NestedMeta::parse_meta_list(list.tokens.clone().into()),
+        Meta::List(list) => darling::ast::NestedMeta::parse_meta_list(list.tokens.clone()),
         Meta::Path(_) => Ok(Vec::new()),
         Meta::NameValue(_) => {
             let err = syn::Error::new(attr.span(), "expected #[route] or #[route(...)]");
@@ -188,16 +240,33 @@ fn build_action_routes(
     let fn_ident = &sig.ident;
     let name_str = action.name.clone().unwrap_or_else(|| fn_ident.to_string());
     let path_str = build_full_path(&name_str, action.path.as_deref(), viewable_args.base_path.as_deref());
+    
+    // Validate path format
+    if let Err(e) = validate_path(&path_str, fn_ident.span()) {
+        return vec![(e.to_compile_error(), quote! {})];
+    }
+    
     let path_lit = path_str.clone();
     
     let http_methods = normalize_methods(&action.methods);
-    // Validate HEAD handlers: they must not accept body extractors (Json)
-    if http_methods.iter().any(|m| m == "HEAD") {
-        if signature_accepts_body(sig) {
-            let msg = "#[route(method = \"HEAD\")] handlers must not accept body extractors like `Json<T>`";
-            return vec![(quote! { compile_error!(#msg); }, quote! {})];
+    
+    // Validate all HTTP methods
+    for method in &http_methods {
+        if let Err(e) = validate_http_method(method, fn_ident.span()) {
+            return vec![(e.to_compile_error(), quote! {})];
         }
     }
+    
+    // Validate HEAD handlers: they must not accept body extractors
+    if http_methods.iter().any(|m| m == "HEAD")
+        && signature_accepts_body(sig) {
+            let err = syn::Error::new(
+                fn_ident.span(),
+                "HEAD request handlers must not accept body extractors (Json, Form, Bytes, String, Multipart). HEAD requests do not have a body."
+            );
+            return vec![(err.to_compile_error(), quote! {})];
+        }
+    
     let summary_tokens = build_summary_tokens(action.summary.as_ref(), fn_item);
     let params_tokens = build_params_tokens(sig, action);
     let responses_tokens = build_responses_tokens(sig, action);
@@ -273,6 +342,7 @@ fn map_method_to_tokens(
     method_upper: &str,
     fn_ident: &syn::Ident,
 ) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
+    // Note: validation happens before this is called, so we should only see valid methods
     match method_upper {
         "GET" => (
             quote! { ::axum::http::Method::GET },
@@ -300,27 +370,25 @@ fn map_method_to_tokens(
         ),
         "HEAD" => (
             quote! { ::axum::http::Method::HEAD },
-            quote! { ::axum::routing::any(Self::#fn_ident) },
+            quote! { ::axum::routing::head(Self::#fn_ident) },
         ),
-        other => {
-            let msg = format!("Unsupported HTTP method {:?} in #[route]", other);
-            (
-                quote! { ::axum::http::Method::GET },
-                quote! { ::axum::routing::any(|| async { compile_error!(#msg); }) },
-            )
+        _ => {
+            // Should never reach here due to validation
+            panic!("Invalid HTTP method '{}' passed validation", method_upper)
         }
     }
 }
 
 fn signature_accepts_body(sig: &syn::Signature) -> bool {
+    const BODY_EXTRACTORS: &[&str] = &["Json", "Form", "Bytes", "String", "Multipart", "BodyStream"];
+    
     for input in sig.inputs.iter() {
         if let FnArg::Typed(pat_type) = input {
             let ty = &*pat_type.ty;
-            if let Some(name) = extractor_name_of_type(ty) {
-                if name == "Json" {
+            if let Some(name) = extractor_name_of_type(ty)
+                && BODY_EXTRACTORS.contains(&name.as_str()) {
                     return true;
                 }
-            }
         }
     }
     false
@@ -436,13 +504,11 @@ fn extractor_name_of_type(ty: &Type) -> Option<String> {
 
 fn build_param_meta(pat_type: &PatType, override_spec: Option<&ParamArgs>) -> proc_macro2::TokenStream {
     // Determine if override hides the param
-    if let Some(spec) = override_spec {
-        if let Some(n) = &spec.name {
-            if n == "_" {
+    if let Some(spec) = override_spec
+        && let Some(n) = &spec.name
+            && n == "_" {
                 return quote! {};
             }
-        }
-    }
 
     let name = override_spec
         .and_then(|s| s.name.clone())
@@ -453,12 +519,7 @@ fn build_param_meta(pat_type: &PatType, override_spec: Option<&ParamArgs>) -> pr
 
     // Determine source: explicit override takes precedence; otherwise infer from extractor.
     let source_tokens: Option<proc_macro2::TokenStream> = if let Some(spec) = override_spec {
-        if let Some(src) = &spec.source {
-            Some(quote! { Some(::std::borrow::Cow::Owned(String::from(#src))) })
-        } else {
-            // fallthrough to inference
-            None
-        }
+        spec.source.as_ref().map(|src| quote! { Some(::std::borrow::Cow::Owned(String::from(#src))) })
     } else {
         None
     };
@@ -466,13 +527,13 @@ fn build_param_meta(pat_type: &PatType, override_spec: Option<&ParamArgs>) -> pr
     let inferred_source = if source_tokens.is_none() {
         // try to infer from the parameter type (Path, Query, Json, etc.)
         let ty = &*pat_type.ty;
-        let inferred = extractor_name_of_type(ty).map(|s| match s.as_str() {
+        
+        extractor_name_of_type(ty).map(|s| match s.as_str() {
             "Path" => "path",
             "Query" => "query",
             "Json" => "body",
             _ => "",
-        }.to_string());
-        inferred
+        }.to_string())
     } else {
         None
     };
@@ -530,12 +591,12 @@ fn extract_param_name(pat: &Pat) -> String {
         Pat::Ident(ident) => ident.ident.to_string(),
         Pat::TupleStruct(ts) => {
             // e.g. `Path(name)` -> grab first inner binding
-            ts.elems.first().map_or("_".to_string(), |inner| extract_param_name(inner))
+            ts.elems.first().map_or("_".to_string(), extract_param_name)
         }
-        Pat::Tuple(tuple) => tuple.elems.first().map_or("_".to_string(), |inner| extract_param_name(inner)),
-        Pat::Paren(paren) => extract_param_name(&*paren.pat),
-        Pat::Type(pat_type) => extract_param_name(&*pat_type.pat),
-        Pat::Reference(pat_ref) => extract_param_name(&*pat_ref.pat),
+        Pat::Tuple(tuple) => tuple.elems.first().map_or("_".to_string(), extract_param_name),
+        Pat::Paren(paren) => extract_param_name(&paren.pat),
+        Pat::Type(pat_type) => extract_param_name(&pat_type.pat),
+        Pat::Reference(pat_ref) => extract_param_name(&pat_ref.pat),
         Pat::Wild(_) => "_".to_string(),
         _ => "_".to_string(),
     }
@@ -699,14 +760,12 @@ fn extract_inner_return_type(ty: &Type) -> Option<Type> {
     let type_name = segment.ident.to_string();
 
     // Handle Result<T, E> -> extract T
-    if type_name == "Result" {
-        if let PathArguments::AngleBracketed(args) = &segment.arguments {
-            if let Some(GenericArgument::Type(ok_ty)) = args.args.first() {
+    if type_name == "Result"
+        && let PathArguments::AngleBracketed(args) = &segment.arguments
+            && let Some(GenericArgument::Type(ok_ty)) = args.args.first() {
                 // Recursively extract from the Ok type
                 return extract_inner_return_type(ok_ty).or(Some(ok_ty.clone()));
             }
-        }
-    }
 
     // Handle response wrappers: Json<T>, Html, Response, etc.
     extract_generic_arg(&segment.arguments)

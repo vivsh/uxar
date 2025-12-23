@@ -2,6 +2,7 @@
 name = "uxar-macros"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
 
 [lib]
 proc-macro = true
@@ -16,3 +17,6 @@ darling = "0.20"
 heck = "0.4"
 
 tokio = {workspace = true}
+
+[dev-dependencies]
+uxar = { path = "../uxar" }

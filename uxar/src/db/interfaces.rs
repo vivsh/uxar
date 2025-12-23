@@ -9,6 +9,26 @@ pub enum ColumnKind {
     Reference { columns: &'static [ColumnSpec] },
 }
 
+
+#[derive(Debug, Clone)]
+pub struct ColumnValidation {
+    pub email: bool,
+    pub url: bool,
+    pub min_length: Option<usize>,
+    pub max_length: Option<usize>,
+    pub exact_length: Option<usize>,
+    pub min_value: Option<i64>,
+    pub max_value: Option<i64>,
+    pub range: Option<(i64, i64)>,
+    pub regex: Option<&'static str>,
+    pub non_empty: bool,
+    pub alphanumeric: bool,
+    pub slug: bool,
+    pub digits: bool,
+    pub uuid: bool,
+    pub ipv4: bool,
+}
+
 #[derive(Debug, Clone)]
 pub struct ColumnSpec {
     pub kind: ColumnKind,
@@ -17,6 +37,7 @@ pub struct ColumnSpec {
     pub selectable: bool,
     pub insertable: bool,
     pub updatable: bool,
+    pub validation: Option<ColumnValidation>,
 }
 
 impl ColumnSpec {
@@ -28,6 +49,7 @@ impl ColumnSpec {
             selectable: true,
             insertable: true,
             updatable: true,
+            validation: None,
         }
     }
 
@@ -46,6 +68,7 @@ impl ColumnSpec {
 
 pub trait Schemable {
     fn schema() -> &'static [ColumnSpec];
+    fn name() -> &'static str;
 }
 
 pub trait Scannable: Sized{

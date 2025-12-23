@@ -22,7 +22,7 @@ pub struct ValidatableField {
 
     /// Nested validation: #[validate(nested)]
     #[darling(default)]
-    pub nested: bool,
+    pub delegate: bool,
 
     /// Email validation: #[validate(email)]
     #[darling(default)]
@@ -174,7 +174,7 @@ pub fn generate_field_validation(
     }
 
     // Nested validation
-    if field.nested {
+    if field.delegate {
         let validation_code = if is_option {
             quote! {
                 if let Some(ref value) = self.#field_name {

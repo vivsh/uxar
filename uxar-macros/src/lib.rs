@@ -11,7 +11,7 @@ use proc_macro::TokenStream;
 extern crate proc_macro;
 
 
-#[proc_macro_derive(Schemable, attributes(column))]
+#[proc_macro_derive(Schemable, attributes(column, validate, schemable))]
 pub fn derive_schemable(input: TokenStream) -> TokenStream {
     schemable::derive_schemable(input)
 }

@@ -1,0 +1,177 @@
+# Uxar
+
+A strongly opinionated Rust web framework built on Axum, designed for rapid development of Postgres-backed JSON APIs with JWT authentication.
+
+## Philosophy
+
+Uxar embraces convention over configuration while maintaining Rust's safety guarantees. 
+
+The framework follows a "site as tapestry" model where all components—routing, authentication, database, templates—are woven together through a central `Site` builder pattern.
+
+## Status
+
+**Alpha/Experimental** - Under active development. APIs will change. Not recommended for production use.
+
+Current state:
+- Core routing and site scaffolding: Functional
+- JWT authentication: Functional with cookie and header support
+- Database layer: Basic query building and migrations framework in place
+- Validation: Comprehensive derive macro with OpenAPI integration
+- Documentation: Sparse; code is the primary documentation
+
+## Features
+
+### Site Scaffolding
+
+The `Site` acts as the central orchestrator, providing a builder pattern to compose applications:
+
+```rust
+Site::builder(conf)
+    .with_service(my_service)
+    .mount("/api", "api_v1", api_router)
+    .merge(UserView::as_routable())
+    .run()
+    .await?
+```
+
+Key capabilities:
+- **Service container**: Type-safe dependency injection via `with_service` and `get_service`
+- **Template rendering**: Integrated MiniJinja environment loaded from embedded or filesystem templates
+- **Static file serving**: Configurable static directories with automatic `ServeDir` mounting
+- **Database pooling**: Managed Postgres connection pool with configurable limits
+- **Reverse routing**: Name-based URL generation via `reverse`
+- **Configuration**: Environment-based config loading with `.env` support (see `SiteConf`)
+
+### Authentication
+
+JWT-based authentication with support for both access and refresh tokens:
+
+```rust
+let user = AuthUser::extract_from_request_parts(parts, &site)?;
+```
+
+Features:
+- Dual token system (access + refresh) with configurable TTLs
+- Cookie-based and header-based token extraction
+- Audience (`aud`) claim validation for multi-tenant scenarios
+- Automatic cookie management with `HttpOnly`, `Secure`, and `SameSite` controls
+- Custom authentication backend trait (`AuthBackend`) for pluggable auth strategies
+- Role-based access control with compile-time bitmask permissions
+
+### Database
+
+Lightweight query builder and ORM-lite features:
+
+```rust
+let users: Vec<User> = User::select_from("users")
+    .filter("is_active AND kind = ?")
+    .bind(1)
+    .all(&mut tx)
+    .await?;
+```
+
+Key components:
+- **Schema definitions**: `Schemable` derive macro for column metadata with validation integration
+- **Scannable/Bindable**: Traits for type-safe row scanning and parameter binding
+- **Query builder**: Fluent API with filter chaining, ordering, slicing
+- **Filterable**: Trait for type-safe WHERE clause building
+- **JSON aggregation**: Helper methods for Postgres `JSONB_AGG` queries
+
+
+### Routing
+
+Type-safe, name-based routing with automatic metadata extraction:
+
+```rust
+#[routable]
+impl UserView {
+    #[route(method = "GET", url = "/users/{id}")]
+    async fn get_user(Path(id): Path<i32>) -> Json<User> {
+        // handler
+    }
+}
+```
+
+Features:
+- **Named routes**: Use `site.reverse("get_user", &[("id", "42")])` for URL generation
+- **Nested mounting**: `mount` and `merge` for composing routers with namespaces
+- **Automatic metadata**: `ViewMeta` extracted from handlers for docs/OpenAPI generation
+- **Parameter introspection**: Automatically detects Axum extractors (`Path`, `Query`, `Json`) and generates `ParamMeta`
+- **Response schemas**: Multi-status response metadata with optional type information (`ReturnMeta`)
+- **Base path support**: `#[routable(base_path = "/api/v1")]` for grouped endpoints
+
+The `#[routable]` macro generates a `StaticRoutable` implementation returning both the Axum router and view metadata, enabling documentation generation and reverse routing.
+
+### Validation
+
+Comprehensive validation framework with derive macro:
+
+```rust
+#[derive(Validatable)]
+struct User {
+    #[validate(email)]
+    email: String,
+    
+    #[validate(min_length = 3, max_length = 50)]
+    username: String,
+    
+    #[validate(range = (18, 120))]
+    age: i32,
+}
+
+// Use with Axum extractors
+async fn handler(Valid(Json(user)): Valid<Json<User>>) {
+    // user is validated
+}
+```
+
+Supported validators:
+- `email`, `url`, `uuid`, `ipv4`
+- `min_length`, `max_length`, `exact_length`
+- `min_value`, `max_value`, `range`
+- `regex`, `alphanumeric`, `slug`, `digits`
+- `non_empty`
+
+Validation metadata is integrated into `ColumnSpec` via the `Schemable` macro for database schema generation and OpenAPI documentation.
+
+## Non-Goals
+
+Uxar is **not** trying to be:
+
+- **Framework-agnostic**: Tightly coupled to Axum, Postgres, and JWT; no abstraction over these choices
+- **ORM replacement**: Not competing with Diesel or SeaORM; provides lightweight query building only
+- **Microservices-first**: Designed for monolithic APIs; no built-in service mesh or distributed tracing
+- **Frontend framework**: No opinions on React/Vue/etc.; JSON API focus
+- **GraphQL/gRPC**: REST/JSON only; no alternative protocol support
+- **Multi-database**: Postgres-only; no plans for MySQL, SQLite, etc.
+- **Backward compatible**: Will break APIs frequently during alpha/beta
+
+## TODO
+
+### High Priority
+- [ ] OpenAPI spec generation from `ViewMeta` and `Schemable`
+- [ ] CSRF protection for cookie-based auth
+- [ ] Rate limiting middleware
+- [ ] Comprehensive error types with proper context propagation
+- [ ] Improved tracing logs and better module organisation
+
+### Medium Priority
+- [ ] CLI tool for scaffolding projects/apps
+- [ ] Email sending abstraction
+- [ ] Background task queue (stubbed)
+- [ ] WebSocket support with authentication
+
+### Low Priority
+- [ ] Health check endpoints
+- [ ] Metrics/observability integration
+
+### Documentation
+- [ ] Comprehensive README with examples
+- [ ] API documentation for all public items
+- [ ] Migration guide for upgrading between versions
+- [ ] Tutorial: building a blog API
+- [ ] Comparison with Actix-web, Rocket, Loco
+
+## License
+
+MIT

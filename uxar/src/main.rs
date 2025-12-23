@@ -88,7 +88,7 @@ struct UserView;
 #[routable]
 impl UserView{
 
-    #[route(url="/users/{path}/")]
+    #[route(url="/users/{path}")]
     async fn list_users(Path(path): Path<i32>) -> views::Response {
         views::Html("<h1>User List</h1>".to_string()).into_response()
     }
@@ -98,16 +98,6 @@ impl UserView{
 
 #[tokio::main]
 async fn main() {
-    // let dir: Dir = embed!("tests");
-    // let dirset = DirSet::new(vec![dir]);
-    // for d in dirset.walk() {
-    //     println!("Entry: {:?}", d.path());
-    //     {
-    //         println!("File: {:?}", d.base_name());
-    //         println!("Path: {}", d.path().display());
-    //         println!("Contents: {:?}", d.read_bytes_async().await.unwrap().len());
-    //     }
-    // }
 
     let basket = Basket {
         items: vec!["apple".to_string(), "banana".to_string()],
