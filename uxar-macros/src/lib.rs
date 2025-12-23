@@ -6,6 +6,7 @@ mod bindable;
 mod filterable;
 mod recordable;
 mod routable;
+mod model;
 
 use proc_macro::TokenStream;
 extern crate proc_macro;
@@ -38,6 +39,12 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Validatable, attributes(validate))]
 pub fn derive_validatable(input: TokenStream) -> TokenStream {
     validatable::derive_validatable(input)
+}
+
+
+#[proc_macro_derive(Model, attributes(column, validate, model))]
+pub fn derive_model(input: TokenStream) -> TokenStream {
+    model::derive_model(input)
 }
 
 

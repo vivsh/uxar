@@ -21,10 +21,15 @@ pub(crate) struct BindableInput {
 
 pub fn derive_bindable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    derive_bindable_impl(&input).into()
+}
+
+pub(crate) fn derive_bindable_impl(input: &DeriveInput) -> proc_macro2::TokenStream {
+    let input = input.clone();
 
     let args = match BindableInput::from_derive_input(&input) {
         Ok(a) => a,
-        Err(e) => return e.write_errors().into(),
+        Err(e) => return e.write_errors(),
     };
 
     let ident = &args.ident;
@@ -67,12 +72,12 @@ pub fn derive_bindable(input: TokenStream) -> TokenStream {
                     continue;
                 }
                 wc.predicates.push(syn::parse_quote! {
-                    #ty: ::serde::Serialize
+                    #ty: ::uxar::db::serde::Serialize
                 });
             } else {
                 wc.predicates.push(syn::parse_quote! {
-                    for<'q> &'q #ty: ::sqlx::Encode<'q, ::sqlx::Postgres>
-                        + ::sqlx::Type<::sqlx::Postgres>
+                    for<'q> &'q #ty: ::uxar::db::sqlx::Encode<'q, ::uxar::db::Postgres>
+                        + ::uxar::db::sqlx::Type<::uxar::db::Postgres>
                         + ::core::marker::Send
                 });
             }
@@ -97,18 +102,18 @@ pub fn derive_bindable(input: TokenStream) -> TokenStream {
             // serialize to serde_json::Value and bind as JSON
             quote! {
                 {
-                    let value = ::serde_json::to_value(&self.#ident)
-                        .map_err(|e| ::sqlx::Error::Decode(Box::new(e)))?;
-                    <::sqlx::postgres::PgArguments as ::sqlx::Arguments<'_>>::add(args, value)
-                        .map_err(::sqlx::Error::Decode)?;
+                    let value = ::uxar::db::serde_json::to_value(&self.#ident)
+                        .map_err(|e| ::uxar::db::SqlxError::Decode(Box::new(e)))?;
+                    <::uxar::db::PgArguments as ::uxar::db::Arguments<'_>>::add(args, value)
+                        .map_err(::uxar::db::SqlxError::Decode)?;
                 }
             }
         } else {
             // scalar field
             quote! {
                 {
-                    <::sqlx::postgres::PgArguments as ::sqlx::Arguments<'_>>::add(args, &self.#ident)
-                        .map_err(::sqlx::Error::Decode)?;
+                    <::uxar::db::PgArguments as ::uxar::db::Arguments<'_>>::add(args, &self.#ident)
+                        .map_err(::uxar::db::SqlxError::Decode)?;
                 }
             }
         }
@@ -118,13 +123,13 @@ pub fn derive_bindable(input: TokenStream) -> TokenStream {
         impl #impl_generics ::uxar::db::Bindable for #ident #ty_generics #where_clause {
             fn bind_values(
                 &self,
-                args: &mut ::sqlx::postgres::PgArguments,
-            ) -> Result<(), ::sqlx::Error> {
+                args: &mut ::uxar::db::PgArguments,
+            ) -> Result<(), ::uxar::db::SqlxError> {
                 #(#bind_stmts)*
                 Ok(())
             }
         }
     };
 
-    expanded.into()
+    expanded
 }

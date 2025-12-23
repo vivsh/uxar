@@ -1,17 +1,19 @@
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use uxar::{
-    Path, Site, SiteConf, db::{Bindable, Scannable, Schemable}, validation::Validate, views::{self, IntoResponse, Routable, routable, route}
+    Path, Site, SiteConf, db::{Model}, validation::Validate, views::{self, IntoResponse, Routable, routable, route}
+
 };
 
-#[derive(Debug, Schemable, Scannable, Bindable)]
+#[derive(Debug, Model)]
 struct Address {
     street: String,
     city: String,
     zip: String,
 }
 
-#[derive(Debug, Serialize, Schemable, Deserialize, Scannable, Bindable)]
+#[derive(Debug, Serialize,Deserialize, Model)]
+#[model(name = "users_user")]
 struct User {
     id: i32,
     username: String,
@@ -32,13 +34,13 @@ async fn handle_sql(site: Site) -> views::Response {
         kind: 2,
     };
 
-    let q = User::select_from("users_user").filter("kind = 1").count(&mut tx)
+    let q = User::to_select().filter("kind = 1").count(&mut tx)
         .await
         .expect("asdasd asdada");
 
     println!("\n\nUser count with kind=1: {};\n\n", q);
 
-    let users: Vec<User> = User::select_from("users_user")
+    let users: Vec<User> = User::to_select()
         .filter("is_active AND kind = 1")
         .all(&mut tx)
         .await
@@ -52,36 +54,6 @@ async fn handle_sql(site: Site) -> views::Response {
 }
 
 
-pub struct Basket{
-    pub items: Vec<String>,
-    pub total: f64,
-    pub price: f64,
-    pub discount: f64,    
-}
-
-impl Validate for Basket {
-    fn validate(&self) -> Result<(), uxar::validation::ValidationReport> {
-        let mut errors = uxar::validation::ValidationReport::empty();
-
-        if self.items.is_empty() {
-            errors.push_root(uxar::validation::ValidationError::new("items", "Basket must contain at least one item"));
-        }
-
-        if self.total < 110.0 {
-            errors.push_root(uxar::validation::ValidationError::new("total", "Total price cannot be negative"));
-        }
-
-        if self.discount < 0.0 || self.discount > self.price {
-            errors.push_root(uxar::validation::ValidationError::new("discount", "Discount must be between 0 and the price"));
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
-    }
-}
 
 struct UserView;
 
@@ -96,17 +68,9 @@ impl UserView{
 
 }
 
+
 #[tokio::main]
 async fn main() {
-
-    let basket = Basket {
-        items: vec!["apple".to_string(), "banana".to_string()],
-        total: 15.0,
-        price: 20.0,
-        discount: 5.0,
-    };
-    println!("Starting Uxar site...{:?}", basket.validate().unwrap_err().to_nested_map());
-
     println!("Starting Uxar site... {:?}", UserView::as_routable().1);
 
     let conf = SiteConf {

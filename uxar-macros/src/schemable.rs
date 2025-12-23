@@ -204,13 +204,17 @@ pub(crate) struct SchemableInput {
 
 pub (crate) fn derive_schemable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    derive_schemable_impl(&input).into()
+}
+
+pub(crate) fn derive_schemable_impl(input: &DeriveInput) -> proc_macro2::TokenStream {
     let input_clone = input.clone();
 
-    let schemable = match SchemableInput::from_derive_input(&input) {
+    let schemable = match SchemableInput::from_derive_input(&input_clone) {
         Ok(a) => a,
-        Err(e) => return e.write_errors().into(),
+        Err(e) => return e.write_errors(),
     };
-    impl_schemable(schemable, input_clone).into()
+    impl_schemable(schemable, input_clone)
 }
 
 

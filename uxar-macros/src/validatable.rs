@@ -87,13 +87,18 @@ pub struct ValidatableInput {
 
 pub fn derive_validatable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    derive_validatable_impl(&input).into()
+}
+
+pub(crate) fn derive_validatable_impl(input: &DeriveInput) -> proc_macro2::TokenStream {
+    let input = input.clone();
 
     let validatable = match ValidatableInput::from_derive_input(&input) {
         Ok(v) => v,
-        Err(e) => return e.write_errors().into(),
+        Err(e) => return e.write_errors(),
     };
 
-    impl_validatable(validatable).into()
+    impl_validatable(validatable)
 }
 
 // Helper to check if a type is Option<T>

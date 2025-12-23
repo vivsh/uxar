@@ -1,5 +1,5 @@
 
-use crate::db::{query::Query};
+use crate::db::{models::TableModel, query::Query};
 
 #[derive(Debug, Clone)]
 pub enum ColumnKind {
@@ -72,9 +72,9 @@ pub trait Schemable {
 }
 
 pub trait Scannable: Sized{
-    fn scan_row_ordered(row: &sqlx::postgres::PgRow, start_idx: &mut usize) -> Result<Self, sqlx::Error>;
+    fn scan_row_ordered(row: &crate::db::PgRow, start_idx: &mut usize) -> Result<Self, crate::db::SqlxError>;
 
-    fn scan_row(row: &sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+    fn scan_row(row: &crate::db::PgRow) -> Result<Self, crate::db::SqlxError> {
         let mut idx = 0;
         Self::scan_row_ordered(row, &mut idx)
     }
@@ -89,7 +89,7 @@ pub trait Scannable: Sized{
 
 pub trait Bindable: Schemable + Sized {
 
-    fn bind_values(&self, args: &mut sqlx::postgres::PgArguments) -> Result<(), sqlx::Error>;
+    fn bind_values(&self, args: &mut crate::db::PgArguments) -> Result<(), crate::db::SqlxError>;
 
     fn insert_into(&self, source: &str) -> Query {
         let mut qs = Query::new();
@@ -108,3 +108,24 @@ pub trait Filterable {
     fn filter_query(&self, qs: Query) -> Query;
 }
 
+pub trait Model: Schemable + Scannable + Bindable{
+    fn to_select()-> Query {
+        <Self as Scannable>::select_from(Self::name())
+    }
+
+    fn to_insert(&self) -> Query {
+        <Self as Bindable>::insert_into(self, Self::name())
+    }
+
+    fn to_update(&self) -> Query {
+        <Self as Bindable>::update_into(self, Self::name())
+    }
+}
+
+impl <T: Schemable + Scannable + Bindable> Model for T {
+    
+}
+
+pub trait Recordable{
+    fn into_table_model() -> TableModel;
+}

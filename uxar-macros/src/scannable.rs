@@ -21,10 +21,15 @@ pub(crate) struct ScannableInput {
 
 pub fn derive_scannable(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    derive_scannable_impl(&input).into()
+}
+
+pub(crate) fn derive_scannable_impl(input: &DeriveInput) -> proc_macro2::TokenStream {
+    let input = input.clone();
 
     let args = match ScannableInput::from_derive_input(&input) {
         Ok(a) => a,
-        Err(e) => return e.write_errors().into(),
+        Err(e) => return e.write_errors(),
     };
 
     let ident = &args.ident;
@@ -118,21 +123,21 @@ pub fn derive_scannable(input: TokenStream) -> TokenStream {
     let expanded = quote! {
         impl #impl_generics ::uxar::db::Scannable for #ident #ty_generics #where_clause {
             fn scan_row_ordered(
-                row: &::sqlx::postgres::PgRow,
+                row: &::uxar::db::PgRow,
                 start_idx: &mut usize,
-            ) -> Result<Self, ::sqlx::Error> {
+            ) -> Result<Self, ::uxar::db::SqlxError> {
                 Ok(Self {
                     #(#field_inits),*
                 })
             }
         }
 
-        impl<'r> ::sqlx::FromRow<'r, ::sqlx::postgres::PgRow> for #ident #ty_generics #where_clause {
-            fn from_row(row: &'r ::sqlx::postgres::PgRow) -> Result<Self, ::sqlx::Error> {
+        impl<'r> ::uxar::db::FromRow<'r, ::uxar::db::PgRow> for #ident #ty_generics #where_clause {
+            fn from_row(row: &'r ::uxar::db::PgRow) -> Result<Self, ::uxar::db::SqlxError> {
                 <Self as ::uxar::db::Scannable>::scan_row(row)
             }
         }
     };
 
-    expanded.into()
+    expanded
 }
