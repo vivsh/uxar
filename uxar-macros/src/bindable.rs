@@ -14,6 +14,7 @@ pub(crate) struct BindableInput {
     generics: syn::Generics,
 
     #[darling(default, rename = "crate")]
+    #[allow(dead_code)]
     crate_path: Option<syn::Path>,
 
     data: Data<darling::util::Ignored, SchemableField>,
