@@ -287,9 +287,10 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
         }
     };
 
-    // Determine the schema name (custom or default to struct name)
+    // Determine the schema name (defaults to struct name if not provided)
     let schema_name = input
         .name
+        .filter(|s| !s.is_empty())
         .unwrap_or_else(|| ident.to_string());
 
     let mut column_specs = Vec::new();
@@ -399,6 +400,8 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
             quote! { None }
         };
 
+        let primary_key = field.primary_key;
+
         column_specs.push(quote! {
             ::#crate_path::ColumnSpec {
                 kind: #kind_expr,
@@ -407,6 +410,7 @@ pub(crate) fn impl_schemable(input: SchemableInput, original_input: DeriveInput)
                 selectable: #selectable,
                 insertable: #insertable,
                 updatable: #updatable,
+                primary_key: #primary_key,
                 validation: #validation_expr,
             }
         });

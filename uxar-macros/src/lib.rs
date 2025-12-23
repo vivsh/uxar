@@ -18,6 +18,36 @@ extern crate proc_macro;
 /// Use `#[derive(Validatable)]` if you only need validation without database operations.
 /// 
 /// If `table_name` is specified, also implements Recordable for migration support.
+/// 
+/// # Attributes
+/// 
+/// ## `#[schemable(...)]` - Type-level attributes
+/// - `name = "custom_name"` - Override the schema name (defaults to struct name)
+/// - `table_name = "table_name"` - Database table name (enables Recordable trait)
+/// 
+/// ## `#[column(...)]` - Field mapping attributes
+/// - `db_column = "column_name"` - Database column name (defaults to field name)
+/// - `skip` - Exclude field from schema
+/// - `flatten` - Flatten nested struct fields
+/// - `json` - Store as JSON
+/// - `reference` - Reference to another type
+/// - `selectable = false` - Exclude from SELECT queries
+/// - `insertable = false` - Exclude from INSERT queries
+/// - `updatable = false` - Exclude from UPDATE queries
+/// - `primary_key` - Mark as primary key (also stored in ColumnSpec)
+/// 
+/// ## `#[db(...)]` - Database constraint attributes (only used with table_name)
+/// - `primary_key` - Mark as primary key
+/// - `unique` - Add UNIQUE constraint
+/// - `unique_group = "group_name"` - Composite unique constraint
+/// - `indexed` - Create database index
+/// - `index_type = "btree"` - Index type (btree, hash, gin, etc.)
+/// - `default = "value"` - Default value expression
+/// - `check = "expression"` - CHECK constraint
+/// 
+/// Note: Currently, both `#[column(...)]` and `#[db(...)]` accept all attributes.
+/// The recommendation is to use `#[column(...)]` for field mapping and `#[db(...)]` 
+/// for database constraints, but they can be used interchangeably.
 #[proc_macro_derive(Schemable, attributes(column, validate, schemable, db))]
 pub fn derive_schemable(input: TokenStream) -> TokenStream {
     model::derive_model(input)

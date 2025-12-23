@@ -40,6 +40,7 @@ pub struct ColumnSpec {
     pub selectable: bool,
     pub insertable: bool,
     pub updatable: bool,
+    pub primary_key: bool,
     pub validation: Option<ColumnValidation>,
 }
 
@@ -52,6 +53,7 @@ impl ColumnSpec {
             selectable: true,
             insertable: true,
             updatable: true,
+            primary_key: false,
             validation: None,
         }
     }
