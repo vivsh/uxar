@@ -42,6 +42,8 @@ pub struct SiteConf {
 
     pub log_init: bool,
 
+    pub tz: Option<String>,
+
     pub auth: AuthConf,
 }
 
@@ -58,6 +60,7 @@ impl Default for SiteConf {
             touch_reload: None,
             templates_dir: None,
             log_init: true,
+            tz: None,
             auth: AuthConf::default(),
         }
     }

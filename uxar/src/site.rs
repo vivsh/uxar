@@ -2,8 +2,9 @@ use crate::app::{Application};
 use crate::auth::Authenticator;
 use crate::db::{DbError, DbPool};
 use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
+use crate::tasks::{self, TaskError, TaskManager};
 use crate::views::Routable;
-use crate::{IntoApplication, embed, watch};
+use crate::{embed, watch};
 use crate::{
     views,
     cmd::{NestedCommand, SiteCommand},
@@ -12,10 +13,11 @@ use crate::{
 use argh;
 use axum::body::Body;
 use axum::extract::Request;
-use axum::{Extension, Router as AxumRouter, ServiceExt as _};
+use axum::{ServiceExt as _};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tokio::sync::mpsc;
+use chrono_tz::Tz;
 use std::any::Any;
 use std::net::{SocketAddr, ToSocketAddrs as _};
 use std::{any::TypeId, collections::HashMap, path::PathBuf, sync::Arc};
@@ -45,14 +47,22 @@ pub enum SiteError {
 
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
+
+    #[error("Task error: {0}")]
+    TaskError(#[from] TaskError),
 }
 
+
+type ServiceType = dyn 'static + Send + Sync + Any;
 
 pub struct SiteBuilder {
     conf: SiteConf,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     router: views::Router,
     apps: Vec<Arc<dyn Application>>,
+    lazy_db: bool,
+    disable_tasks: bool,
+    task_builder: tasks::TaskEngineBuilder,
 }
 
 impl SiteBuilder {
@@ -62,12 +72,26 @@ impl SiteBuilder {
             apps: Vec::new(),
             router: views::Router::new(),
             services: HashMap::new(),
+            task_builder: tasks::TaskEngineBuilder::new(chrono_tz::Tz::UTC),
+            lazy_db: false,
+            disable_tasks: false,
         }
     }
 
-    pub fn with_service<T: Service>(mut self, service: T) -> Self {
+    pub fn without_tasks(mut self) -> Self {
+        self.disable_tasks = true;
+        self.task_builder.clear();
+        self
+    }
+
+    pub fn with_lazy_db(mut self) -> Self {
+        self.lazy_db = true;
+        self
+    }
+
+    pub fn with_service<T: 'static + Send + Sync>(mut self, service: impl Into<Arc<T>>) -> Self {
         let type_id = TypeId::of::<T>();
-        self.services.insert(type_id, Arc::new(service));
+        self.services.insert(type_id, service.into());
         self
     }
 
@@ -79,6 +103,42 @@ impl SiteBuilder {
 
     pub fn merge<R: views::Routable>(mut self, other: R) -> Self {
         self.router = self.router.merge(other);
+        self
+    }
+
+    /// Register a task handler with typed arguments
+    pub fn with_task<T, F, Fut>(mut self, name: &str, handler: F) -> Self
+    where
+        T: serde::de::DeserializeOwned + Send + Sync + 'static,
+        F: Fn(Site, T) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        debug_assert!(!self.disable_tasks, "Cannot register tasks when tasks are disabled");
+        self.task_builder.register(name, handler);
+        self
+    }
+
+    /// Schedule a task to run on a cron schedule
+    pub fn cron_task<T: serde::Serialize>(
+        mut self,
+        name: &str,
+        cron_expr: &str,
+        arg: T,
+    ) -> Self{
+        debug_assert!(!self.disable_tasks, "Cannot register tasks when tasks are disabled");
+        self.task_builder.schedule_cron(name, cron_expr, arg);
+        self
+    }
+
+    /// Schedule a task to run at regular intervals (in milliseconds)
+    pub fn periodic_task<T: serde::Serialize>(
+        mut self,
+        name: &str,
+        millis: i64,
+        arg: T,
+    ) -> Self {
+        debug_assert!(!self.disable_tasks, "Cannot register tasks when tasks are disabled");
+        self.task_builder.schedule_interval(name, millis, arg);
         self
     }
 
@@ -136,7 +196,16 @@ impl SiteBuilder {
     }
 
     pub async fn build(self) -> Result<Site, SiteError> {
-        let project_dir = PathBuf::from(&self.conf.project_dir);        ;
+        let project_dir = PathBuf::from(&self.conf.project_dir);
+
+        let timezone = match &self.conf.tz {
+            Some(tz_str) => tz_str.parse::<Tz>().map_err(|_| {
+                SiteError::ConfigError(format!("Invalid timezone: {}", tz_str))
+            })?,
+            None => Tz::UTC,
+        };
+
+        let task_engine = self.task_builder.build_tz(timezone)?;
 
         let (mut router, metas) = self.router.into_router_parts();
 
@@ -166,11 +235,20 @@ impl SiteBuilder {
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);
 
-        let pool = PgPoolOptions::new()
-            .max_connections(max_connections)
-            .min_connections(min_connections)
-            .connect(&db_url)
-            .await.map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?;
+        let pool = if self.lazy_db {
+            PgPoolOptions::new()
+                .max_connections(max_connections)
+                .min_connections(min_connections)
+                .connect_lazy(&db_url)
+                .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
+        } else {
+            PgPoolOptions::new()
+                .max_connections(max_connections)
+                .min_connections(min_connections)
+                .connect(&db_url)
+                .await
+                .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
+        };
 
         Self::inject_templates(&self.apps, &self.conf, &project_dir, &mut env)?;
 
@@ -190,28 +268,50 @@ impl SiteBuilder {
                 conf: self.conf,
                 services: self.services,
                 pool,
+                shutdown_notifier: Arc::new(tokio::sync::Notify::new()),
+                timezone,
+                task_engine,
                 authenticator,
                 template_env: env,
                 router,
-                view_inspeector: inspector,
+                router_meta: inspector,
             }),
         };
+
+        if !self.disable_tasks {
+            // Start the task runner in the background
+            site.inner.task_engine.start_runner(site.clone(), site.inner.shutdown_notifier.clone()).await?;
+        }
 
         Ok(site)
     }
 }
 
-pub trait Service: 'static + Send + Sync + std::any::Any {}
 
+pub struct Service<T>(pub Arc<T>);
 
-impl<T: Send + Sync + Any> Service for T {} // Blanket impl
+impl<T: 'static + Send + Sync> axum::extract::FromRequestParts<Site> for Service<T> {
+    type Rejection = crate::ApiError;
 
-
-pub trait SignalHandler: 'static + Send + Sync {
-
-    fn handle_signal(&self, site: &Site, object: &dyn Any);
-
+    async fn from_request_parts(_parts: &mut axum::http::request::Parts, state: &Site) -> Result<Self, Self::Rejection> {
+        match state.get_service::<T>() {
+            Some(service) => Ok(Service(service)),
+            None => {
+                let type_name = std::any::type_name::<T>();
+                Err(crate::ApiError::internal_error().with_details(format!("Service not found: {}", type_name)))
+            }
+        }
+    }
 }
+
+impl<T> std::ops::Deref for Service<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 
 
 #[derive(Clone, Debug)]
@@ -222,9 +322,12 @@ struct SiteInner {
     authenticator: Authenticator,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     pool: PgPool,
+    timezone: Tz,
+    task_engine: tasks::TaskEngine,
     router: axum::Router<Site>,
     template_env: minijinja::Environment<'static>,
-    view_inspeector: views::RouterMeta,
+    router_meta: views::RouterMeta,
+    shutdown_notifier: Arc<tokio::sync::Notify>,
 }
 
 #[derive(Debug, Clone)]
@@ -246,7 +349,7 @@ impl Site {
     }
 
     pub fn reverse(&self, name: &str, args: &[(&str, &str)]) -> Option<String> {
-        self.inner.view_inspeector.reverse(name, args)
+        self.inner.router_meta.reverse(name, args)
     }
 
     pub fn render_template<S: serde::Serialize>(
@@ -260,7 +363,7 @@ impl Site {
             .render(context)
     }
 
-    pub fn get_service<T: Service>(&self) -> Option<Arc<T>> {
+    pub fn get_service<T: 'static + Send + Sync>(&self) -> Option<Arc<T>> {
         let type_id = TypeId::of::<T>();
         self.inner
             .services
@@ -270,6 +373,10 @@ impl Site {
 
     pub fn authenticator(&self) -> &Authenticator {
         &self.inner.authenticator
+    }
+
+    pub fn tz(&self) -> Tz {
+        self.inner.timezone
     }
 
     pub fn db(&self) -> DbPool<'_> {
@@ -312,10 +419,14 @@ impl Site {
         let touch_reload = self.inner.conf.touch_reload.clone();
         
         axum::serve(listener, service.into_make_service())
-            .with_graceful_shutdown(watch::shutdown_signal(touch_reload))
+            .with_graceful_shutdown(watch::shutdown_signal(touch_reload, self.inner.shutdown_notifier.clone()))
             .await?;
 
         Ok(())
+    }
+
+    pub fn tasks(&self) -> TaskManager<'_> {
+        self.inner.task_engine.manager()
     }
 
     pub async fn notify_stream(

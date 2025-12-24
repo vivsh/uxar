@@ -1,5 +1,5 @@
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 use notify::{RecursiveMode, Watcher};
 use tokio::signal;
 use crate::{SiteError};
@@ -37,7 +37,7 @@ async fn interrupt_signal() {
 }
 
 
-pub async fn shutdown_signal(touch_reload: Option<String>) {
+pub async fn shutdown_signal(touch_reload: Option<String>, notifier: Arc<tokio::sync::Notify>) {
     tokio::select! {
         _ = interrupt_signal() => {
             tracing::info!("Ctrl+C received, shutting down gracefully");
@@ -50,4 +50,5 @@ pub async fn shutdown_signal(touch_reload: Option<String>) {
             }
         },
     }
+    notifier.notify_waiters();
 }

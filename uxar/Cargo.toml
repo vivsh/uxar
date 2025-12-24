@@ -9,6 +9,8 @@ argh = {workspace = true}
 axum = {workspace = true}
 axum-extra = {workspace = true}
 chrono = {workspace = true}
+chrono-tz = "0.10"
+cron = "0.12"
 indexmap = {workspace = true}
 rand = {workspace = true}
 serde = {workspace = true}
@@ -47,6 +49,7 @@ notify = "^8.1"
 futures = "0.3.31"
 twox-hash = "1.6"
 regex = "1.12.2"
+parking_lot = "0.12.5"
 
 [dev-dependencies]
 tempfile = "3"

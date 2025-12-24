@@ -128,6 +128,27 @@ impl TestResponse {
         let body: T = self.json().await;
         assert_eq!(&body, expected_json);
     }
+
+    pub fn assert_status(self, expected_status: axum::http::StatusCode) -> Self {
+        assert_eq!(self.status(), expected_status, "Expected status {}, got {}", expected_status, self.status());
+        self
+    }
+
+    pub fn assert_ok(self) -> Self {
+        self.assert_status(axum::http::StatusCode::OK)
+    }
+
+    pub fn assert_created(self) -> Self {
+        self.assert_status(axum::http::StatusCode::CREATED)
+    }
+
+    pub fn assert_not_found(self) -> Self {
+        self.assert_status(axum::http::StatusCode::NOT_FOUND)
+    }
+
+    pub fn assert_bad_request(self) -> Self {
+        self.assert_status(axum::http::StatusCode::BAD_REQUEST)
+    }
 }
 
 impl TestClient {
@@ -147,3 +168,30 @@ impl TestClient {
     }
 }
 
+/// Creates a minimal mock Site for testing purposes
+/// Uses lazy DB (no actual connection) and safe defaults
+pub async fn mock_site() -> Site {
+    use uuid::Uuid;
+    
+    let test_db_name = format!("uxar_test_{}", Uuid::now_v7().simple());
+    let conf = SiteConf {
+        host: "localhost".to_string(),
+        port: 8080,
+        project_dir: "/tmp/uxar_test".to_string(),
+        database: format!("postgres://localhost/{}", test_db_name),
+        secret_key: "test_secret_key_minimum_32_chars!".to_string(),
+        static_dirs: vec![],
+        upload_dir: None,
+        templates_dir: None,
+        touch_reload: None,
+        log_init: false,
+        tz: Some("UTC".to_string()),
+        auth: crate::auth::AuthConf::default(),
+    };
+
+    Site::builder(conf)
+        .with_lazy_db()
+        .build()
+        .await
+        .expect("Failed to build mock site")
+}

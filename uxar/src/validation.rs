@@ -130,16 +130,7 @@ impl ValidationReport {
         self.prefix(PathSeg::Key(key.into()))
     }
 
-    /// Runs multiple validators and collects errors.
-    pub fn from_validators<T>(value: &T, validators: &[&dyn Validator<T>]) -> Self {
-        let mut out = ValidationReport::empty();
-        for v in validators {
-            if let Err(inv) = v.validate(value) {
-                out.push_root(inv);
-            }
-        }
-        out
-    }
+
 
     /// Optional convenience: collapse to DRF-ish flat `{field: [msgs]}` for non-nested paths only.
     pub fn to_field_map_flat(&self) -> BTreeMap<String, Vec<String>> {
@@ -281,19 +272,6 @@ impl ValidationReport {
 
         root
     }
-}
-
-/// Single-value validator that returns Ok(()) or a ValidationError.
-///
-/// Automatically implemented for functions with signature `Fn(&T) -> Result<(), ValidationError>`.
-pub trait Validator<T>: Send + Sync {
-    fn validate(&self, value: &T) -> Result<(), ValidationError>;
-}
-impl<T, F> Validator<T> for F
-where
-    F: Fn(&T) -> Result<(), ValidationError> + Send + Sync,
-{
-    fn validate(&self, value: &T) -> Result<(), ValidationError> { (self)(value) }
 }
 
 /// Structural validation trait for types that can validate themselves.

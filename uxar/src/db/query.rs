@@ -187,25 +187,25 @@ impl Statement {
     }
 
     pub fn select<M: Model>(mut self) -> Self {
-        let source = M::schema_name();
+        let source = M::table_name().unwrap_or(M::schema_name());
         self = self.select_from::<M>(source, "");
         self
     }
 
     pub fn insert<M: Model>(mut self, item: &M) -> Self {
-        let source = M::schema_name();
+        let source = M::table_name().unwrap_or(M::schema_name());
         self = self.insert_into::<M>(item, source);
         self
     }
 
     pub fn update<M: Model>(mut self, item: &M) -> Self {
-        let source = M::schema_name();
+        let source = M::table_name().unwrap_or(M::schema_name());
         self = self.update_into::<M>(item, source);
         self
     }
 
     pub fn delete<M: Model>(mut self) -> Self {
-        let source = M::schema_name();
+        let source = M::table_name().unwrap_or(M::schema_name());
         self.sql.push_str("DELETE FROM ");
         self.sql.push_str(source);
         self

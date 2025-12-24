@@ -1,5 +1,6 @@
 
 use super::site::Site;
+use crate::ApiError;
 use axum::http::request::Parts;
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
@@ -341,21 +342,6 @@ pub enum AuthError {
     InternalError(String),
 }
 
-impl IntoResponse for AuthError {
-    fn into_response(self) -> Response {
-        let (status, msg) = match self {
-            AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
-            AuthError::MissingToken => (StatusCode::UNAUTHORIZED, "Missing token"),
-            AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "Expired token"),
-            AuthError::InvalidSignature => (StatusCode::UNAUTHORIZED, "Invalid signature"),
-            AuthError::Forbidden => (StatusCode::FORBIDDEN, "Permission denied"),
-            AuthError::InternalError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Internal error"),
-        };
-
-        (status, msg).into_response()
-    }
-}
-
 //convert jsonwebtoken::errors::Error to JWTError
 impl From<&jsonwebtoken::errors::Error> for AuthError {
     fn from(err: &jsonwebtoken::errors::Error) -> Self {
@@ -369,13 +355,13 @@ impl From<&jsonwebtoken::errors::Error> for AuthError {
 }
 
 impl axum::extract::FromRequestParts<Site> for AuthUser {
-    type Rejection = AuthError;
+    type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, site: &Site) -> Result<Self, Self::Rejection> {
         let refresh = false;
         let auth = site.authenticator();
         let user_result = auth.extract_user(parts, &[], refresh);
-        let user = user_result?;
+        let user = user_result.map_err(ApiError::from)?;
         Ok(user)
     }
 }

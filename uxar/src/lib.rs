@@ -4,11 +4,12 @@ mod cmd;
 mod app;
 mod host;
 mod migrations;
-mod errors;
+pub mod errors;
+pub use errors::ApiError;
 mod auth;
 mod roles;
 pub mod validation;
-mod validators;
+pub mod validators;
 mod layers;
 mod tasks;
 mod watch;
@@ -16,10 +17,9 @@ pub mod db;
 pub mod embed;
 pub mod testing;
 
-mod defer;
 
 pub mod views;
-pub use site::{Site, SiteError};
+pub use site::{Site, SiteError, Service};
 pub use conf::{SiteConf, StaticDir};
 pub use app::{Application, IntoApplication};
 pub use host::{HostService};
