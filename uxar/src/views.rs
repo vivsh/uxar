@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
+use axum::http::header;
+use axum::http::HeaderValue;
 use axum::http::Method;
 pub use axum::response::{Html, IntoResponse, Json, Response};
 pub use axum::routing::{delete, get, patch, post, put, Router as AxumRouter};
@@ -8,6 +10,39 @@ pub use axum::routing::{delete, get, patch, post, put, Router as AxumRouter};
 pub use uxar_macros::{route, routable};
 
 use crate::Site;
+
+/// Returns a string body with `application/json` content type.
+/// This is intentionally lightweight and assumes the inner value is already valid JSON.
+pub enum JsonStr {
+    Static(&'static str),
+    Owned(String),
+}
+
+impl From<&'static str> for JsonStr {
+    fn from(value: &'static str) -> Self {
+        Self::Static(value)
+    }
+}
+
+impl From<String> for JsonStr {
+    fn from(value: String) -> Self {
+        Self::Owned(value)
+    }
+}
+
+impl IntoResponse for JsonStr {
+    fn into_response(self) -> Response {
+        let mut res = match self {
+            Self::Static(s) => s.into_response(),
+            Self::Owned(s) => s.into_response(),
+        };
+        res.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        res
+    }
+}
 
 
 
