@@ -4,7 +4,7 @@ use crate::db::{DbError, DbPool};
 use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
 use crate::tasks::{self, TaskError, TaskManager};
 use crate::views::Routable;
-use crate::{embed, watch};
+use crate::{beacon, embed, watch};
 use crate::{
     views,
     cmd::{NestedCommand, SiteCommand},
@@ -164,10 +164,8 @@ impl SiteBuilder {
         // iterate over files in conf.templates_dir
         if let Some(templates_dir) = &conf.templates_dir {
             let path = crate::conf::project_dir().join(templates_dir);
-            dir_vec.push(embed::Dir::Path {
-                root: path.clone(),
-                path,
-            });
+            let dir = rust_silos::Silo::new(path.to_str().unwrap_or(""));
+            dir_vec.push(dir.into());
         }
 
         for file in embed::DirSet::new(dir_vec).walk() {
@@ -273,6 +271,7 @@ impl SiteBuilder {
                 task_engine,
                 authenticator,
                 template_env: env,
+                beacon: beacon::Beacon::new(128, false),
                 router,
                 router_meta: inspector,
             }),
@@ -322,6 +321,7 @@ struct SiteInner {
     authenticator: Authenticator,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
     pool: PgPool,
+    beacon: beacon::Beacon,
     timezone: Tz,
     task_engine: tasks::TaskEngine,
     router: axum::Router<Site>,
@@ -429,6 +429,10 @@ impl Site {
         self.inner.task_engine.manager()
     }
 
+    pub fn beacon(&self) -> beacon::Beacon {
+        self.inner.beacon.clone()
+    }
+
     pub async fn notify_stream(
         &self,
         topics: &[&str],
@@ -465,5 +469,10 @@ impl axum::extract::FromRequest<Site> for Site {
     #[allow(unused_variables)]
     async fn from_request(req: Request<Body>, state: &Site) -> Result<Self, Self::Rejection> {
         Ok(state.clone())
+    }
+}
+impl axum::extract::FromRef<Site> for beacon::Beacon {
+    fn from_ref(site: &Site) -> Self {
+        site.beacon()
     }
 }

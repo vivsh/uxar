@@ -12,6 +12,11 @@ The framework follows a "site as tapestry" model where all components—routing,
 
 **Alpha/Experimental** - Under active development. APIs will change. Not recommended for production use.
 
+Project status note:
+- Uxar is built primarily for my personal projects, shaped by the constraints and preferences of that work.
+- It’s published so others can benefit from the ideas, patterns, and building blocks.
+- Expect sharp edges and occasional breaking changes.
+
 Current state:
 - Core routing and site scaffolding: Functional
 - JWT authentication: Functional with cookie and header support
@@ -164,6 +169,22 @@ Supported validators:
 Validation metadata is integrated into `ColumnSpec` via the `Model` macro for database schema generation and OpenAPI documentation.
 
 The `Validatable` trait can be used standalone for types that don't interact with the database, while `Model` includes validation automatically.
+
+### Tasks
+
+Uxar includes a small background task engine intended for app-internal work (scheduled jobs, async maintenance, best-effort side effects). This is not a distributed queue.
+
+Typical usage is to wire the task engine into your `Site` and have application code enqueue or trigger tasks through it.
+
+### Beacon
+
+`Beacon` is Uxar’s lightweight server→client publish/subscribe primitive intended for SSE.
+
+Key properties:
+- Subscribers are tracked by `AuthUser`.
+- Publishing supports `Target::User`, `Target::RoleMask`, or `Target::All`.
+- Each subscriber has a bounded queue; if it’s full, the newest message is dropped (best-effort delivery).
+- Optional exclusivity: allow only one active subscription per user.
 
 ## Non-Goals
 

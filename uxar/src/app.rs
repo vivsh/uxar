@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use axum::Router;
+use crate::views::Router;
 use super::embed::Dir;
 use serde::{de::DeserializeOwned, Deserialize};
 
@@ -13,11 +13,11 @@ use crate::{site::Service, Site};
 /// All router, templates, static files, and migrations will be consumed one-time by the parent site.
 /// Application conf will be stored in the site and can be accessed by handlers using extensions.
 /// This is a trait that defines the basic structure of an application.
-/// It provides methods to get the router, templates, migrations, tagged-sql and static files.
+/// It provides methods to get the router, templates and static files.
 /// from the site configuration toml file.
 pub trait Application: Send + 'static{
     
-    fn router(&self)->Router<Site>;
+    fn router(&self)->Router;
 
     fn templates_dir(&self)->Option<Dir>{
         None
@@ -27,51 +27,8 @@ pub trait Application: Send + 'static{
         None
     }
 
-    fn migration_dir(&self)->Option<Dir>{
-        None    
-    }
-
-    fn sql_dir(&self)->Option<Dir>{
-        None
-    }
-
     fn start(&mut self, site: Site){}
 
     fn stop(&mut self, site: Site){}
     
 }
-
-
-#[derive(Clone, Debug)]
-pub struct RouterApplication( pub Router<Site>);
-
-
-impl Application for RouterApplication {
-    fn router(&self) -> Router<Site> {
-        self.0.clone()
-    }
-}
-
-
-impl From<Router<Site>> for RouterApplication {
-    fn from(router: Router<Site>) -> Self {
-        RouterApplication(router)
-    }
-}
-
-pub trait IntoApplication {
-    fn into_app(self) -> impl Application + Send + Sync + 'static;
-}
-
-impl IntoApplication for Router<Site> {
-    fn into_app(self) -> impl Application + Send + Sync + 'static {
-        RouterApplication(self)
-    }
-}
-
-impl<A: Application + Send + Sync + 'static> IntoApplication for A {
-    fn into_app(self) -> impl Application + Send + Sync + 'static {
-        self
-    }
-}
-

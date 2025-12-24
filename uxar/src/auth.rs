@@ -1,4 +1,7 @@
 
+use std::any::Any;
+use std::sync::Arc;
+
 use super::site::Site;
 use crate::ApiError;
 use axum::http::request::Parts;
@@ -285,10 +288,8 @@ impl Authenticator {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthUser {
-    #[serde(rename = "user_id")]
-    pub id: i64,
-    pub kind: i64,
-    pub is_staff: bool,
+    pub id: u64,
+    pub roles: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -365,13 +366,3 @@ impl axum::extract::FromRequestParts<Site> for AuthUser {
         Ok(user)
     }
 }
-
-pub trait AuthBackend{
-    type Input: DeserializeOwned;
-
-    fn name(&self) -> &'static str;
-
-    async fn authenticate(&self, input: Self::Input) -> Result<AuthUser, AuthError>;
-
-}
-
