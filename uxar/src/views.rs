@@ -8,6 +8,7 @@ pub use axum::response::{Html, IntoResponse, Json, Response};
 pub use axum::routing::{delete, get, patch, post, put, Router as AxumRouter};
 
 pub use uxar_macros::{route, routable};
+pub use super::apidocs::{OperationFragments, OperationFragment};
 
 use crate::Site;
 
@@ -46,58 +47,16 @@ impl IntoResponse for JsonStr {
 
 
 
-/// A part of a JSON Schema (e.g. for a field, object, etc.)
-/// This is a placeholder for now.
-/// In a real implementation, it would contain the actual schema representation.
-/// This will be used for automatic API documentation, validation, etc.
+// // Basic implementations for common types
+// impl OperationFragments for i32 {}
 
-#[derive(Debug, Clone)]
-pub struct SchemaPart{
+// impl OperationFragments for i64 {}
 
-}
+// impl OperationFragments for String {}
 
-pub trait IntoSchemaPart{
-    fn into_schema_part() -> Option<SchemaPart>;
-}
+// impl OperationFragments for bool {}
 
-pub struct NilSchema<T>(pub T);
-
-impl<T> IntoSchemaPart for NilSchema<T>{
-    fn into_schema_part() -> Option<SchemaPart> {
-        None
-    }
-}
-
-// Basic implementations for common types
-impl IntoSchemaPart for i32 {
-    fn into_schema_part() -> Option<SchemaPart> {
-        Some(SchemaPart {})
-    }
-}
-
-impl IntoSchemaPart for i64 {
-    fn into_schema_part() -> Option<SchemaPart> {
-        Some(SchemaPart {})
-    }
-}
-
-impl IntoSchemaPart for String {
-    fn into_schema_part() -> Option<SchemaPart> {
-        Some(SchemaPart {})
-    }
-}
-
-impl IntoSchemaPart for bool {
-    fn into_schema_part() -> Option<SchemaPart> {
-        Some(SchemaPart {})
-    }
-}
-
-impl IntoSchemaPart for Response {
-    fn into_schema_part() -> Option<SchemaPart> {
-        Some(SchemaPart {})
-    }
-}
+// impl OperationFragments for Response {}
 
 
 
@@ -105,9 +64,17 @@ impl IntoSchemaPart for Response {
 pub struct ParamMeta {
     pub name: Cow<'static, str>,
     pub type_name: Cow<'static, str>,
-    pub schema: Option<SchemaPart>,
+    pub fragment: Option<OperationFragment>,
     /// Optional source/location: e.g. "path", "query", "body"
     pub source: Option<Cow<'static, str>>,
+}
+
+impl ParamMeta {
+    
+    pub fn is_required(&self) -> bool {
+        true
+    }
+
 }
 
 
@@ -115,7 +82,7 @@ pub struct ParamMeta {
 pub struct ReturnMeta {
     pub status: Option<u16>,
     pub type_name: Cow<'static, str>,
-    pub schema: Option<SchemaPart>,
+    pub schema: Option<OperationFragment>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -169,7 +136,7 @@ impl Routable for Router {
 
 #[derive(Debug)]
 pub struct Router {
-    meta_map: BTreeMap<String, ViewMeta>,
+    pub(crate) meta_map: BTreeMap<String, ViewMeta>,
     pub(crate) base_router: axum::Router<Site>,
 }
 

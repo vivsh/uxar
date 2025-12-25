@@ -12,6 +12,7 @@ pub mod validators;
 mod layers;
 mod tasks;
 mod watch;
+mod apidocs;
 pub mod beacon;
 pub mod db;
 pub mod embed;
