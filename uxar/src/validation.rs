@@ -1,8 +1,8 @@
 use std::{borrow::Cow, collections::BTreeMap, ops::Deref};
 
 use axum::{extract::{FromRequest, FromRequestParts, Request}, http::{HeaderMap, StatusCode, header, request::Parts}, response::{Html, IntoResponse, Response}};
-use serde::de::DeserializeOwned;
-use serde_json::Value;
+
+pub use uxar_macros::Validate;
 
 pub use super::validators::*;
 
@@ -21,6 +21,10 @@ pub struct ValidationError {
 impl ValidationError {
     pub fn new(code: impl Into<Cow<'static, str>>, msg: impl Into<Cow<'static, str>>) -> Self {
         Self { code: code.into(), message: msg.into(), params: Vec::new() }
+    }
+
+    pub fn custom(msg: impl Into<Cow<'static, str>>) -> Self {
+        Self::new("custom", msg)
     }
 }
 
@@ -50,12 +54,35 @@ impl Path {
     /// Returns the path segments.
     pub fn segments(&self) -> &[PathSeg] { &self.segs }
 
+    pub fn to_string(&self) -> String {
+        self.segs.iter().map(|s| match s {
+            PathSeg::Field(f) => f.to_string(),
+            PathSeg::Index(i) => i.to_string(),
+            PathSeg::Key(k) => k.clone(),
+        }).collect::<Vec<_>>().join(".")
+    }
+
     /// Returns a new path with the given segment prepended.
     pub fn prefixed(self, prefix: PathSeg) -> Self {
         let mut segs = Vec::with_capacity(self.segs.len() + 1);
         segs.push(prefix);
         segs.extend(self.segs);
         Self { segs }
+    }
+
+    pub fn at_field(mut self, name: impl Into<Cow<'static, str>>) -> Self {
+        self.segs.push(PathSeg::Field(name.into()));
+        self
+    }
+
+    pub fn at_index(mut self, idx: usize) -> Self {
+        self.segs.push(PathSeg::Index(idx));
+        self
+    }
+
+    pub fn at_key(mut self, key: impl Into<String>) -> Self {
+        self.segs.push(PathSeg::Key(key.into()));
+        self
     }
 }
 
@@ -88,14 +115,25 @@ impl ValidationReport {
     /// Returns true if there are no validation errors.
     pub fn is_empty(&self) -> bool { self.issues.is_empty() }
 
-    /// Adds a validation error at the given path.
     pub fn push(&mut self, path: Path, invalid: ValidationError) {
         self.issues.push(ValidationIssue { path, invalid });
     }
-    
-    /// Adds a validation error at the root path.
+
     pub fn push_root(&mut self, invalid: ValidationError) {
         self.push(Path::root(), invalid);
+    }
+
+    pub fn merge(&mut self, other: ValidationReport, prefix: Option<PathSeg>) {
+        for mut issue in other.issues {
+            if let Some(p) = &prefix {
+                issue.path = issue.path.prefixed(p.clone());
+            }
+            self.issues.push(issue);
+        }
+    }
+
+    pub fn has_error(&self, field: &str) -> bool {
+        self.issues.iter().any(|i| i.path.to_string() == field)
     }
 
     /// Merges another report into this one.
@@ -129,8 +167,6 @@ impl ValidationReport {
     pub fn at_key(self, key: impl Into<String>) -> Self {
         self.prefix(PathSeg::Key(key.into()))
     }
-
-
 
     /// Optional convenience: collapse to DRF-ish flat `{field: [msgs]}` for non-nested paths only.
     pub fn to_field_map_flat(&self) -> BTreeMap<String, Vec<String>> {
@@ -293,6 +329,93 @@ impl ValidationReport {
 /// ```
 pub trait Validate {
     fn validate(&self) -> Result<(), ValidationReport>;
+}
+
+/// Helper trait for applying validators to fields, handling Option automatically.
+pub trait AsValidationTarget {
+    type Target: ?Sized;
+    fn as_validation_target(&self) -> Option<&Self::Target>;
+}
+
+impl<T> AsValidationTarget for Option<T> {
+    type Target = T;
+    fn as_validation_target(&self) -> Option<&Self::Target> {
+        self.as_ref()
+    }
+}
+
+impl AsValidationTarget for String {
+    type Target = String;
+    fn as_validation_target(&self) -> Option<&Self::Target> {
+        Some(self)
+    }
+}
+
+impl AsValidationTarget for &str {
+    type Target = str;
+    fn as_validation_target(&self) -> Option<&Self::Target> {
+        Some(self)
+    }
+}
+
+impl<T> AsValidationTarget for Vec<T> {
+    type Target = Vec<T>;
+    fn as_validation_target(&self) -> Option<&Self::Target> {
+        Some(self)
+    }
+}
+
+impl<T> AsValidationTarget for Box<T> {
+    type Target = T;
+    fn as_validation_target(&self) -> Option<&Self::Target> {
+        Some(self)
+    }
+}
+
+macro_rules! impl_as_validation_target {
+    ($($t:ty),*) => {
+        $(
+            impl AsValidationTarget for $t {
+                type Target = $t;
+                fn as_validation_target(&self) -> Option<&Self::Target> {
+                    Some(self)
+                }
+            }
+        )*
+    };
+}
+
+impl_as_validation_target!(i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64, bool);
+
+impl<T: Validate> Validate for Option<T> {
+    fn validate(&self) -> Result<(), ValidationReport> {
+        match self {
+            Some(v) => v.validate(),
+            None => Ok(()),
+        }
+    }
+}
+
+impl<T: Validate> Validate for Vec<T> {
+    fn validate(&self) -> Result<(), ValidationReport> {
+        let mut report = ValidationReport::empty();
+        for (i, v) in self.iter().enumerate() {
+            if let Err(r) = v.validate() {
+                report.extend(r.at_index(i));
+            }
+        }
+        if report.is_empty() {
+            Ok(())
+        } else {
+            Err(report)
+        }
+    }
+}
+
+impl<T: Validate> Validate for Box<T> {
+    fn validate(&self) -> Result<(), ValidationReport> {
+        self.as_ref().validate()
+    }
 }
 
 

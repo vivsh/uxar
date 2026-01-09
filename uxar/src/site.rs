@@ -1,9 +1,8 @@
-use crate::app::{Application};
 use crate::auth::Authenticator;
 use crate::db::{DbError, DbPool};
 use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
 use crate::tasks::{self, TaskError, TaskManager};
-use crate::views::Routable;
+use crate::bundles::{Bundle, IntoBundle};
 use crate::{beacon, embed, watch};
 use crate::{
     views,
@@ -58,9 +57,9 @@ type ServiceType = dyn 'static + Send + Sync + Any;
 pub struct SiteBuilder {
     conf: SiteConf,
     services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-    router: views::Router,
-    apps: Vec<Arc<dyn Application>>,
+    bundle: Bundle,
     lazy_db: bool,
+    pool: Option<PgPool>,
     disable_tasks: bool,
     task_builder: tasks::TaskEngineBuilder,
 }
@@ -69,13 +68,18 @@ impl SiteBuilder {
     fn new(conf: SiteConf) -> Self {
         Self {
             conf,
-            apps: Vec::new(),
-            router: views::Router::new(),
+            pool: None,
+            bundle: Bundle::new(),
             services: HashMap::new(),
             task_builder: tasks::TaskEngineBuilder::new(chrono_tz::Tz::UTC),
             lazy_db: false,
             disable_tasks: false,
         }
+    }
+
+    pub fn with_db(mut self, pool: PgPool) -> Self {
+        self.pool = Some(pool);
+        self
     }
 
     pub fn without_tasks(mut self) -> Self {
@@ -92,17 +96,6 @@ impl SiteBuilder {
     pub fn with_service<T: 'static + Send + Sync>(mut self, service: impl Into<Arc<T>>) -> Self {
         let type_id = TypeId::of::<T>();
         self.services.insert(type_id, service.into());
-        self
-    }
-
-    /// Mount an application to the site at a specific path. axum::Router can also be used as an application.
-    pub fn mount<R:  views::Routable>(mut self, path: &str, namespace: &str, app: R) -> Self {
-       self.router = self.router.mount(path, namespace, app);
-        self
-    }
-
-    pub fn merge<R: views::Routable>(mut self, other: R) -> Self {
-        self.router = self.router.merge(other);
         self
     }
 
@@ -142,24 +135,18 @@ impl SiteBuilder {
         self
     }
 
-    pub async fn run(self) -> Result<(), SiteError> {
+    pub async fn run<B: IntoBundle>(mut self, bundle: B) -> Result<(), SiteError> {
+        self.bundle = bundle.into_bundle();
         let site = self.build().await?;
         site.run().await
     }
 
     fn inject_templates(
-        apps: &[Arc<dyn Application>],
         conf: &SiteConf,
         project_dir: &Path,
         env: &mut minijinja::Environment,
     ) -> Result<(), SiteError> {
         let mut dir_vec = Vec::new();
-
-        for app in apps {
-            if let Some(dir) = app.templates_dir() {
-                dir_vec.push(dir);
-            }
-        }
 
         // iterate over files in conf.templates_dir
         if let Some(templates_dir) = &conf.templates_dir {
@@ -205,7 +192,7 @@ impl SiteBuilder {
 
         let task_engine = self.task_builder.build_tz(timezone)?;
 
-        let (mut router, metas) = self.router.into_router_parts();
+        let mut router = self.bundle.to_router();
 
         for static_dir in &self.conf.static_dirs {
             let path = project_dir.join(&static_dir.path);
@@ -215,49 +202,52 @@ impl SiteBuilder {
 
         let mut env = minijinja::Environment::new();
 
-        let db_url = self.conf.database.clone();
-        let parts = db_url
-            .parse::<url::Url>()
-            .map_err(|e| SiteError::ConfigError(format!("Invalid database URL: {}", e)))?;
-
-        let mut query = HashMap::new();
-        for (key, value) in parts.query_pairs() {
-            query.insert(key.to_string(), value.to_string());
-        }
-        let max_connections = query
-            .remove("max")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(10);
-        let min_connections = query
-            .remove("min")
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(1);
-
-        let pool = if self.lazy_db {
-            PgPoolOptions::new()
-                .max_connections(max_connections)
-                .min_connections(min_connections)
-                .connect_lazy(&db_url)
-                .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
+        let pool = if let Some(pool) = self.pool {
+            pool
         } else {
-            PgPoolOptions::new()
-                .max_connections(max_connections)
-                .min_connections(min_connections)
-                .connect(&db_url)
-                .await
-                .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
+            let db_url = self.conf.database.clone();
+            let parts = db_url
+                .parse::<url::Url>()
+                .map_err(|e| SiteError::ConfigError(format!("Invalid database URL: {}", e)))?;
+
+            let mut query = HashMap::new();
+            for (key, value) in parts.query_pairs() {
+                query.insert(key.to_string(), value.to_string());
+            }
+            let max_connections = query
+                .remove("max")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(10);
+            let min_connections = query
+                .remove("min")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1);
+
+            let pool = if self.lazy_db {
+                PgPoolOptions::new()
+                    .max_connections(max_connections)
+                    .min_connections(min_connections)
+                    .connect_lazy(&db_url)
+                    .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
+            } else {
+                PgPoolOptions::new()
+                    .max_connections(max_connections)
+                    .min_connections(min_connections)
+                    .connect(&db_url)
+                    .await
+                    .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
+            };
+            pool
         };
 
-        Self::inject_templates(&self.apps, &self.conf, &project_dir, &mut env)?;
+        Self::inject_templates(&self.conf, &project_dir, &mut env)?;
 
         let authenticator = Authenticator::new(&self.conf.auth, &self.conf.secret_key);
         router = router
             .fallback(redirect_trailing_slash_on_404)
             .layer(CatchPanicLayer::new());
 
-        let inspector = views::RouterMeta::new(metas);
-
-        // let router = views::Router::from_parts(metas, router);
+        let bundle = self.bundle.with_router_unchecked(router);
 
         let site = Site {
             inner: Arc::new(SiteInner {
@@ -272,8 +262,7 @@ impl SiteBuilder {
                 authenticator,
                 template_env: env,
                 beacon: beacon::Beacon::new(128, false),
-                router,
-                router_meta: inspector,
+                bundle,
             }),
         };
 
@@ -324,9 +313,8 @@ struct SiteInner {
     beacon: beacon::Beacon,
     timezone: Tz,
     task_engine: tasks::TaskEngine,
-    router: axum::Router<Site>,
+    bundle: Bundle,
     template_env: minijinja::Environment<'static>,
-    router_meta: views::RouterMeta,
     shutdown_notifier: Arc<tokio::sync::Notify>,
 }
 
@@ -349,7 +337,7 @@ impl Site {
     }
 
     pub fn reverse(&self, name: &str, args: &[(&str, &str)]) -> Option<String> {
-        self.inner.router_meta.reverse(name, args)
+        self.inner.bundle.reverse(name, args)
     }
 
     pub fn render_template<S: serde::Serialize>(
@@ -386,9 +374,7 @@ impl Site {
     /// Mainly needed for testing purposes.
     /// and before running the server.
     pub fn router(&self) -> axum::Router {
-        let router = self.inner.router
-            .clone();
-
+        let router = self.inner.bundle.to_router();
         router.with_state(self.clone())
     }
 

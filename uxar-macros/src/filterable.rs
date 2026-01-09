@@ -103,16 +103,16 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
             let (is_option, _inner_ty) = option_inner_type(ty);
 
             if is_option {
-                // Option<T>: filter only when Some
+                // Option<T>: filter only when Some, move the value
                 quote! {
-                    if let Some(value) = self.#ident.as_ref() {
+                    if let Some(value) = self.#ident {
                         qs = qs.filter(#filter_str).bind(value);
                     }
                 }
             } else {
-                // Plain T: always filter
+                // Plain T: always filter, move the value
                 quote! {
-                    qs = qs.filter(#filter_str).bind(&self.#ident);
+                    qs = qs.filter(#filter_str).bind(self.#ident);
                 }
             }
         }
@@ -128,7 +128,8 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl #impl_generics ::uxar::db::Filterable for #ident #ty_generics #where_clause {
-            fn filter_query(&self, mut qs: ::uxar::db::Query) -> ::uxar::db::Query {
+            fn apply_filters(self, qs: ::uxar::db::Statement) -> ::uxar::db::Statement {
+                let mut qs = qs;
                 #(#field_stmts)*
                 #after
                 qs
@@ -140,17 +141,49 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 }
 
 /// Helper to detect Option<T> and extract T
+/// Handles: Option, std::option::Option, core::option::Option, ::std::option::Option
 fn option_inner_type(ty: &Type) -> (bool, Option<Type>) {
     if let Type::Path(type_path) = ty {
-        if let Some(seg) = type_path.path.segments.last() {
-            if seg.ident == "Option" {
-                if let syn::PathArguments::AngleBracketed(ab) = &seg.arguments {
-                    if let Some(syn::GenericArgument::Type(inner_ty)) = ab.args.first() {
-                        return (true, Some(inner_ty.clone()));
-                    }
-                }
-                return (true, None);
+        // Check if this is an Option type by examining the path
+        let path = &type_path.path;
+        
+        // Get the last segment (should be "Option")
+        if let Some(last_seg) = path.segments.last() {
+            if last_seg.ident != "Option" {
+                return (false, None);
             }
+            
+            // Check if the path is just "Option" or a known Option path
+            let is_option = if path.segments.len() == 1 {
+                // Just "Option"
+                true
+            } else if path.segments.len() == 3 {
+                // std::option::Option or core::option::Option
+                let first = path.segments.first().unwrap();
+                let second = path.segments.iter().nth(1).unwrap();
+                (first.ident == "std" || first.ident == "core") && second.ident == "option"
+            } else if path.segments.len() == 4 && path.leading_colon.is_some() {
+                // ::std::option::Option or ::core::option::Option
+                let first = path.segments.first().unwrap();
+                let second = path.segments.iter().nth(1).unwrap();
+                let third = path.segments.iter().nth(2).unwrap();
+                (first.ident == "std" || first.ident == "core") && second.ident == "option" && third.ident == "Option"
+            } else {
+                false
+            };
+            
+            if !is_option {
+                return (false, None);
+            }
+            
+            // Extract inner type from angle brackets
+            if let syn::PathArguments::AngleBracketed(ab) = &last_seg.arguments {
+                if let Some(syn::GenericArgument::Type(inner_ty)) = ab.args.first() {
+                    return (true, Some(inner_ty.clone()));
+                }
+            }
+            
+            return (true, None);
         }
     }
     (false, None)

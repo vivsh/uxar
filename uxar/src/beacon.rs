@@ -1,4 +1,4 @@
-use std::convert::Infallible;
+use std::{collections::HashSet, convert::Infallible};
 use std::sync::Arc;
 
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -9,10 +9,18 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::AuthUser;
 
+
+#[derive(Clone, Debug)]
+pub struct Payload{
+    pub topic: Arc<str>,
+    pub message: Arc<str>,
+}
+
+
 /// Event target specification
 #[derive(Clone, Debug)]
 pub enum Target {
-    User(u64),
+    User(Arc<str>),
     RoleMask(u64),
     All,
 }
@@ -30,24 +38,30 @@ enum DeliveryStatus {
 #[derive(Debug)]
 struct Subscriber {
     user: AuthUser,
-    sender: mpsc::Sender<Arc<str>>,
+    sender: mpsc::Sender<Payload>,
+    topics: HashSet<String>,
 }
 
 impl Subscriber {
-    fn matches(&self, target: &Target) -> bool {
-        match target {
-            Target::User(uid) => self.user.id == *uid,
+    fn matches(&self, target: &Target, topic: &str) -> bool {
+        let allowed = match target {
+            Target::User(uid) => self.user.key == *uid,
             Target::RoleMask(mask) => (self.user.roles & mask) != 0,
             Target::All => true,
+        };
+        if allowed {
+            self.topics.contains(topic)
+        } else{
+            false
         }
     }
 
-    fn send(&self, target: &Target, msg: &Arc<str>) -> DeliveryStatus {
-        if !self.matches(target) {
+    fn send(&self, target: &Target, payload: &Payload) -> DeliveryStatus {
+        if !self.matches(target, &payload.topic) {
             return DeliveryStatus::Excluded;
         }
 
-        match self.sender.try_send(Arc::clone(msg)) {
+        match self.sender.try_send(payload.clone()) {
             Ok(()) => DeliveryStatus::Ok,
             Err(mpsc::error::TrySendError::Full(_)) => DeliveryStatus::Full,
             Err(mpsc::error::TrySendError::Closed(_)) => DeliveryStatus::Closed,
@@ -68,29 +82,34 @@ impl BeaconInner {
         self.subscribers.retain(|sub| !sub.sender.is_closed());
     }
 
-    fn remove_user(&mut self, user_id: u64) {
-        self.subscribers.retain(|sub| sub.user.id != user_id);
+    fn remove_user(&mut self, user_key: &str) {
+        self.subscribers.retain(|sub| sub.user.key.as_ref() != user_key);
     }
 
-    fn add_subscriber(&mut self, user: AuthUser) -> mpsc::Receiver<Arc<str>> {
+    fn add_subscriber<S, I>(&mut self, user: AuthUser, topics: I) -> mpsc::Receiver<Payload> 
+    where
+        S: AsRef<str>,
+        I: IntoIterator<Item = S>,
+    {
         if self.exclusive {
-            self.remove_user(user.id);
+            self.remove_user(user.key.as_ref());
         }
 
         let (sender, receiver) = mpsc::channel(self.capacity);
-        self.subscribers.push(Subscriber { user, sender });
+        let subscriber = Subscriber { user, sender, topics: topics.into_iter().map(|s| s.as_ref().to_string()).collect() };
+        self.subscribers.push(subscriber);
         receiver
     }
 
-    fn send_message(&mut self, target: Target, msg: Arc<str>) {
+    fn send_message(&mut self, target: Target, payload: Payload) {
         self.subscribers
-            .retain(|sub| !matches!(sub.send(&target, &msg), DeliveryStatus::Closed));
+            .retain(|sub| !matches!(sub.send(&target, &payload), DeliveryStatus::Closed));
     }
 
-    fn is_user_active(&self, user_id: u64) -> bool {
+    fn is_user_active(&self, user_key: &str) -> bool {
         self.subscribers
             .iter()
-            .any(|sub| sub.user.id == user_id && !sub.sender.is_closed())
+            .any(|sub| sub.user.key.as_ref() == user_key && !sub.sender.is_closed())
     }
 }
 
@@ -114,22 +133,26 @@ impl Beacon {
     }
 
     /// Subscribe a user and return message receiver
-    pub fn subscribe(&self, user: AuthUser) -> mpsc::Receiver<Arc<str>> {
+    pub fn subscribe<S, I>(&self, user: AuthUser, topics: I) -> mpsc::Receiver<Payload> 
+    where
+        S: AsRef<str>,
+        I: IntoIterator<Item = S>,
+    {
         let mut inner = self.inner.write();
         inner.remove_closed();
-        inner.add_subscriber(user)
+        inner.add_subscriber(user, topics)
     }
 
     /// Remove a user's subscription
-    pub fn unsubscribe(&self, user_id: u64) {
+    pub fn unsubscribe(&self, user_key: &str) {
         let mut inner = self.inner.write();
-        inner.remove_user(user_id);
+        inner.remove_user(user_key);
     }
 
     /// Broadcast message to matching subscribers
-    pub fn publish(&self, target: Target, msg: Arc<str>) {
+    pub fn publish(&self, target: Target, payload: Payload) {
         let mut inner = self.inner.write();
-        inner.send_message(target, msg);
+        inner.send_message(target, payload);
     }
 
     /// Get current subscriber count
@@ -138,18 +161,23 @@ impl Beacon {
     }
 
     /// Check if a user is actively subscribed
-    pub fn is_active(&self, user_id: u64) -> bool {
-        self.inner.read().is_user_active(user_id)
+    pub fn is_active(&self, user_key: &str) -> bool {
+        self.inner.read().is_user_active(user_key)
     }
 
     /// Axum SSE handler
-    pub async fn subscription_route(
+    pub async fn subscription_route<I, S>(
+        self, 
         user: AuthUser,
-        axum::extract::State(bus): axum::extract::State<Beacon>,
-    ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-        let receiver = bus.subscribe(user);
+        topics: I,
+    ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> 
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<str>,
+    {
+        let receiver = self.subscribe(user, topics);
         let stream =
-            ReceiverStream::new(receiver).map(|msg| Ok(Event::default().data(msg.as_ref())));
+            ReceiverStream::new(receiver).map(|msg| Ok(Event::default().event(msg.topic.as_ref()).data(msg.message.as_ref())));
 
         Sse::new(stream).keep_alive(KeepAlive::default())
     }

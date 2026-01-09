@@ -1,113 +1,142 @@
 // roles.rs
 
-use axum::{extract::FromRequestParts, http::request::Parts, http::StatusCode};
-use serde::{Deserialize, Serialize};
+use axum::{extract::FromRequestParts, http::request::Parts};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{fmt::Debug, marker::PhantomData};
-use strum::IntoEnumIterator;
-use axum::response::{IntoResponse, Response};
-use strum_macros::EnumIter;
 
-// ---- TRAIT ----
-pub trait BitRole: Copy + IntoEnumIterator + Debug + 'static {
-    fn as_usize(self) -> usize;
-}
+use crate::{AuthError, AuthUser, Site};
 
-// ---- PERMISSION CHECK ----
-pub const fn has_permission(mask: usize, role: usize) -> bool {
-    if role >= usize::BITS as usize {
-        return false;
+// Re-export the BitRole derive macro
+pub use uxar_macros::BitRole;
+
+pub type RoleType = u64;
+
+pub trait BitRole: Sized + Debug + Copy + Clone + 'static{
+
+    /// Returns the bit position (0..=63) for this role.
+    ///
+    /// Implementations should ensure the value is < 64.
+    fn role_value(self) -> u8;
+
+    /// Returns pairs of (bit_position, name) for all roles.
+    fn role_pairs() -> &'static [(u8, &'static str)];
+
+    #[inline]
+    fn role_name(self) -> Option<&'static str> {
+        for (val, name) in Self::role_pairs() {
+            if *val == self.role_value() {
+                return Some(name);
+            }
+        }
+        None
     }
-    mask & (1 << role) != 0
+
+    #[inline]
+    fn to_role_type(self) -> RoleType {
+        (1 as RoleType)
+            .checked_shl(self.role_value() as u32)
+            .unwrap_or(0)
+    }
 }
 
-// ---- FORMATTING ----
-pub fn format_roles<R: BitRole>(mask: usize) -> Vec<String> {
-    let mut roles = R::iter()
-        .filter(|r| (mask & (1 << r.as_usize())) != 0)
-        .map(|r| format!("{:?}", r))
-        .collect::<Vec<_>>();
-    roles.sort();
+
+pub fn format_roles<R: BitRole>(mask: RoleType) -> Vec<String> {
+    let mut roles = Vec::new();
+    for (val, name) in R::role_pairs() {
+        let Some(role_bit) = (1 as RoleType).checked_shl(*val as u32) else {
+            continue;
+        };
+        if mask & role_bit != 0 {
+            roles.push(name.to_string());
+        }
+    }
     roles
 }
 
-// ---- AUTH USER ----
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthUser {
-    pub id: i64,
-    pub kind: i64,
-    pub is_staff: bool,
-}
 
-// ---- AUTH ERROR ----
-#[derive(Debug)]
-pub enum AuthError {
-    Forbidden,
-    MissingToken,
-    InvalidToken,
-}
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PermitAny;
 
-impl IntoResponse for AuthError {
-    fn into_response(self) -> Response {
-        let (status, msg) = match self {
-            AuthError::Forbidden => (StatusCode::FORBIDDEN, "Permission denied"),
-            AuthError::MissingToken => (StatusCode::UNAUTHORIZED, "Missing token"),
-            AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
-        };
-        (status, msg).into_response()
-    }
-}
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct PermitAll;
 
-pub struct Permit<const MASK: usize, R: BitRole>(pub AuthUser, PhantomData<R>);
+pub struct Permit<const MASK: RoleType, R: BitRole, O = PermitAny>(
+    pub AuthUser,
+    pub PhantomData<R>,
+    pub PhantomData<O>,
+);
 
-impl<const MASK: usize, R: BitRole> Permit<MASK, R> {
-    pub fn describe() -> String {
-        format_roles::<R>(MASK).join(", ")
-    }
-
+impl<const MASK: RoleType, R: BitRole> Permit<MASK, R> {
     pub fn into_user(self) -> AuthUser {
         self.0
     }
 }
 
-impl<const MASK: usize, R: BitRole> FromRequestParts<()> for Permit<MASK, R> {
+pub trait HasPerm {
+    fn has_permission(role_mask: RoleType, perm_mask: RoleType) -> bool;
+
+    fn join_all() -> bool {
+        false
+    }
+}
+
+impl HasPerm for PermitAny {
+    fn has_permission(role_mask: RoleType, perm_mask: RoleType) -> bool {
+        role_mask & perm_mask != 0
+    }
+}
+
+impl HasPerm for PermitAll {
+    fn has_permission(role_mask: RoleType, perm_mask: RoleType) -> bool {
+        role_mask & perm_mask == perm_mask
+    }
+
+    fn join_all() -> bool {
+        true
+    }
+}
+
+impl<const MASK: RoleType, R: BitRole, O: HasPerm> FromRequestParts<Site> for Permit<MASK, R, O> {
     type Rejection = AuthError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &()) -> Result<Self, Self::Rejection> {
-        let user = parts
-            .extensions
-            .get::<AuthUser>()
-            .cloned()
-            .ok_or(AuthError::MissingToken)?;
-
-        if !has_permission(MASK, user.kind as usize) {
+    async fn from_request_parts(parts: &mut Parts, site: &Site) -> Result<Self, Self::Rejection> {
+        let user = AuthUser::from_request_parts(parts, site).await?;
+        if !O::has_permission(user.roles, MASK) {
             return Err(AuthError::Forbidden);
         }
-
-        Ok(Permit(user, PhantomData))
+        Ok(Permit(user, PhantomData, PhantomData))
     }
 }
 
-// ---- MACRO ----
+
+
 #[macro_export]
 macro_rules! permit {
-    ($role_ty:ty, $($role:ident)|+ $(,)?) => {
-        $crate::roles::Permit::<{
-            0 $(| (1 << <$role_ty>::$role as usize))+
-        }, $role_ty>
+    // Internal helper: role position -> mask
+    (@mask $role_ty:ty, $role:ident) => {
+        (<$role_ty>::__uxar_mask(<$role_ty>::$role))
     };
-}
 
-// ---- EXAMPLE ENUM ----
-#[derive(Debug, Clone, Copy, EnumIter)]
-#[repr(usize)]
-pub enum Role {
-    Admin = 0,
-    Editor = 1,
-    Viewer = 2,
-}
+    // permit!(RoleType, Role) - single role, defaults to PermitAny
+    ($role_ty:ty, $role:ident $(,)?) => {
+        $crate::roles::Permit::<{
+            $crate::permit!(@mask $role_ty, $role)
+        }, $role_ty, $crate::roles::PermitAny>
+    };
 
-impl BitRole for Role {
-    fn as_usize(self) -> usize {
-        self as usize
-    }
+    // permit!(RoleType, Role1 & Role2 & Role3) - ALL required (PermitAll)
+    ($role_ty:ty, $first:ident $( & $rest:ident )+ $(,)?) => {
+        $crate::roles::Permit::<{
+            $crate::permit!(@mask $role_ty, $first)
+            $( | $crate::permit!(@mask $role_ty, $rest) )+
+        }, $role_ty, $crate::roles::PermitAll>
+    };
+
+    // permit!(RoleType, Role1 | Role2 | Role3) - ANY required (PermitAny)
+    ($role_ty:ty, $first:ident $( | $rest:ident )+ $(,)?) => {
+        $crate::roles::Permit::<{
+            $crate::permit!(@mask $role_ty, $first)
+            $( | $crate::permit!(@mask $role_ty, $rest) )+
+        }, $role_ty, $crate::roles::PermitAny>
+    };
 }

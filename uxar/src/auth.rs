@@ -1,5 +1,6 @@
 
 use std::any::Any;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::site::Site;
@@ -288,9 +289,33 @@ impl Authenticator {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthUser {
-    pub id: u64,
+    pub key: Arc<str>,
     pub roles: u64,
 }
+
+impl AuthUser {
+    pub fn new(key: &str, roles: u64) -> Self {
+        Self {
+            key: Arc::from(key),
+            roles,
+        }
+    }
+}
+
+impl PartialEq for AuthUser {
+    fn eq(&self, other: &Self) -> bool {
+        self.key.eq(&other.key)
+    }
+}
+
+impl Eq for AuthUser {}
+
+impl Hash for AuthUser {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.key.hash(state);
+    }
+}
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JWTClaim {
@@ -316,7 +341,7 @@ impl JWTClaim {
         Self {
             kid: kid.to_string(),
             jti: uuid::Uuid::new_v4().to_string(),
-            sub: user.id.to_string(),
+            sub: user.key.to_string(),
             aud,
             iat: now,
             exp: now + ttl,
@@ -356,13 +381,35 @@ impl From<&jsonwebtoken::errors::Error> for AuthError {
 }
 
 impl axum::extract::FromRequestParts<Site> for AuthUser {
-    type Rejection = ApiError;
+    type Rejection = AuthError;
 
     async fn from_request_parts(parts: &mut Parts, site: &Site) -> Result<Self, Self::Rejection> {
+        if let Some(user) = parts.extensions.get::<AuthUser>() {
+            return Ok(user.clone());
+        }
         let refresh = false;
         let auth = site.authenticator();
-        let user_result = auth.extract_user(parts, &[], refresh);
-        let user = user_result.map_err(ApiError::from)?;
+        let user = auth.extract_user(parts, &[], refresh)?;                    
+        parts.extensions.insert(user.clone());
         Ok(user)
+    }
+}
+
+impl IntoResponse for AuthError {
+    fn into_response(self) -> Response {
+        let (status, message) = match &self {
+            AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid token"),
+            AuthError::MissingToken => (StatusCode::UNAUTHORIZED, "Missing token"),
+            AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "Expired token"),
+            AuthError::InvalidSignature => (StatusCode::UNAUTHORIZED, "Invalid token signature"),
+            AuthError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden"),
+            AuthError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.as_ref()),
+        };
+        let body = serde_json::json!({
+            "detail": message
+        });
+        let mut resp = axum::response::Json(body).into_response();
+        *resp.status_mut() = status;
+        resp
     }
 }

@@ -3,7 +3,6 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use serde::Serialize;
 use std::error::Error as StdError;
 use std::fmt;
 use crate::validation::{ValidationError, ValidationReport};

@@ -1,8 +1,8 @@
-use uxar::{validation::Validate, Validatable};
+use uxar::Validate;
 
-#[derive(Validatable)]
+#[derive(Validate)]
 struct UserRegistration {
-    #[validate(email, non_empty)]
+    #[validate(email)]
     email: String,
 
     #[validate(min_length = 8, max_length = 100)]
@@ -11,7 +11,7 @@ struct UserRegistration {
     #[validate(min_length = 2, max_length = 50)]
     name: String,
 
-    #[validate(min_value = "18", max_value = "120")]
+    #[validate(min = 18, max = 120)]
     age: i32,
 
     #[validate(url)]
@@ -102,5 +102,41 @@ fn test_multiple_errors() {
     if let Err(report) = result {
         // Should have multiple validation errors
         assert!(report.issues.len() >= 4);
+    }
+}
+
+#[derive(Validate)]
+struct Nested {
+    #[validate(min = 1)]
+    value: i32,
+}
+
+#[derive(Validate)]
+struct Container {
+    #[validate(delegate)]
+    nested: Nested,
+    #[validate(custom = "validate_custom")]
+    custom_field: String,
+}
+
+fn validate_custom(val: &String) -> Result<(), uxar::validation::ValidationError> {
+    if val == "invalid" {
+        Err(uxar::validation::ValidationError::custom("invalid value"))
+    } else {
+        Ok(())
+    }
+}
+
+#[test]
+fn test_delegate_and_custom() {
+    let c = Container {
+        nested: Nested { value: 0 },
+        custom_field: "invalid".to_string(),
+    };
+    let result = c.validate();
+    assert!(result.is_err());
+    if let Err(report) = result {
+        assert!(report.has_error("nested.value"));
+        assert!(report.has_error("custom_field"));
     }
 }

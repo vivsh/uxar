@@ -8,6 +8,8 @@ use tower::ServiceExt;
 use std::collections::BTreeMap;
 use serde_json::{self, value::to_value, Value};
 
+pub use sqlx::{test_block_on, test};
+
 pub struct TestClient {
     app: Router,    
 }

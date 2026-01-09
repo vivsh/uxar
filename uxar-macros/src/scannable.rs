@@ -1,145 +1,175 @@
-use std::collections::HashSet;
-
-use darling::FromDeriveInput;
-use darling::ast::{self, Data};
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, parse_macro_input};
+use syn::{DeriveInput, Type};
+use std::collections::HashSet;
 
-use crate::schemable::SchemableField;
+use crate::schemable::{FieldMeta, ParsedStruct};
 
-#[derive(FromDeriveInput)]
-pub(crate) struct ScannableInput {
-    ident: syn::Ident,
-    generics: syn::Generics,
-
-    #[darling(default, rename = "crate")]
-    #[allow(dead_code)]
-    crate_path: Option<syn::Path>,
-
-    data: Data<darling::util::Ignored, SchemableField>,
-}
-
-#[allow(dead_code)]
+/// Derives the Scannable trait for deserializing database rows into structs.
 pub fn derive_scannable(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+    let input = syn::parse_macro_input!(input as DeriveInput);
     derive_scannable_impl(&input).into()
 }
 
+/// Internal implementation of Scannable derive macro.
 pub(crate) fn derive_scannable_impl(input: &DeriveInput) -> proc_macro2::TokenStream {
-    let input = input.clone();
-
-    let args = match ScannableInput::from_derive_input(&input) {
-        Ok(a) => a,
-        Err(e) => return e.write_errors(),
+    let parsed = match ParsedStruct::from_derive_input(input.clone()) {
+        Ok(p) => p,
+        Err(e) => return e.to_compile_error(),
     };
 
-    let ident = &args.ident;
-    let mut generics = args.generics.clone();
+    let ident = &parsed.ident;
+    let mut generics = parsed.generics.clone();
 
-    let mut history = HashSet::new();
-
-    let fields = match args.data {
-        ast::Data::Struct(s) => s.fields,
-        _ => unreachable!("supports(struct_named) guarantees named struct"),
-    };
-
-    // --- 1) Where bounds for Default + Scannable ---
-
-    {
-        let wc = generics.where_clause.get_or_insert(syn::WhereClause {
-            where_token: <syn::Token![where]>::default(),
-            predicates: syn::punctuated::Punctuated::new(),
-        });
-
-        for f in &fields {
-            let ty = &f.ty;
-
-            // skipped or non-selectable fields must be Default
-            if f.skip || !f.selectable.unwrap_or(true) {
-                if history.insert(ty.clone()) == false {
-                    continue;
-                }
-                wc.predicates.push(syn::parse_quote! {
-                    #ty: ::core::default::Default
-                });
-            }
-
-            if f.json {
-                wc.predicates.push(syn::parse_quote! {
-                    #ty: ::serde::de::DeserializeOwned
-                });
-            }
-
-            // flattened fields must be Scannable
-            if f.flatten {
-                wc.predicates.push(syn::parse_quote! {
-                    #ty: ::uxar::db::Scannable
-                });
-            }
-        }
-    }
+    gen_where_clause(&mut generics, &parsed.fields);
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let field_inits = gen_field_initializers(&parsed.fields);
 
-    // --- 2) Field initializers for scan_row_ordered ---
-
-    let field_inits = fields.iter().map(|f| {
-        let ident = f.ident.as_ref().expect("named field");
-        let ty = &f.ty;
-
-        if f.skip || !f.selectable.unwrap_or(true) {
-            // compile-time enforced Default
-            quote! {
-                #ident: <#ty as ::core::default::Default>::default()
-            }
-        } else if f.flatten {
-            // nested struct; must also implement Scannable
-            quote! {
-                #ident: <#ty as ::uxar::db::Scannable>::scan_row_ordered(row, start_idx)?
-            }
-        } else if f.json {
-            quote! {
-                #ident: {
-                    // decode the column as JSON value from postgres
-                    let value: ::serde_json::Value =
-                        ::uxar::db::sqlx::Row::try_get::<::serde_json::Value, _>(row, *start_idx)?;
-                    *start_idx += 1;
-
-                    ::serde_json::from_value::<#ty>(value)
-                        .map_err(|e| ::uxar::db::sqlx::Error::Decode(Box::new(e)))?
-                }
-            }
-        } else {
-            // scalar field; sequential scan using sqlx
-            quote! {
-                #ident: {
-                    let value = ::uxar::db::sqlx::Row::try_get::<#ty, _>(row, *start_idx)?;
-                    *start_idx += 1;
-                    value
-                }
-            }
-        }
-    });
-
-    let expanded = quote! {
+    quote! {
         impl #impl_generics ::uxar::db::Scannable for #ident #ty_generics #where_clause {
             fn scan_row_ordered(
                 row: &::uxar::db::PgRow,
                 start_idx: &mut usize,
             ) -> Result<Self, ::uxar::db::SqlxError> {
                 Ok(Self {
-                    #(#field_inits),*
+                    #(#field_inits)*
                 })
             }
         }
 
-        impl<'r> ::uxar::db::FromRow<'r, ::uxar::db::PgRow> for #ident #ty_generics #where_clause {
-            fn from_row(row: &'r ::uxar::db::PgRow) -> Result<Self, ::uxar::db::SqlxError> {
+        impl #impl_generics ::uxar::db::FromRow<'_, ::uxar::db::PgRow> for #ident #ty_generics #where_clause {
+            fn from_row(row: &::uxar::db::PgRow) -> Result<Self, ::uxar::db::SqlxError> {
                 <Self as ::uxar::db::Scannable>::scan_row(row)
             }
         }
-    };
+    }
+}
 
-    expanded
+/// Generate where clause predicates for Scannable trait bounds.
+fn gen_where_clause(generics: &mut syn::Generics, fields: &[FieldMeta]) {
+    let mut seen = HashSet::new();
+    let wc = generics.where_clause.get_or_insert(syn::WhereClause {
+        where_token: <syn::Token![where]>::default(),
+        predicates: syn::punctuated::Punctuated::new(),
+    });
+
+    for field in fields {
+        if is_skip(field) || !is_selectable(field) {
+            continue;
+        }
+
+        let ty = &field.ty;
+        let ty_str = quote::quote!(#ty).to_string();
+
+        if is_flatten(field) {
+            if seen.insert(ty_str) {
+                wc.predicates.push(syn::parse_quote! {
+                    #ty: ::uxar::db::Scannable
+                });
+            }
+        } else if is_json(field) {
+            if seen.insert(ty_str) {
+                wc.predicates.push(syn::parse_quote! {
+                    #ty: ::serde::de::DeserializeOwned
+                });
+            }
+        }
+    }
+
+    for field in fields {
+        if is_skip(field) || is_selectable(field) {
+            continue;
+        }
+
+        let ty = &field.ty;
+        let ty_str = quote::quote!(#ty).to_string();
+        if seen.insert(ty_str) {
+            wc.predicates.push(syn::parse_quote! {
+                #ty: ::core::default::Default
+            });
+        }
+    }
+}
+
+/// Generate field initializers for struct construction.
+fn gen_field_initializers(fields: &[FieldMeta]) -> Vec<proc_macro2::TokenStream> {
+    let mut inits = Vec::with_capacity(fields.len());
+
+    for field in fields {
+        let Some(ident) = &field.ident else {
+            continue;
+        };
+
+        let init = if is_skip(field) || !is_selectable(field) {
+            gen_default_init(ident)
+        } else if is_flatten(field) {
+            gen_flatten_init(ident, &field.ty)
+        } else if is_json(field) {
+            gen_json_init(ident)
+        } else {
+            gen_scalar_init(ident)
+        };
+
+        inits.push(init);
+    }
+
+    inits
+}
+
+/// Generate default initialization for non-selectable field.
+fn gen_default_init(ident: &syn::Ident) -> proc_macro2::TokenStream {
+    quote! {
+        #ident: ::core::default::Default::default(),
+    }
+}
+
+/// Generate initialization for flattened field.
+fn gen_flatten_init(ident: &syn::Ident, ty: &Type) -> proc_macro2::TokenStream {
+    quote! {
+        #ident: <#ty as ::uxar::db::Scannable>::scan_row_ordered(row, start_idx)?,
+    }
+}
+
+/// Generate initialization for JSON-deserialized field.
+fn gen_json_init(ident: &syn::Ident) -> proc_macro2::TokenStream {
+    quote! {
+        #ident: {
+            let json_val: ::uxar::db::serde_json::Value = ::uxar::db::Row::try_get(row, *start_idx)?;
+            *start_idx += 1;
+            ::uxar::db::serde_json::from_value(json_val)
+                .map_err(|e| ::uxar::db::SqlxError::Decode(Box::new(e)))?
+        },
+    }
+}
+
+/// Generate initialization for scalar field.
+fn gen_scalar_init(ident: &syn::Ident) -> proc_macro2::TokenStream {
+    quote! {
+        #ident: {
+            let val = ::uxar::db::Row::try_get(row, *start_idx)?;
+            *start_idx += 1;
+            val
+        },
+    }
+}
+
+/// Check if field should be skipped (column takes precedence).
+fn is_skip(field: &FieldMeta) -> bool {
+    field.column.skip || field.field.skip
+}
+
+/// Check if field should be flattened (column takes precedence).
+fn is_flatten(field: &FieldMeta) -> bool {
+    field.column.flatten || field.field.flatten
+}
+
+/// Check if field should be JSON-serialized (column takes precedence).
+fn is_json(field: &FieldMeta) -> bool {
+    field.column.json || field.field.json
+}
+
+/// Check if field is selectable (column attr only, None means true).
+fn is_selectable(field: &FieldMeta) -> bool {
+    field.column.selectable.unwrap_or(true)
 }
