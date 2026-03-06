@@ -1,19 +1,52 @@
 
 use std::collections::HashSet;
 
-use crate::schemables::{SchemaType, SchemaConstraints, ScalarLit, StringFormat};
-use openapiv3::{Schema, SchemaKind, SchemaData, Type, StringType, IntegerType, NumberType, 
-                 ArrayType, ObjectType, ReferenceOr};
+use openapiv3::ReferenceOr;
 use indexmap::IndexMap;
+use thiserror::Error;
+
+
+/// Errors that can occur during schema conversion.
+#[derive(Debug, Error)]
+pub enum SchemaConversionError {
+    #[error("failed to serialize schema '{name}': {source}")]
+    Serialization {
+        name: String,
+        #[source]
+        source: serde_json::Error,
+    },
+    #[error("failed to deserialize schema '{name}': {source}")]
+    Deserialization {
+        name: String,
+        #[source]
+        source: serde_json::Error,
+    },
+}
 
 /// Registry for OpenAPI schema components to enable deduplication via refs.
-#[derive(Debug, Default)]
+/// Uses schemars::SchemaGenerator internally to collect all definitions.
+#[derive(Default)]
 pub struct ComponentRegistry {
     components: IndexMap<String, openapiv3::Schema>,
+    generator: schemars::SchemaGenerator,
     security_schemes: HashSet<String>,
     operation_scopes: HashSet<String>,
     pub (crate) operation_scope_join_all: bool,
     operation_security: HashSet<String>,
+    pub (crate) tags: HashSet<String>,
+}
+
+impl std::fmt::Debug for ComponentRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ComponentRegistry")
+            .field("components", &self.components)
+            .field("security_schemes", &self.security_schemes)
+            .field("operation_scopes", &self.operation_scopes)
+            .field("operation_scope_join_all", &self.operation_scope_join_all)
+            .field("operation_security", &self.operation_security)
+            .field("tags", &self.tags)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ComponentRegistry {
@@ -21,10 +54,12 @@ impl ComponentRegistry {
     pub fn new() -> Self {
         Self {
             components: IndexMap::new(),
+            generator: schemars::SchemaGenerator::default(),
             security_schemes: HashSet::new(),
             operation_scopes: HashSet::new(),
             operation_security: HashSet::new(),
             operation_scope_join_all: false,
+            tags: HashSet::new(),
         }
     }
 
@@ -36,11 +71,18 @@ impl ComponentRegistry {
     }
 
     pub fn register_security(&mut self, name: String, scopes: &[String], join_all: bool) {
-        // self.security_schemes.insert(name.clone());
+        self.security_schemes.insert(name.clone());
         self.operation_security.insert(name);
         self.operation_scope_join_all = join_all;
         self.operation_scopes.extend(scopes.iter().cloned());
+    }
 
+    pub fn has_security_schemes(&self) -> bool {
+        !self.security_schemes.is_empty()
+    }
+
+    pub fn get_security_scheme_names(&self) -> Vec<String> {
+        self.security_schemes.iter().cloned().collect()
     }
 
     pub fn drain_operation_scopes(&mut self) -> impl Iterator<Item=String> + '_ {
@@ -49,6 +91,10 @@ impl ComponentRegistry {
 
     pub fn drain_operation_security(&mut self) -> impl Iterator<Item=String> + '_ {
         self.operation_security.drain()
+    }
+
+    pub fn has_operation_security(&self) -> bool {
+        !self.operation_security.is_empty()
     }
 
     /// Check if a schema name is already registered.
@@ -63,328 +109,116 @@ impl ComponentRegistry {
             .map(|(k, v)| (k, openapiv3::ReferenceOr::Item(v)))
             .collect()
     }
-}
 
+    /// Consume the registry and return the component schemas map for OpenAPI 3.0.
+    /// Extracts all definitions from the schemars generator and converts them.
+    pub fn into_components_schemars(mut self) -> Result<IndexMap<String, openapiv3::ReferenceOr<openapiv3::Schema>>, SchemaConversionError> {
+        let definitions = std::mem::take(self.generator.definitions_mut());
+        let mut result = IndexMap::with_capacity(definitions.len());
+        
+        for (name, json_schema) in definitions {
+            // definitions_mut returns Map<String, serde_json::Value>
+            let openapi_schema = convert_json_value_to_openapi(json_schema, &name)?;
+            result.insert(name, openapi_schema);
+        }
+        
+        Ok(result)
+    }   
 
-pub trait IntoApiSchema{
-    fn into_api_schema(self, registry: &mut ComponentRegistry) -> ReferenceOr<openapiv3::Schema>;
-}
-
-impl IntoApiSchema for openapiv3::Schema{
-    fn into_api_schema(self, _registry: &mut ComponentRegistry) -> ReferenceOr<openapiv3::Schema> {
-        // Schemas passed directly are wrapped as items
-        ReferenceOr::Item(self)
+    /// Get mutable reference to the schemars generator.
+    pub fn generator_mut(&mut self) -> &mut schemars::SchemaGenerator {
+        &mut self.generator
     }
 }
 
-impl IntoApiSchema for SchemaType {
-    fn into_api_schema(self, registry: &mut ComponentRegistry) -> ReferenceOr<openapiv3::Schema> {
-        schema_type_to_api_schema(&self, registry)
-    }
-}
-
-pub fn schema_type_to_api_schema(st: &SchemaType, registry: &mut ComponentRegistry) -> ReferenceOr<Schema> {
-    match st {
-        SchemaType::Int { bits } => {
-            let format = match bits {
-                8 | 16 | 32 => openapiv3::VariantOrUnknownOrEmpty::Item(
-                    openapiv3::IntegerFormat::Int32
-                ),
-                _ => openapiv3::VariantOrUnknownOrEmpty::Item(
-                    openapiv3::IntegerFormat::Int64
-                ),
-            };
-            ReferenceOr::Item(Schema {
-                schema_data: SchemaData::default(),
-                schema_kind: SchemaKind::Type(Type::Integer(IntegerType {
-                    format,
-                    ..Default::default()
-                })),
-            })
-        }
-        SchemaType::Str { width: _ } => {
-            ReferenceOr::Item(Schema {
-                schema_data: SchemaData::default(),
-                schema_kind: SchemaKind::Type(Type::String(StringType::default())),
-            })
-        }
-        SchemaType::Bool => {
-            ReferenceOr::Item(Schema {
-                schema_data: SchemaData::default(),
-                schema_kind: SchemaKind::Type(Type::Boolean(Default::default())),
-            })
-        }
-        SchemaType::Float { bits } => {
-            let format = if *bits == 32 {
-                openapiv3::VariantOrUnknownOrEmpty::Item(openapiv3::NumberFormat::Float)
-            } else {
-                openapiv3::VariantOrUnknownOrEmpty::Item(openapiv3::NumberFormat::Double)
-            };
-            ReferenceOr::Item(Schema {
-                schema_data: SchemaData::default(),
-                schema_kind: SchemaKind::Type(Type::Number(NumberType {
-                    format,
-                    ..Default::default()
-                })),
-            })
-        }
-        SchemaType::Optional { inner } => {
-            let inner_ref = schema_type_to_api_schema(inner, registry);
-            // Note: OpenAPI 3.0 uses nullable: true. OpenAPI 3.1 would use type unions
-            // (anyOf with null), but the openapiv3 crate v2.2.0 only supports 3.0.
-            match inner_ref {
-                ReferenceOr::Item(mut schema) => {
-                    schema.schema_data.nullable = true;
-                    ReferenceOr::Item(schema)
-                }
-                ReferenceOr::Reference { reference } => {
-                    // For refs, wrap in allOf with nullable to preserve the $ref
-                    ReferenceOr::Item(Schema {
-                        schema_data: SchemaData {
-                            nullable: true,
-                            ..Default::default()
-                        },
-                        schema_kind: SchemaKind::AllOf {
-                            all_of: vec![ReferenceOr::Reference { reference }],
-                        },
-                    })
-                }
-            }
-        }
-        SchemaType::List { item } => {
-            let item_schema = schema_type_to_api_schema(item, registry);
-            let items_ref = match item_schema {
-                ReferenceOr::Item(s) => ReferenceOr::Item(Box::new(s)),
-                ReferenceOr::Reference { reference } => ReferenceOr::Reference { reference },
-            };
-            ReferenceOr::Item(Schema {
-                schema_data: SchemaData::default(),
-                schema_kind: SchemaKind::Type(Type::Array(ArrayType {
-                    items: Some(items_ref),
-                    min_items: None,
-                    max_items: None,
-                    unique_items: false,
-                })),
-            })
-        }
-        SchemaType::Map { value } => {
-            let value_schema = schema_type_to_api_schema(value, registry);
-            ReferenceOr::Item(Schema {
-                schema_data: SchemaData::default(),
-                schema_kind: SchemaKind::Type(Type::Object(ObjectType {
-                    properties: Default::default(),
-                    required: Vec::new(),
-                    additional_properties: Some(openapiv3::AdditionalProperties::Schema(
-                        Box::new(value_schema)
-                    )),
-                    min_properties: None,
-                    max_properties: None,
-                })),
-            })
-        }
-        SchemaType::Struct (schema) => {
-            let type_name = schema.name.to_string();
-            if !registry.contains(&type_name) {
-                let openapi_schema = struct_to_openapi(
-                    &schema.name,
-                    &schema.fields,
-                    schema.about.as_ref().map(|s| s.as_ref()),
-                    &schema.tags,
-                    registry,
-                );
-                registry.register(type_name.clone(), openapi_schema);
-            }
-            ReferenceOr::Reference {
-                reference: format!("#/components/schemas/{}", type_name),
-            }
-        }
-    }
-}
-
-fn struct_to_openapi(
+/// Convert JSON value (from schemars) to OpenAPI Schema
+fn convert_json_value_to_openapi(
+    mut json_value: serde_json::Value,
     name: &str,
-    fields: &[crate::schemables::SchemaField],
-    about: Option<&str>,
-    _tags: &[std::borrow::Cow<'static, str>],
-    registry: &mut ComponentRegistry,
-) -> Schema {
-    let mut properties = IndexMap::new();
-    let mut required = Vec::new();
+) -> Result<ReferenceOr<openapiv3::Schema>, SchemaConversionError> {
+    // Handle $ref before transformation
+    if let Some(ref_str) = json_value.get("$ref").and_then(|v| v.as_str()) {
+        let openapi_ref = ref_str
+            .replace("#/$defs/", "#/components/schemas/")
+            .replace("#/definitions/", "#/components/schemas/");
+        return Ok(ReferenceOr::Reference { reference: openapi_ref });
+    }
+    
+    // Transform in-place for efficiency
+    transform_for_openapi(&mut json_value);
+    
+    let schema = serde_json::from_value::<openapiv3::Schema>(json_value)
+        .map_err(|e| SchemaConversionError::Deserialization {
+            name: name.to_string(),
+            source: e,
+        })?;
+    
+    Ok(ReferenceOr::Item(schema))
+}
 
-    for field in fields {
-        if field.skip == Some(true) {
-            continue;
+/// Transform JSON Schema to OpenAPI 3.0 in-place.
+/// Main conversion: type arrays like `["integer", "null"]` → `"type": "integer", "nullable": true`
+fn transform_for_openapi(val: &mut serde_json::Value) {
+    if let serde_json::Value::Object(map) = val {
+        // Transform type arrays to nullable
+        if let Some(type_val) = map.get("type").and_then(|v| v.as_array()).cloned() {
+            transform_type_array(map, &type_val);
         }
-
-        let field_schema_ref = schema_type_to_api_schema(&field.schema_type, registry);
-        let mut field_schema = match field_schema_ref {
-            ReferenceOr::Item(s) => s,
-            ReferenceOr::Reference { reference } => {
-                // Keep refs as-is
-                properties.insert(field.name.to_string(), ReferenceOr::Reference { reference });
-                
-                let is_optional = matches!(field.schema_type, SchemaType::Optional { .. });
-                if !is_optional {
-                    required.push(field.name.to_string());
+        
+        // Recurse into all nested values
+        // Special handling for properties (object of schemas)
+        if let Some(serde_json::Value::Object(props)) = map.get_mut("properties") {
+            for (_prop_name, prop_schema) in props.iter_mut() {
+                transform_for_openapi(prop_schema);
+            }
+        }
+        
+        // Handle other schema-containing fields
+        for key in ["items", "additionalProperties", "not", "$defs", "definitions"] {
+            if let Some(nested) = map.get_mut(key) {
+                transform_for_openapi(nested);
+            }
+        }
+        
+        // Handle composition arrays (allOf, anyOf, oneOf)
+        for key in ["allOf", "anyOf", "oneOf"] {
+            if let Some(serde_json::Value::Array(schemas)) = map.get_mut(key) {
+                for schema in schemas {
+                    transform_for_openapi(schema);
                 }
-                continue;
             }
-        };
-        
-        apply_constraints(&mut field_schema, &field.constraints);
-        
-        if let Some(desc) = &field.about {
-            field_schema.schema_data.description = Some(desc.to_string());
         }
-
-        let is_optional = matches!(field.schema_type, SchemaType::Optional { .. });
-        if !is_optional {
-            required.push(field.name.to_string());
+    } else if let serde_json::Value::Array(arr) = val {
+        for item in arr {
+            transform_for_openapi(item);
         }
-
-        properties.insert(field.name.to_string(), ReferenceOr::Item(Box::new(field_schema)));
-    }
-
-    Schema {
-        schema_data: SchemaData {
-            title: Some(name.to_string()),
-            description: about.map(|s| s.to_string()),
-            ..Default::default()
-        },
-        schema_kind: SchemaKind::Type(Type::Object(ObjectType {
-            properties,
-            required,
-            additional_properties: None,
-            min_properties: None,
-            max_properties: None,
-        })),
     }
 }
 
-fn apply_constraints(schema: &mut Schema, constraints: &SchemaConstraints) {
-    match &mut schema.schema_kind {
-        SchemaKind::Type(Type::String(string_type)) => {
-            if !constraints.enumeration.is_empty() {
-                string_type.enumeration = constraints.enumeration.iter()
-                    .map(scalar_to_string)
-                    .collect();
-            }
-            if let Some(min_len) = constraints.min_length {
-                string_type.min_length = Some(min_len);
-            }
-            if let Some(max_len) = constraints.max_length {
-                string_type.max_length = Some(max_len);
-            }
-            if let Some(pattern) = &constraints.pattern {
-                string_type.pattern = Some(pattern.to_string());
-            }
-            if let Some(format) = constraints.format {
-                string_type.format = openapiv3::VariantOrUnknownOrEmpty::Unknown(
-                    string_format_to_openapi(format).to_string()
-                );
+/// Transform type array to OpenAPI nullable format
+fn transform_type_array(map: &mut serde_json::Map<String, serde_json::Value>, types: &[serde_json::Value]) {
+    let (has_null, non_null): (Vec<_>, Vec<_>) = types.iter()
+        .partition(|v| v.as_str() == Some("null"));
+    
+    match non_null.len() {
+        0 => {} // Keep as-is if only null
+        1 => {
+            // Single type + optional null → type with nullable
+            map.insert("type".to_string(), non_null[0].clone());
+            if !has_null.is_empty() {
+                map.insert("nullable".to_string(), serde_json::Value::Bool(true));
             }
         }
-        SchemaKind::Type(Type::Integer(int_type)) => {
-            if !constraints.enumeration.is_empty() {
-                int_type.enumeration = constraints.enumeration.iter()
-                    .filter_map(|lit| scalar_to_i64(*lit))
-                    .map(Some)
-                    .collect();
-            }
-            if let Some(min) = constraints.minimum {
-                int_type.minimum = scalar_to_i64(min);
-                int_type.exclusive_minimum = constraints.exclusive_minimum;
-            }
-            if let Some(max) = constraints.maximum {
-                int_type.maximum = scalar_to_i64(max);
-                int_type.exclusive_maximum = constraints.exclusive_maximum;
-            }
-            if let Some(mult) = constraints.multiple_of {
-                int_type.multiple_of = scalar_to_i64(mult);
+        _ => {
+            // Multiple non-null types → anyOf
+            let any_of: Vec<_> = non_null.iter()
+                .map(|t| serde_json::json!({"type": t}))
+                .collect();
+            map.remove("type");
+            map.insert("anyOf".to_string(), serde_json::Value::Array(any_of));
+            if !has_null.is_empty() {
+                map.insert("nullable".to_string(), serde_json::Value::Bool(true));
             }
         }
-        SchemaKind::Type(Type::Number(num_type)) => {
-            if !constraints.enumeration.is_empty() {
-                num_type.enumeration = constraints.enumeration.iter()
-                    .filter_map(|lit| scalar_to_f64(*lit))
-                    .map(Some)
-                    .collect();
-            }
-            if let Some(min) = constraints.minimum {
-                num_type.minimum = scalar_to_f64(min);
-                num_type.exclusive_minimum = constraints.exclusive_minimum;
-            }
-            if let Some(max) = constraints.maximum {
-                num_type.maximum = scalar_to_f64(max);
-                num_type.exclusive_maximum = constraints.exclusive_maximum;
-            }
-            if let Some(mult) = constraints.multiple_of {
-                num_type.multiple_of = scalar_to_f64(mult);
-            }
-        }
-        SchemaKind::Type(Type::Array(arr_type)) => {
-            if let Some(min_items) = constraints.min_items {
-                arr_type.min_items = Some(min_items);
-            }
-            if let Some(max_items) = constraints.max_items {
-                arr_type.max_items = Some(max_items);
-            }
-            arr_type.unique_items = constraints.unique_items;
-        }
-        _ => {}
-    }
-}
-
-fn string_format_to_openapi(format: StringFormat) -> &'static str {
-    match format {
-        StringFormat::Email => "email",
-        StringFormat::PhoneE164 => "phone",
-        StringFormat::Url => "uri",
-        StringFormat::Uuid => "uuid",
-        StringFormat::Date => "date",
-        StringFormat::DateTime => "date-time",
-        StringFormat::IpV4 => "ipv4",
-        StringFormat::IpV6 => "ipv6",
-    }
-}
-
-fn scalar_lit_to_json(lit: &ScalarLit) -> serde_json::Value {
-    match lit {
-        ScalarLit::Bool(b) => serde_json::Value::Bool(*b),
-        ScalarLit::Int(i) => {
-            if let Ok(val) = i64::try_from(*i) {
-                serde_json::Value::Number(val.into())
-            } else {
-                serde_json::Value::Null
-            }
-        }
-        ScalarLit::Float(f) => serde_json::Number::from_f64(*f)
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
-        ScalarLit::Str(s) => serde_json::Value::String(s.to_string()),
-    }
-}
-
-fn scalar_to_string(lit: &ScalarLit) -> Option<String> {
-    match lit {
-        ScalarLit::Str(s) => Some(s.to_string()),
-        ScalarLit::Bool(b) => Some(b.to_string()),
-        ScalarLit::Int(i) => Some(i.to_string()),
-        ScalarLit::Float(f) => Some(f.to_string()),
-    }
-}
-
-fn scalar_to_i64(lit: ScalarLit) -> Option<i64> {
-    match lit {
-        ScalarLit::Int(i) => i.try_into().ok(),
-        _ => None,
-    }
-}
-
-fn scalar_to_f64(lit: ScalarLit) -> Option<f64> {
-    match lit {
-        ScalarLit::Int(i) => Some(i as f64),
-        ScalarLit::Float(f) => Some(f),
-        _ => None,
     }
 }

@@ -1,367 +1,241 @@
-use std::{any::Any, borrow::Cow, collections::BTreeMap, fmt, sync::Arc};
 
-use futures::future::BoxFuture;
 
+use std::{fmt, str, sync::atomic::AtomicBool};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use std::{
+    any::{Any, TypeId},
+    collections::{HashMap},
+    sync::Arc,
+};
 use crate::{
-    Site,
-    schemables::{SchemaType, Schemable},
-    zones::{ZonePermit, ZonePolicy},
+    Site, callables::{self, CallError, Callable, IntoPayloadData, PayloadData},
+    debounce::{DebounceCall, DebounceConf},
 };
 
+
+
+#[derive(Clone)]
+pub struct SignalHandler{
+    type_id: TypeId,
+    func: Callable<SignalContext, SignalError>,
+    debouncer: Option<DebounceCall<SignalContext, SignalError>>,
+}
+
+impl SignalHandler {
+    async fn call(&self, ctx: SignalContext) -> Result<(), SignalError> {
+        if let Some(d) = &self.debouncer {
+            d.trigger(ctx);
+        } else {
+            self.func.call(ctx).await?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct SignalContext {
+    site: Site,
+    payload: PayloadData,
+}
+
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct SignalConf {
+    debounce: Option<DebounceConf>
+}
+
+pub(crate) struct Signaller{
+    pub(crate) handler: SignalHandler,
+    pub(crate) options: SignalConf,
+}
+
+
+pub(crate) fn signal<T, H, Args>(handler: H, options: SignalConf) -> Signaller
+where
+    T: callables::Payloadable,
+    H: callables::Specable<Args, Output = ()> + Send + Sync + 'static,
+    Args: callables::FromContext<SignalContext> + callables::IntoArgSpecs + callables::HasPayload<T> + Send + 'static,
+{
+    let callable = Callable::new(handler);
+
+    let debouncer = options.debounce.as_ref().map(|conf| {
+        DebounceCall::new(conf.clone(), callable.clone())
+    });
+
+    Signaller {
+        handler: SignalHandler { func: callable, type_id: TypeId::of::<T>(), debouncer },
+        options,
+    }
+}
+
+impl IntoPayloadData for SignalContext {
+    fn into_payload_data(self) -> PayloadData {
+        self.payload
+    }
+}
+
+/// Errors that can occur during signal registration and dispatch.
 #[derive(Debug, thiserror::Error)]
 pub enum SignalError {
-    #[error("JSON parse error: {0}")]
-    JsonParse(String),
+    #[error("Signal payload type mismatch")]
+    PayloadTypeMismatch,
 
-    #[error("JSON deserialization error for {type_name}: {source}")]
-    JsonDeserialize {
-        type_name: &'static str,
-        source: serde_json::Error,
-    },
+    #[error("Signal not found")]
+    NotFound,
 
-    #[error("Type mismatch: expected {expected}")]
-    TypeMismatch { expected: &'static str },
-
-    #[error("Signal '{signal}' not found")]
-    SignalNotFound { signal: String },
-
-    #[error("Signal '{signal}' payload error: {source}")]
-    PayloadError { signal: String, source: Box<SignalError> },
-
-    #[error("Serialization error: {0}")]
-    Serialize(#[from] serde_json::Error),
-
-    #[error("{0}")]
-    Other(#[from] Box<dyn std::error::Error + Send + Sync>),
+    #[error(transparent)]
+    CallError(#[from] CallError),
 }
 
-enum SignalDataInner {
-    Typed(Arc<dyn Any + Send + Sync>),
-    Json(serde_json::Value),
+/// Central registry for signal handlers that dispatches events asynchronously.
+pub struct SignalRegistry {
+    handlers: HashMap<TypeId, Vec<SignalHandler>>,
 }
 
-/// Type-safe signal payload with JSON interop and efficient sharing
-/// Supports typed Arc payloads or raw JSON for sources without type info
-#[derive(Clone)]
-pub struct SignalPayload {
-    inner: Arc<SignalDataInner>,
-}
-
-impl SignalPayload {
-    /// Create from typed value
-    pub fn new<T: Send + Sync + 'static>(value: T) -> Self {
-        Self {
-            inner: Arc::new(SignalDataInner::Typed(Arc::new(value))),
-        }
-    }
-
-    /// Create from JSON value (stores raw, deserializes when dispatched)
-    pub fn from_json(value: serde_json::Value) -> Self {
-        Self {
-            inner: Arc::new(SignalDataInner::Json(value)),
-        }
-    }
-
-    /// Create from JSON string (parses and stores raw, deserializes when dispatched)
-    pub fn from_json_str(json: &str) -> Result<Self, SignalError> {
-        let value: serde_json::Value = serde_json::from_str(json)
-            .map_err(|e| SignalError::JsonParse(e.to_string()))?;
-        Ok(Self::from_json(value))
-    }
-
-    /// Get typed reference (only works for the Typed variant)
-    pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
-        match &*self.inner {
-            SignalDataInner::Typed(arc) => (&**arc as &(dyn Any + 'static)).downcast_ref::<T>(),
-            SignalDataInner::Json(_) => None,
-        }
-    }
-
-    pub(crate) fn to_typed<T>(&self) -> Result<T, SignalError>
-    where
-        T: Clone + serde::de::DeserializeOwned + 'static,
-    {
-        match &*self.inner {
-            SignalDataInner::Typed(arc) => (&**arc as &(dyn Any + 'static))
-                .downcast_ref::<T>()
-                .cloned()
-                .ok_or_else(|| SignalError::TypeMismatch {
-                    expected: std::any::type_name::<T>(),
-                }),
-            SignalDataInner::Json(val) => serde_json::from_value(val.clone()).map_err(|e| {
-                SignalError::JsonDeserialize {
-                    type_name: std::any::type_name::<T>(),
-                    source: e,
-                }
-            }),
-        }
-    }
-
-    /// Convert to JSON if type supports serialization
-    pub fn to_json<T>(&self) -> Result<serde_json::Value, SignalError>
-    where
-        T: serde::Serialize + 'static,
-    {
-        match &*self.inner {
-            SignalDataInner::Typed(arc) => (&**arc as &(dyn Any + 'static))
-                .downcast_ref::<T>()
-                .ok_or_else(|| SignalError::TypeMismatch {
-                    expected: std::any::type_name::<T>(),
-                })
-                .and_then(|v| serde_json::to_value(v).map_err(SignalError::Serialize)),
-            SignalDataInner::Json(val) => Ok(val.clone()),
-        }
-    }
-
-    /// Access raw Arc for internal use (only for Typed variant)
-    pub(crate) fn as_arc(&self) -> Option<&Arc<dyn Any + Send + Sync>> {
-        match &*self.inner {
-            SignalDataInner::Typed(arc) => Some(arc),
-            SignalDataInner::Json(_) => None,
-        }
-    }
-}
-
-impl fmt::Debug for SignalPayload {
+impl fmt::Debug for SignalRegistry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SignalData").finish_non_exhaustive()
-    }
-}
-
-pub struct SignalReceiver {
-    pub name: Cow<'static, str>,
-    pub schema: SchemaType,
-    pub receiver: Arc<
-        dyn Fn(Site, SignalPayload) -> BoxFuture<'static, Result<(), SignalError>> + Send + Sync,
-    >,
-}
-
-impl fmt::Debug for SignalReceiver {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SignalReceiver")
-            .field("name", &self.name)
-            .field("schema", &self.schema)
-            .field("receiver", &"<function>")
+        f.debug_struct("SignalRegistry")
+            .field("handlers", &self.handlers.keys().collect::<Vec<_>>())
             .finish()
     }
 }
 
-impl Clone for SignalReceiver {
-    fn clone(&self) -> Self {
+impl SignalRegistry {
+    /// Creates a new, empty signal engine.
+    pub fn new() -> Self {
         Self {
-            name: self.name.clone(),
-            schema: self.schema.clone(),
-            receiver: self.receiver.clone(),
+            handlers: HashMap::new(),
         }
+    }
+
+    /// Registers a handler for the named signal; all handlers for a signal must use the same payload type.
+    pub(crate) fn register(&mut self, signaller: Signaller) {
+        let type_id = signaller.handler.type_id;
+        let entry = self.handlers.entry(type_id).or_default();
+        entry.push(signaller.handler);
+    }
+
+    pub(crate) fn merge(&mut self, other: SignalRegistry) {
+        for (name, other_container) in other.handlers.into_iter() {
+            let entry = self.handlers.entry(name).or_default();
+            entry.extend(other_container);
+        }
+    }
+
+    /// Creates a signal engine from this registry.
+    /// Any changes to the registry after this call will not affect the engine.
+    pub fn engine(&self) -> SignalEngine {
+        let registry = Self {
+            handlers: self.handlers.clone(),
+        };
+        SignalEngine::new(registry)
     }
 }
 
-/// Container for signal handlers and scheduling
-#[derive(Debug, Clone)]
+/// Scoped helper for dispatching signals with a bound site and manager reference.
+pub struct SignalDispatcher<'a> {
+    site: &'a Site,
+    engine: &'a SignalEngine,
+}
+
+impl<'a> SignalDispatcher<'a> {
+    /// Dispatches a signal with the given payload using the bound site context.
+    pub async fn dispatch<T>(&self, item: T) -> Result<(), SignalError>
+    where
+        T: Any + Send + Sync + Serialize + JsonSchema + 'static,
+    {
+        let site = self.site.clone();
+        self.engine.dispatch(site, item).await
+    }
+
+    pub async fn dispatch_payload(
+        &self,
+        payload: PayloadData,
+    ) -> Result<(), SignalError> {
+        let site = self.site.clone();
+        self.engine.dispatch_payload(site, payload).await
+    }
+
+    // pub async fn dispatch_payload_by_spawn(
+    //     &self,
+    //     payload: PayloadData,
+    // ) -> Result<(), SignalError> {
+    //     let site = self.site.clone();
+    //     self.engine.clone()
+    //         .dispatch_payload_by_spawn(site, payload)
+    // }
+}
+
+// #[derive(Clone)]
 pub struct SignalEngine {
-    signals: BTreeMap<String, Vec<SignalReceiver>>,
+    registry: Arc<SignalRegistry>,
 }
 
 impl SignalEngine {
-    pub fn new() -> Self {
+    pub fn new(registry: SignalRegistry) -> Self {
         Self {
-            signals: BTreeMap::new(),
+            registry: Arc::new(registry),
         }
     }
 
-    /// Register a signal handler
-    /// Handler receives typed payload directly - wrapper does Box::pin
-    /// Supports both Typed and JSON variants (JSON is deserialized on dispatch)
-    pub fn register<F, Fut, T>(&mut self, name: &'static str, receiver: F)
+    /// Dispatches a signal with the given payload to all registered handlers asynchronously.
+    async fn dispatch<T: 'static>(&self, site: Site, item: T) -> Result<(), SignalError>
     where
-        F: Fn(Site, T) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = Result<(), SignalError>> + Send + 'static,
-        T: Any + Schemable + Clone + serde::de::DeserializeOwned + Send + Sync + 'static,
+        T: Any + Send + Sync + Serialize + JsonSchema + 'static,
     {
-        let schema = T::schema_type();
-        let signal_name = name;
+        let payload = PayloadData::new(item);
+        self.dispatch_payload(site, payload)
+            .await
+    }
 
-        let erased: Arc<
-            dyn Fn(Site, SignalPayload) -> BoxFuture<'static, Result<(), SignalError>>
-                + Send
-                + Sync,
-        > = Arc::new(move |site, data| match data.to_typed::<T>() {
-            Ok(payload) => Box::pin(receiver(site, payload)),
-            Err(e) => Box::pin(async move {
-                Err(SignalError::PayloadError {
-                    signal: signal_name.to_string(),
-                    source: Box::new(e),
-                })
-            }),
+    /// Dispatches a signal with the given payload to all registered handlers asynchronously.
+    fn dispatch_payload_by_spawn(
+        &self,
+        site: Site,
+        payload: PayloadData,
+    ) -> Result<(), SignalError> {
+        if !self
+            .registry
+            .handlers
+            .contains_key(&payload.payload_type_id())
+        {
+            return Err(SignalError::NotFound);
+        }
+        let engine = Self{
+            registry: self.registry.clone(),
+        };
+        tokio::spawn(async move {
+            if let Err(err) = engine.dispatch_payload(site, payload).await{
+                tracing::error!("Error dispatching signal: {}", err);
+            }
         });
-
-        self.signals
-            .entry(name.to_string())
-            .or_default()
-            .push(SignalReceiver {
-                name: Cow::Borrowed(name),
-                schema,
-                receiver: erased,
-            });
-    }
-
-    /// Merge another signal engine into this one
-    pub fn merge(&mut self, other: SignalEngine) {
-        for (signal_name, receivers) in other.signals {
-            self.signals
-                .entry(signal_name)
-                .or_default()
-                .extend(receivers);
-        }
-    }
-
-    /// Dispatch typed value as signal
-    pub async fn dispatch<T>(&self, site: Site, name: &str, payload: T) -> Result<(), SignalError>
-    where
-        T: Send + Sync + 'static,
-    {
-        let data = SignalPayload::new(payload);
-        self.dispatch_data(site, name, data).await
-    }
-
-    /// Dispatch SignalData directly
-    pub(crate) async fn dispatch_data(
-        &self,
-        site: Site,
-        name: &str,
-        data: SignalPayload,
-    ) -> Result<(), SignalError> {
-        if let Some(receivers) = self.signals.get(name) {
-            for receiver in receivers {
-                (receiver.receiver)(site.clone(), data.clone()).await?;
-            }
-        }
         Ok(())
     }
 
-    /// Dispatch from JSON value
-    pub async fn dispatch_json(
+    /// Dispatches a signal with the given payload to all registered handlers asynchronously.
+    pub(crate) async fn dispatch_payload(
         &self,
         site: Site,
-        name: &str,
-        json: serde_json::Value,
+        payload: PayloadData,
     ) -> Result<(), SignalError> {
-        let data = SignalPayload::from_json(json);
-        self.dispatch_data(site, name, data).await
-    }
+        let type_id = payload.payload_type_id();
+        let handlers = match self.registry.handlers.get(&type_id) {
+            Some(handlers) => handlers,
+            None => return Err(SignalError::NotFound),
+        };
 
-    /// Dispatch from JSON string
-    pub async fn dispatch_json_str(
-        &self,
-        site: Site,
-        name: &str,
-        json: &str,
-    ) -> Result<(), SignalError> {
-        let data = SignalPayload::from_json_str(json)?;
-        self.dispatch_data(site, name, data).await
-    }
-
-    /// Dispatch spawning each handler in separate tokio task
-    pub fn dispatch_spawn(
-        &self,
-        site: Site,
-        name: &str,
-        data: SignalPayload,
-    ) -> Result<(), SignalError> {
-        let receivers = self.signals.get(name).ok_or_else(|| {
-            SignalError::SignalNotFound {
-                signal: name.to_string(),
+        for handler in handlers.iter() {
+            let ctx = SignalContext {
+                site: site.clone(),
+                payload: payload.clone(),
+            };
+            if let Err(err) = handler.call(ctx).await{
+                tracing::error!("Error executing signal handler: {}", err);
             }
-        })?;
-
-        for receiver in receivers {
-            let site = site.clone();
-            let data = data.clone();
-            let receiver = receiver.receiver.clone();
-
-            tokio::spawn(async move {
-                if let Err(e) = receiver(site, data).await {
-                    tracing::error!("Signal handler error: {}", e);
-                }
-            });
         }
 
         Ok(())
     }
-
-    /// Iterate over all registered signal names and their handlers
-    pub fn iter_signals(&self) -> impl Iterator<Item = (&str, &[SignalReceiver])> {
-        self.signals
-            .iter()
-            .map(|(name, receivers)| (name.as_str(), receivers.as_slice()))
-    }
-
-    /// Get signal receivers for a specific signal name
-    pub fn get_signal(&self, name: &str) -> Option<&[SignalReceiver]> {
-        self.signals.get(name).map(|v| v.as_slice())
-    }
 }
 
-impl Default for SignalEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Trait for signal sources that fetch payloads and emit signals
-/// Object-safe for storage in Vec<Box<dyn SignalSource>>
-/// Supports DB polling, cron/periodic triggers, and postgres NOTIFY relay
-pub trait SignalSource: Send + Sync + 'static {
-    /// Fetch payloads as SignalPayload (already type-erased and Arc-wrapped)
-    ///
-    fn poll(&mut self, site: &Site) -> BoxFuture<'_, Result<Option<SignalPayload>, SignalError>>;
-
-    /// Run the signal source continuously until shutdown signal
-    /// Fetches payloads in bulk, then emits one-by-one respecting zone policy
-    fn run(
-        mut self: Box<Self>,
-        site: Site,
-        signal_name: &'static str,
-        engine: Arc<SignalEngine>,
-        shutdown: Arc<tokio::sync::Notify>,
-        interval: Option<std::time::Duration>,
-        zone_policy: ZonePolicy,
-    ) -> BoxFuture<'static, ()> {
-        Box::pin(async move {
-            let mut permit = Option::<ZonePermit>::None;
-            loop {
-                tokio::select! {
-                    _ = shutdown.notified() => {
-                        tracing::info!("Signal source shutting down");
-                        break;
-                    },
-                    _ = zone_policy.acquire()=>{
-                        permit = Some(zone_policy.acquire().await);
-                    },
-                    result = self.poll(&site), if permit.is_some() => {
-                        match result {
-                            Ok(Some(payload)) => {
-                                if let Err(e) = engine.dispatch_spawn(site.clone(), signal_name, payload) {
-                                    tracing::error!("Signal dispatch error for '{}': {}", signal_name, e);
-                                }
-                            },
-                            Err(e) => {
-                                tracing::error!("Signal source poll error for '{}': {}. Exiting the loop", signal_name, e);
-                                break;
-                            },
-                            _=>{
-                                // lose the permit if no payload
-                                // so that other zone tasks can run
-                                // This releases the concurrency slot but affects the rate limit
-                            }
-                        }
-                        permit = None;
-                        if let Some(interval) = interval {
-                            tokio::time::sleep(interval).await;
-                        }
-                    }
-                }
-            }
-        })
-    }
-}

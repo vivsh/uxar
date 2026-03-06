@@ -1,0 +1,133 @@
+{% extends "admin/base.html" %} {% block title %}Operations - Admin{% endblock
+%} {% block content %}
+<article>
+  <header>
+    <h1>System Operations</h1>
+    <p>All registered operations in the system</p>
+  </header>
+
+  {% for kind, ops in operations_by_kind %}
+  <section>
+    <h2>{{ kind }}</h2>
+
+    {% for op in ops %}
+    <details>
+      <summary>
+        <strong>{{ op.name }}</strong>
+        {% if op.methods %} {% for method in op.methods %}
+        <kbd>{{ method }}</kbd>
+        {% endfor %} {% endif %}
+        <code>{{ op.path }}</code>
+      </summary>
+
+      <article>
+        {% if op.summary %}
+        <p><strong>{{ op.summary }}</strong></p>
+        {% endif %} {% if op.description %}
+        <p>{{ op.description }}</p>
+        {% endif %} {% if op.args %}
+        <h4>Arguments</h4>
+        <table role="grid">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for arg in op.args %}
+            <tr>
+              <td><code>{{ arg.name }}</code></td>
+              <td>{{ arg.type_name }}</td>
+              <td>{{ arg.description }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %} {% if op.returns %}
+        <h4>Returns</h4>
+        <table role="grid">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Type</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ret in op.returns %}
+            <tr>
+              <td>{% if ret.status %}<kbd>{{ ret.status }}</kbd>{% endif %}</td>
+              <td>{{ ret.type_name }}</td>
+              <td>{{ ret.description }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %} {% if op.tags %}
+        <p>
+          <small>
+            Tags: {% for tag in op.tags %}
+            <mark>{{ tag }}</mark>
+            {% endfor %}
+          </small>
+        </p>
+        {% endif %}
+      </article>
+    </details>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</article>
+
+<style>
+  details {
+    margin-bottom: 1rem;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: 0;
+  }
+
+  details summary {
+    padding: 1rem;
+    cursor: pointer;
+    background: var(--pico-background-color);
+  }
+
+  details summary:hover {
+    background: var(--pico-secondary-background);
+  }
+
+  details[open] summary {
+    border-bottom: 1px solid var(--pico-muted-border-color);
+  }
+
+  details article {
+    padding: 1rem;
+    margin: 0;
+  }
+
+  kbd {
+    margin-right: 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  code {
+    color: var(--pico-primary);
+  }
+
+  mark {
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.25rem;
+    border-radius: var(--pico-border-radius);
+  }
+
+  h2 {
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--pico-primary);
+  }
+</style>
+{% endblock %}

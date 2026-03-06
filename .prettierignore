@@ -1,0 +1,12 @@
+# Ignore template files - Jinja syntax conflicts with formatters
+**/templates/**/*.html
+**/*.jinja
+**/*.jinja2
+
+# Build outputs
+target/
+dist/
+build/
+
+# Dependencies
+node_modules/

@@ -40,6 +40,7 @@ impl File {
 }
 
 /// Wrapper around rust-silos Silo
+#[derive(Clone, Debug)]
 pub struct Dir {
     inner: Silo,
 }
@@ -51,12 +52,8 @@ impl Dir {
         }
     }
 
-    pub fn new(path: &str) -> Self {
-        let base = env!("CARGO_MANIFEST_DIR");
-        let full = std::path::PathBuf::from(base).join(path);
-        Self {
-            inner: Silo::new(full.to_str().unwrap_or(path)),
-        }
+    pub const fn new(silo: Silo) -> Self {
+        Self { inner: silo }
     }
 
     pub fn is_embedded(&self) -> bool {

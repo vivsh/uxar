@@ -396,7 +396,7 @@ fn test_signature_mixed_extractors_with_body() {
             Query(params): Query<Filters>,
             State(db): State<Database>,
             Json(payload): Json<UpdateRequest>
-        ) -> Result<Json<Response>, ApiError>
+        ) -> Result<Json<Response>, uxar::errors::Error>
     };
     assert!(signature_accepts_body(&sig));
 }

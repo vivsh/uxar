@@ -71,7 +71,7 @@ fn gen_field_validation(
         checks.push(gen_custom_check(&field_ident, &field_name, path));
     }
 
-    if !validate.delegate && validate.custom.is_none() {
+    if !validate.delegate && validate.custom.is_none() && has_standard_validators(validate) {
         gen_standard_validators(&mut checks, &field_ident, &field_name, validate);
     }
 
@@ -109,6 +109,25 @@ fn gen_custom_check(
             main_report.push(::uxar::validation::Path::root().at_field(#field_name), e);
         }
     }
+}
+
+/// Check if validate attrs has any standard validators.
+fn has_standard_validators(validate: &crate::schemable::ValidateAttrs) -> bool {
+    validate.min_length.is_some()
+        || validate.max_length.is_some()
+        || validate.exact_length.is_some()
+        || validate.pattern.is_some()
+        || validate.email
+        || validate.url
+        || validate.uuid
+        || validate.phone_e164
+        || validate.ipv4
+        || validate.ipv6
+        || validate.date
+        || validate.datetime
+        || validate.min.is_some()
+        || validate.max.is_some()
+        || !validate.enumeration.0.is_empty()
 }
 
 /// Generate all standard validators for a field.

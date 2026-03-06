@@ -1,9 +1,6 @@
-use proc_macro::TokenStream;
-use quote::quote;
-
 use darling::FromMeta;
 use syn::{
-    spanned::Spanned, Attribute, DeriveInput, Error, Expr, Fields, Lit, LitInt, LitStr, Meta,
+    spanned::Spanned, Attribute, DeriveInput, Error, Fields, Lit, LitInt, LitStr, Meta,
     Result, Token, Type,
 };
 use syn::punctuated::Punctuated;
@@ -38,7 +35,7 @@ static VALIDATE_KEYS: &[&str] = &[
     "delegate",
 ];
 
-static FIELD_KEYS: &[&str] = &["skip", "flatten", "json", "reference"];
+
 
 static COLUMN_KEYS: &[&str] = &[
     "name",
@@ -109,8 +106,6 @@ fn enforce_namespace(ns: &str, nested: &[darling::ast::NestedMeta], allowed: &[&
                 " (belongs to #[validate(...)] )"
             } else if COLUMN_KEYS.contains(&key.as_str()) {
                 " (belongs to #[column(...)] )"
-            } else if FIELD_KEYS.contains(&key.as_str()) {
-                " (belongs to #[field(...)] )"
             } else {
                 ""
             };
@@ -145,6 +140,38 @@ impl FromMeta for EnumWrapper {
     }
 }
 
+/// Reference specification for foreign key relationships
+#[derive(Debug, Clone, Default)]
+pub struct ReferenceSpec {
+    pub from: Option<String>,
+    pub to: Option<String>,
+}
+
+impl FromMeta for ReferenceSpec {
+    fn from_word() -> darling::Result<Self> {
+        Ok(ReferenceSpec {
+            from: None,
+            to: None,
+        })
+    }
+    
+    fn from_list(items: &[darling::ast::NestedMeta]) -> darling::Result<Self> {
+        #[derive(FromMeta)]
+        struct RefParams {
+            #[darling(default)]
+            from: Option<LitStr>,
+            #[darling(default)]
+            to: Option<LitStr>,
+        }
+        
+        let params = RefParams::from_list(items)?;
+        Ok(ReferenceSpec {
+            from: params.from.map(|lit| lit.value()),
+            to: params.to.map(|lit| lit.value()),
+        })
+    }
+}
+
 
 
 // -------------------------------------------------------------------------------------
@@ -156,8 +183,6 @@ impl FromMeta for EnumWrapper {
 pub struct ContainerAttrs {
     #[darling(default)]
     pub table: Option<LitStr>,
-    #[darling(default, rename = "tags")]
-    pub tags: Vec<LitStr>,
 }
 
 /// Field-level validation attributes from #[validate(...)]
@@ -279,32 +304,6 @@ impl ValidateAttrs {
     }
 }
 
-/// Field-level metadata from #[field(...)]
-#[derive(Debug, Default, Clone, FromMeta)]
-pub struct FieldAttrs {
-    #[darling(default)]
-    pub skip: bool,
-    #[darling(default)]
-    pub flatten: bool,
-    #[darling(default)]
-    pub json: bool,
-    #[darling(default)]
-    pub reference: bool,
-}
-
-impl FieldAttrs {
-    pub fn validate(&self) -> Result<()> {
-        // Enforce skip and flatten are mutually exclusive
-        if self.skip && self.flatten {
-            return Err(Error::new(
-                proc_macro2::Span::call_site(),
-                "Cannot use both skip and flatten on the same field",
-            ));
-        }
-        Ok(())
-    }
-}
-
 /// Database column metadata from #[column(...)]
 #[derive(Debug, Default, Clone, FromMeta)]
 pub struct ColumnAttrs {
@@ -323,7 +322,7 @@ pub struct ColumnAttrs {
     #[darling(default)]
     pub json: bool,
     #[darling(default)]
-    pub reference: bool,
+    pub reference: Option<ReferenceSpec>,
 
     #[darling(default)]
     pub selectable: Option<bool>,
@@ -353,7 +352,6 @@ pub struct FieldMeta {
     pub ident: Option<syn::Ident>,
     pub ty: Type,
     pub validate: ValidateAttrs,
-    pub field: FieldAttrs,
     pub column: ColumnAttrs,
 }
 
@@ -381,7 +379,6 @@ fn augment_darling_error(e: darling::Error, context: &str) -> syn::Error {
 impl FieldMeta {
     pub fn from_field(field: &syn::Field) -> Result<Self> {
         let mut validate = ValidateAttrs::default();
-        let mut field_attrs = FieldAttrs::default();
         let mut column = ColumnAttrs::default();
 
         let field_name = field
@@ -398,17 +395,6 @@ impl FieldMeta {
                 })?;
                 validate
                     .validate()
-                    // keep exact same message semantics; just pin to this attribute's span
-                    .map_err(|e| Error::new(attr.span(), e.to_string()))?;
-            }
-
-            if let Some(nested) = parse_ns_list(attr, "field")? {
-                enforce_namespace("field", &nested, FIELD_KEYS)?;
-                field_attrs = FieldAttrs::from_list(&nested).map_err(|e| {
-                    augment_darling_error(e, &format!("Error decoding #[field] on field '{field_name}'"))
-                })?;
-                field_attrs
-                    .validate()
                     .map_err(|e| Error::new(attr.span(), e.to_string()))?;
             }
 
@@ -424,7 +410,6 @@ impl FieldMeta {
             ident: field.ident.clone(),
             ty: field.ty.clone(),
             validate,
-            field: field_attrs,
             column,
         })
     }
@@ -483,434 +468,3 @@ impl ParsedStruct {
         })
     }
 }
-
-/// Extract doc comments from attributes
-pub fn extract_doc_comment(attrs: &[Attribute]) -> Option<String> {
-    let mut docs = Vec::new();
-    for attr in attrs {
-        if attr.path().is_ident("doc") {
-            if let Ok(meta) = attr.meta.require_name_value() {
-                if let syn::Expr::Lit(expr_lit) = &meta.value {
-                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
-                        docs.push(lit_str.value());
-                    }
-                }
-            }
-        }
-    }
-    if docs.is_empty() {
-        None
-    } else {
-        Some(docs.join("\n").trim().to_string())
-    }
-}
-
-pub fn derive_schemable_impl(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
-
-    match derive_schemable_inner(input) {
-        Ok(tokens) => tokens.into(),
-        Err(err) => err.to_compile_error().into(),
-    }
-}
-
-fn derive_schemable_inner(input: DeriveInput) -> Result<proc_macro2::TokenStream> {
-    let input_attrs = input.attrs.clone();
-
-    let raw_fields = if let syn::Data::Struct(ref data) = input.data {
-        if let syn::Fields::Named(ref fields) = data.fields {
-            fields.named.iter().cloned().collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        }
-    } else {
-        Vec::new()
-    };
-
-    let parsed = ParsedStruct::from_derive_input(input)?;
-    let ident = &parsed.ident;
-    let (impl_generics, ty_generics, where_clause) = parsed.generics.split_for_impl();
-
-    let schema_name = ident.to_string();
-
-    let table_name_expr = gen_table_name(&parsed.container.table);
-
-    let about_expr = gen_about(&input_attrs);
-
-    let tags: Vec<_> = parsed.container.tags.iter().map(|s| s.value()).collect();
-    let tags_expr = quote! { ::std::vec![#(::std::borrow::Cow::Borrowed(#tags)),*] };
-
-    // Generate field definitions
-    let mut field_defs = Vec::with_capacity(parsed.fields.len());
-
-    for (idx, field_meta) in parsed.fields.iter().enumerate() {
-        let field_ident = match &field_meta.ident {
-            Some(id) => id,
-            None => return Err(Error::new(
-                proc_macro2::Span::call_site(),
-                "only named fields are supported",
-            )),
-        };
-        let field_name = field_ident.to_string();
-        let ty = &field_meta.ty;
-
-        // Record nature from field attributes (just what's there, no logic)
-        let field_nature = gen_nature(&field_meta.field);
-
-        let field_skip = gen_skip(field_meta.field.skip);
-
-        let field_about = if let Some(f) = raw_fields.get(idx) {
-            if let Some(doc) = extract_doc_comment(&f.attrs) {
-                quote! { Some(::std::borrow::Cow::Borrowed(#doc)) }
-            } else {
-                quote! { None }
-            }
-        } else {
-            quote! { None }
-        };
-
-        let schema_type_expr = quote! { <#ty as ::uxar::schemables::Schemable>::schema_type() };
-
-        // Build constraints - enumeration
-        let enumeration = gen_enumeration(&field_meta.validate.enumeration, field_meta.ident.as_ref())?;
-
-        let min_length = lit_int_to_tokens(field_meta.validate.min_length.as_ref());
-        let max_length = lit_int_to_tokens(field_meta.validate.max_length.as_ref());
-        let exact_length = lit_int_to_tokens(field_meta.validate.exact_length.as_ref());
-
-        let pattern = gen_pattern(&field_meta.validate.pattern);
-
-        let format = gen_format(&field_meta.validate);
-
-        let minimum = parse_scalar_int(&field_meta.validate.min)?;
-
-        let maximum = parse_scalar_int(&field_meta.validate.max)?;
-
-        let exclusive_minimum = field_meta.validate.exclusive_min;
-        let exclusive_maximum = field_meta.validate.exclusive_max;
-
-        let multiple_of = parse_scalar_int(&field_meta.validate.multiple_of)?;
-
-        let min_items = lit_int_to_tokens(field_meta.validate.min_items.as_ref());
-        let max_items = lit_int_to_tokens(field_meta.validate.max_items.as_ref());
-        let unique_items = field_meta.validate.unique_items;
-
-        // Build column meta
-        let col_name = gen_col_name(&field_meta.column.name);
-
-        let primary_key = field_meta.column.primary_key;
-        let serial = field_meta.column.serial;
-
-        let col_default = gen_col_default(&field_meta.column.default);
-
-        let index = field_meta.column.index;
-
-        let index_type = gen_index_type(&field_meta.column.index_type);
-
-        let unique = field_meta.column.unique;
-
-        let unique_groups = gen_unique_groups(&field_meta.column.unique_groups);
-
-        // Record column nature (just what's in column attrs)
-        let col_nature = gen_col_nature(&field_meta.column);
-
-        let col_skip = gen_skip(field_meta.column.skip);
-
-        field_defs.push(quote! {
-            ::uxar::schemables::SchemaField {
-                name: ::std::borrow::Cow::Borrowed(#field_name),
-                about: #field_about,
-                schema_type: #schema_type_expr,
-                constraints: ::uxar::schemables::SchemaConstraints {
-                    enumeration: #enumeration,
-                    min_length: #min_length,
-                    max_length: #max_length,
-                    exact_length: #exact_length,
-                    pattern: #pattern,
-                    format: #format,
-                    minimum: #minimum,
-                    maximum: #maximum,
-                    exclusive_minimum: #exclusive_minimum,
-                    exclusive_maximum: #exclusive_maximum,
-                    multiple_of: #multiple_of,
-                    min_items: #min_items,
-                    max_items: #max_items,
-                    unique_items: #unique_items,
-                },
-                skip: #field_skip,
-                nature: #field_nature,
-                column_meta: ::uxar::schemables::ColumnMeta {
-                    name: #col_name,
-                    primary_key: #primary_key,
-                    serial: #serial,
-                    skip: #col_skip,
-                    nature: #col_nature,
-                    default: #col_default,
-                    index: #index,
-                    index_type: #index_type,
-                    unique: #unique,
-                    unique_groups: #unique_groups,
-                },
-            }
-        });
-    }
-
-    let expanded = quote! {
-        impl #impl_generics ::uxar::schemables::Schemable for #ident #ty_generics #where_clause {
-            fn schema_type() -> ::uxar::schemables::SchemaType {
-                ::uxar::schemables::SchemaType::Struct(::uxar::schemables::StructSchema {
-                    name: ::std::borrow::Cow::Borrowed(#schema_name),
-                    fields: ::std::vec![#(#field_defs),*],
-                    about: #about_expr,
-                    table: ::uxar::schemables::TableMeta {
-                        name: #table_name_expr,
-                    },
-                    tags: #tags_expr,
-                })
-            }
-        }
-    };
-
-    Ok(expanded)
-}
-
-/// Generate table name expression.
-fn gen_table_name(table: &Option<LitStr>) -> proc_macro2::TokenStream {
-    if let Some(t) = table {
-        let val = t.value();
-        quote! { Some(::std::borrow::Cow::Borrowed(#val)) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate about expression from doc comments.
-fn gen_about(attrs: &[Attribute]) -> proc_macro2::TokenStream {
-    if let Some(doc) = extract_doc_comment(attrs) {
-        quote! { Some(::std::borrow::Cow::Borrowed(#doc)) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate tags expression.
-fn gen_tags(tags: &[LitStr]) -> proc_macro2::TokenStream {
-    let tag_vals: Vec<_> = tags.iter().map(|s| s.value()).collect();
-    quote! { ::std::vec![#(::std::borrow::Cow::Borrowed(#tag_vals)),*] }
-}
-
-/// Generate field nature from field attributes.
-fn gen_nature(field: &FieldAttrs) -> proc_macro2::TokenStream {
-    if field.flatten {
-        quote! { Some(::uxar::schemables::Nature::Flatten) }
-    } else if field.json {
-        quote! { Some(::uxar::schemables::Nature::Json) }
-    } else if field.reference {
-        quote! { Some(::uxar::schemables::Nature::Reference) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate skip flag.
-fn gen_skip(skip: bool) -> proc_macro2::TokenStream {
-    if skip {
-        quote! { Some(true) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Parse scalar int safely.
-fn parse_scalar_int(lit: &Option<LitInt>) -> Result<proc_macro2::TokenStream> {
-    if let Some(v) = lit {
-        let val = v.base10_parse::<i128>()
-            .map_err(|e| Error::new_spanned(v, format!("Failed to parse integer: {}", e)))?;
-        Ok(quote! { Some(::uxar::schemables::ScalarLit::Int(#val)) })
-    } else {
-        Ok(quote! { None })
-    }
-}
-
-/// Generate pattern expression.
-fn gen_pattern(pattern: &Option<LitStr>) -> proc_macro2::TokenStream {
-    if let Some(s) = pattern {
-        let val = s.value();
-        quote! { Some(::std::borrow::Cow::Borrowed(#val)) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate string format from validation.
-fn gen_format(validate: &ValidateAttrs) -> proc_macro2::TokenStream {
-    if validate.email {
-        quote! { Some(::uxar::schemables::StringFormat::Email) }
-    } else if validate.url {
-        quote! { Some(::uxar::schemables::StringFormat::Url) }
-    } else if validate.uuid {
-        quote! { Some(::uxar::schemables::StringFormat::Uuid) }
-    } else if validate.phone_e164 {
-        quote! { Some(::uxar::schemables::StringFormat::PhoneE164) }
-    } else if validate.ipv4 {
-        quote! { Some(::uxar::schemables::StringFormat::IpV4) }
-    } else if validate.ipv6 {
-        quote! { Some(::uxar::schemables::StringFormat::IpV6) }
-    } else if validate.date {
-        quote! { Some(::uxar::schemables::StringFormat::Date) }
-    } else if validate.datetime {
-        quote! { Some(::uxar::schemables::StringFormat::DateTime) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate enumeration constraint with type check.
-fn gen_enumeration(wrapper: &EnumWrapper, ident: Option<&syn::Ident>) -> Result<proc_macro2::TokenStream> {
-    if wrapper.0.is_empty() {
-        return Ok(quote! { ::std::vec![] });
-    }
-
-    let enums = &wrapper.0;
-    let first_type = lit_discriminant(&enums[0]);
-    
-    for (idx, lit) in enums.iter().enumerate().skip(1) {
-        let lit_type = lit_discriminant(lit);
-        if lit_type != first_type {
-            return Err(Error::new_spanned(
-                ident,
-                format!(
-                    "enumeration values must be homogeneous; found {} at position 0 and {} at position {}",
-                    first_type, lit_type, idx
-                ),
-            ));
-        }
-    }
-
-    let enum_tokens: Vec<_> = enums.iter().map(lit_to_scalar_lit_token).collect();
-    Ok(quote! { ::std::vec![#(#enum_tokens),*] })
-}
-
-/// Get discriminant for Lit type checking.
-fn lit_discriminant(lit: &Lit) -> &'static str {
-    match lit {
-        Lit::Str(_) => "string",
-        Lit::Int(_) => "integer",
-        Lit::Float(_) => "float",
-        Lit::Bool(_) => "boolean",
-        Lit::Byte(_) => "byte",
-        Lit::Char(_) => "char",
-        _ => "other",
-    }
-}
-
-/// Helper: Convert Lit to ScalarLit token for enumeration
-fn lit_to_scalar_lit_token(lit: &Lit) -> proc_macro2::TokenStream {
-    match lit {
-        Lit::Str(s) => {
-            let val = s.value();
-            quote! { ::uxar::schemables::ScalarLit::Str(#val) }
-        }
-        Lit::Int(i) => {
-            if let Ok(val) = i.base10_parse::<i128>() {
-                quote! { ::uxar::schemables::ScalarLit::Int(#val) }
-            } else {
-                quote! { ::uxar::schemables::ScalarLit::Int(0) }
-            }
-        }
-        Lit::Float(f) => {
-            if let Ok(val) = f.base10_parse::<f64>() {
-                quote! { ::uxar::schemables::ScalarLit::Float(#val) }
-            } else {
-                quote! { ::uxar::schemables::ScalarLit::Float(0.0) }
-            }
-        }
-        Lit::Bool(b) => {
-            let val = b.value;
-            quote! { ::uxar::schemables::ScalarLit::Bool(#val) }
-        }
-        Lit::Byte(b) => {
-            let val = b.value() as i128;
-            quote! { ::uxar::schemables::ScalarLit::Int(#val) }
-        }
-        Lit::Char(c) => {
-            let val = c.value().to_string();
-            quote! { ::uxar::schemables::ScalarLit::Str(#val) }
-        }
-        _ => quote! { ::uxar::schemables::ScalarLit::Str("") },
-    }
-}
-
-/// Generate column name expression.
-fn gen_col_name(name: &Option<LitStr>) -> proc_macro2::TokenStream {
-    if let Some(n) = name {
-        let val = n.value();
-        quote! { Some(::std::borrow::Cow::Borrowed(#val)) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Convert LitInt to token stream safely.
-fn lit_int_to_tokens(lit: Option<&LitInt>) -> proc_macro2::TokenStream {
-    match lit {
-        Some(v) => {
-            if let Ok(val) = v.base10_parse::<usize>() {
-                quote! { Some(#val) }
-            } else {
-                quote! { None }
-            }
-        }
-        None => quote! { None },
-    }
-}
-
-/// Generate column default expression.
-fn gen_col_default(default: &Option<LitStr>) -> proc_macro2::TokenStream {
-    if let Some(s) = default {
-        let val = s.value();
-        quote! { Some(::std::borrow::Cow::Borrowed(#val)) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate index type expression.
-fn gen_index_type(index_type: &Option<LitStr>) -> proc_macro2::TokenStream {
-    if let Some(s) = index_type {
-        let val = s.value();
-        quote! { Some(::std::borrow::Cow::Borrowed(#val)) }
-    } else {
-        quote! { None }
-    }
-}
-
-/// Generate unique groups with capacity hint.
-fn gen_unique_groups(groups: &[LitStr]) -> proc_macro2::TokenStream {
-    if groups.is_empty() {
-        quote! { ::std::vec![] }
-    } else {
-        let group_strs: Vec<_> = groups
-            .iter()
-            .map(|s| quote! { ::std::borrow::Cow::Borrowed(#s) })
-            .collect();
-        quote! { ::std::vec![#(#group_strs),*] }
-    }
-}
-
-/// Generate column nature from column attributes.
-fn gen_col_nature(col: &ColumnAttrs) -> proc_macro2::TokenStream {
-    if col.flatten {
-        quote! { Some(::uxar::schemables::Nature::Flatten) }
-    } else if col.json {
-        quote! { Some(::uxar::schemables::Nature::Json) }
-    } else if col.reference {
-        quote! { Some(::uxar::schemables::Nature::Reference) }
-    } else {
-        quote! { None }
-    }
-}
-
-#[cfg(test)]
-#[path = "schemable_tests.rs"]
-mod tests;

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap, ops::Deref};
+use std::{borrow::Cow, collections::BTreeMap, ops::Deref, fmt};
 
 use axum::{extract::{FromRequest, FromRequestParts, Request}, http::{HeaderMap, StatusCode, header, request::Parts}, response::{Html, IntoResponse, Response}};
 
@@ -309,6 +309,17 @@ impl ValidationReport {
         root
     }
 }
+
+impl fmt::Display for ValidationReport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.is_empty() {
+            return write!(f, "validation passed");
+        }
+        write!(f, "validation failed with {} error(s)", self.issues.len())
+    }
+}
+
+impl std::error::Error for ValidationReport {}
 
 /// Structural validation trait for types that can validate themselves.
 ///

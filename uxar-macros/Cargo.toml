@@ -15,8 +15,10 @@ quote = "1"
 syn = { version = "2", features = ["full"] }
 darling = "0.20"
 heck = "0.4"
+cron = "0.12"
 
 tokio = {workspace = true}
 
 [dev-dependencies]
 uxar = { path = "../uxar" }
+trybuild = "1.0"

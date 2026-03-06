@@ -1,31 +1,34 @@
 use crate::auth::Authenticator;
-use crate::db::{DbError, DbPool};
-use crate::layers::{redirect_trailing_slash_on_404, rewrite_request_path};
-use crate::tasks::{self, TaskError, TaskManager};
 use crate::bundles::{Bundle, IntoBundle};
-use crate::{beacon, embed, watch};
-use crate::{
-    views,
-    cmd::{NestedCommand, SiteCommand},
-    conf::SiteConf,
-};
-use argh;
-use axum::body::Body;
+use crate::callables::{self, PayloadData};
+use crate::conf::{self, SiteConf};
+use crate::db::{DbError, DbPool, Notify, Pool};
+use crate::emitters::EmitTarget;
+use crate::logging::{self, LoggingGuard};
+use crate::notifiers::CancellationNotifier;
+use crate::tasks::{TaskDispatcher, TaskError, TaskRunner, TaskStore};
+use crate::templates::{TemplateEngine, TemplateError};
+use crate::{beacon, embed, services, watch};
+use axum::ServiceExt;
 use axum::extract::Request;
-use axum::{ServiceExt as _};
-use sqlx::PgPool;
-use sqlx::postgres::PgPoolOptions;
-use tokio::sync::mpsc;
 use chrono_tz::Tz;
-use std::any::Any;
+use serde::Serialize;
+
 use std::net::{SocketAddr, ToSocketAddrs as _};
-use std::{any::TypeId, collections::HashMap, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
+use tokio::sync::mpsc;
 use tower::Layer as _;
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::normalize_path::NormalizePathLayer;
 use tower_http::services::ServeDir;
 
 use std::path::Path;
 use thiserror::Error; // Import the Path type
+
+#[derive(Debug, Clone)]
+pub(crate) struct PartialSite {
+    db: DbPool,
+}
 
 #[derive(Debug, Error)]
 pub enum SiteError {
@@ -36,10 +39,28 @@ pub enum SiteError {
     ServiceNotFound(String),
 
     #[error("Configuration error: {0}")]
-    ConfigError(String),
+    ConfError(#[from] conf::ConfError),
 
-    #[error("Template rendering error: {0}")]
-    TemplateError(#[from] minijinja::Error),
+    #[error("Assets error: {0}")]
+    AssetError(String),
+
+    #[error("Template file error: {0}")]
+    TemplateFileError(String),
+
+    #[error("Address resolution error: {0}")]
+    AddressResolutionError(String),
+
+    #[error("Invalid timezone: {0}")]
+    TimezoneError(String),
+
+    #[error("File watch error: {0}")]
+    FileWatchError(String),
+
+    #[error(transparent)]
+    BundleError(#[from] crate::bundles::BundleError),
+
+    #[error(transparent)]
+    TemplateError(#[from] TemplateError),
 
     #[error("Serve error: {0}")]
     ServeError(#[from] axum::Error),
@@ -47,152 +68,116 @@ pub enum SiteError {
     #[error("IO error: {0}")]
     IOError(#[from] std::io::Error),
 
-    #[error("Task error: {0}")]
-    TaskError(#[from] TaskError),
+    #[error(transparent)]
+    EmitterError(#[from] crate::emitters::EmitterError),
+
+    #[error(transparent)]
+    SignalError(#[from] crate::signals::SignalError),
+
+    #[error(transparent)]
+    LoggingError(#[from] logging::LoggingError),
+
+    #[error(transparent)]
+    ServiceError(#[from] services::ServiceError),
 }
 
-
-type ServiceType = dyn 'static + Send + Sync + Any;
-
-pub struct SiteBuilder {
+struct SiteBuilder {
     conf: SiteConf,
-    services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-    bundle: Bundle,
-    lazy_db: bool,
-    pool: Option<PgPool>,
-    disable_tasks: bool,
-    task_builder: tasks::TaskEngineBuilder,
 }
 
 impl SiteBuilder {
     fn new(conf: SiteConf) -> Self {
-        Self {
-            conf,
-            pool: None,
-            bundle: Bundle::new(),
-            services: HashMap::new(),
-            task_builder: tasks::TaskEngineBuilder::new(chrono_tz::Tz::UTC),
-            lazy_db: false,
-            disable_tasks: false,
-        }
+        Self { conf }
     }
 
-    pub fn with_db(mut self, pool: PgPool) -> Self {
-        self.pool = Some(pool);
-        self
-    }
+    async fn start_engines(site: &Site) -> Result<(), SiteError> {
+        // let task_store = site.inner.task_engine.store();
+        // task_store.run_migrations().await.map_err(|e| {
+        //     return SiteError::ConfigError(format!("Failed to run task store migrations: {}", e));
+        // })?;
 
-    pub fn without_tasks(mut self) -> Self {
-        self.disable_tasks = true;
-        self.task_builder.clear();
-        self
-    }
+        let task_runner = TaskRunner::new(site.inner.task_engine.clone());
 
-    pub fn with_lazy_db(mut self) -> Self {
-        self.lazy_db = true;
-        self
-    }
+        let signal_site = site.clone();
+        let task_site = signal_site.clone();
 
-    pub fn with_service<T: 'static + Send + Sync>(mut self, service: impl Into<Arc<T>>) -> Self {
-        let type_id = TypeId::of::<T>();
-        self.services.insert(type_id, service.into());
-        self
-    }
+        site.inner.joinset.lock().spawn(async move {
+            task_runner.run(task_site).await;
+        });
 
-    /// Register a task handler with typed arguments
-    pub fn with_task<T, F, Fut>(mut self, name: &str, handler: F) -> Self
-    where
-        T: serde::de::DeserializeOwned + Send + Sync + 'static,
-        F: Fn(Site, T) -> Fut + Send + Sync + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        debug_assert!(!self.disable_tasks, "Cannot register tasks when tasks are disabled");
-        self.task_builder.register(name, handler);
-        self
-    }
-
-    /// Schedule a task to run on a cron schedule
-    pub fn cron_task<T: serde::Serialize>(
-        mut self,
-        name: &str,
-        cron_expr: &str,
-        arg: T,
-    ) -> Self{
-        debug_assert!(!self.disable_tasks, "Cannot register tasks when tasks are disabled");
-        self.task_builder.schedule_cron(name, cron_expr, arg);
-        self
-    }
-
-    /// Schedule a task to run at regular intervals (in milliseconds)
-    pub fn periodic_task<T: serde::Serialize>(
-        mut self,
-        name: &str,
-        millis: i64,
-        arg: T,
-    ) -> Self {
-        debug_assert!(!self.disable_tasks, "Cannot register tasks when tasks are disabled");
-        self.task_builder.schedule_interval(name, millis, arg);
-        self
-    }
-
-    pub async fn run<B: IntoBundle>(mut self, bundle: B) -> Result<(), SiteError> {
-        self.bundle = bundle.into_bundle();
-        let site = self.build().await?;
-        site.run().await
-    }
-
-    fn inject_templates(
-        conf: &SiteConf,
-        project_dir: &Path,
-        env: &mut minijinja::Environment,
-    ) -> Result<(), SiteError> {
-        let mut dir_vec = Vec::new();
-
-        // iterate over files in conf.templates_dir
-        if let Some(templates_dir) = &conf.templates_dir {
-            let path = crate::conf::project_dir().join(templates_dir);
-            let dir = rust_silos::Silo::new(path.to_str().unwrap_or(""));
-            dir_vec.push(dir.into());
-        }
-
-        for file in embed::DirSet::new(dir_vec).walk() {
-            let path = file.path();
-            let name = path.to_string_lossy().to_string();
-            let content = file.read_bytes_sync().map_err(|e| {
-                SiteError::ConfigError(format!(
-                    "Failed to read template file: {}: {}",
-                    path.display(),
-                    e
-                ))
-            })?;
-            let body = String::from_utf8(content).map_err(|e| {
-                SiteError::ConfigError(format!(
-                    "Invalid UTF-8 in template file: {}: {}",
-                    path.display(),
-                    e
-                ))
-            })?;
-            if let Err(err) = env.add_template_owned(name, body) {
-                return Err(SiteError::TemplateError(err));
+        let emitter_engine = site.inner.emitter_engine.clone();
+        site.inner.joinset.lock().spawn(async move {
+            if let Err(err) = emitter_engine.run(signal_site).await {
+                tracing::error!("Emitter engine error: {}", err);
             }
-        }
+        });
+
+        site.inner
+            .service_engine
+            .start_workers(site.clone(), &mut site.inner.joinset.lock())
+            .await?;
 
         Ok(())
     }
 
-    pub async fn build(self) -> Result<Site, SiteError> {
+    async fn start_server(site: Site) -> Result<(), SiteError> {
+        let host = site.inner.conf.host.clone();
+        let port = site.inner.conf.port;
+
+        // Parse the address and handle errors gracefully
+        let addr: SocketAddr = format!("{}:{}", host, port)
+            .to_socket_addrs()
+            .ok()
+            .and_then(|mut iter| iter.next())
+            .ok_or_else(|| {
+                SiteError::AddressResolutionError(format!(
+                    "Failed to resolve address for {}:{}. Ensure the address is valid.",
+                    host, port
+                ))
+            })?;
+
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+
+        let router = site.router().layer(CatchPanicLayer::new());
+
+        let svc = NormalizePathLayer::trim_trailing_slash().layer(router);
+        let make_svc = ServiceExt::<Request>::into_make_service(svc);
+
+        let touch_reload = site.inner.conf.touch_reload.clone();
+
+        axum::serve(listener, make_svc)
+            .with_graceful_shutdown(watch::shutdown_signal(
+                touch_reload,
+                site.inner.shutdown_notifier.clone(),
+            ))
+            .await?;
+
+        site.inner.joinset.lock().shutdown().await;
+
+        Ok(())
+    }
+
+    async fn build(
+        &self,
+        pool: Option<Pool>,
+        bundle: impl IntoBundle,
+    ) -> Result<SiteInner, SiteError> {
+        self.conf.validate()?;
+
+        let bundle = bundle.into_bundle();
+
+        bundle.validate()?;
+
         let project_dir = PathBuf::from(&self.conf.project_dir);
 
         let timezone = match &self.conf.tz {
-            Some(tz_str) => tz_str.parse::<Tz>().map_err(|_| {
-                SiteError::ConfigError(format!("Invalid timezone: {}", tz_str))
-            })?,
+            Some(tz_str) => tz_str
+                .parse::<Tz>()
+                .map_err(|_| SiteError::TimezoneError(tz_str.clone()))?,
             None => Tz::UTC,
         };
 
-        let task_engine = self.task_builder.build_tz(timezone)?;
-
-        let mut router = self.bundle.to_router();
+        let mut router = bundle.to_router();
 
         for static_dir in &self.conf.static_dirs {
             let path = project_dir.join(&static_dir.path);
@@ -200,136 +185,163 @@ impl SiteBuilder {
             router = router.nest_service(&static_dir.url, serve_dir);
         }
 
-        let mut env = minijinja::Environment::new();
+        let mut template_engine = TemplateEngine::new();
 
-        let pool = if let Some(pool) = self.pool {
-            pool
+        let pool = if let Some(pool) = pool {
+            DbPool::from_pool(pool)
         } else {
-            let db_url = self.conf.database.clone();
-            let parts = db_url
-                .parse::<url::Url>()
-                .map_err(|e| SiteError::ConfigError(format!("Invalid database URL: {}", e)))?;
-
-            let mut query = HashMap::new();
-            for (key, value) in parts.query_pairs() {
-                query.insert(key.to_string(), value.to_string());
-            }
-            let max_connections = query
-                .remove("max")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(10);
-            let min_connections = query
-                .remove("min")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(1);
-
-            let pool = if self.lazy_db {
-                PgPoolOptions::new()
-                    .max_connections(max_connections)
-                    .min_connections(min_connections)
-                    .connect_lazy(&db_url)
-                    .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
-            } else {
-                PgPoolOptions::new()
-                    .max_connections(max_connections)
-                    .min_connections(min_connections)
-                    .connect(&db_url)
-                    .await
-                    .map_err(|e| SiteError::DatabaseError(DbError::Fatal(e)))?
-            };
-            pool
+            DbPool::from_conf(&self.conf.database).await?
         };
 
-        Self::inject_templates(&self.conf, &project_dir, &mut env)?;
+        template_engine.inject_templates(
+            self.conf.templates_dir.as_ref().map(|s| s.as_str()),
+            &bundle,
+        )?;
 
         let authenticator = Authenticator::new(&self.conf.auth, &self.conf.secret_key);
-        router = router
-            .fallback(redirect_trailing_slash_on_404)
-            .layer(CatchPanicLayer::new());
 
-        let bundle = self.bundle.with_router_unchecked(router);
+        let bundle = bundle.with_router_unchecked(router);
 
-        let site = Site {
-            inner: Arc::new(SiteInner {
-                project_dir,
-                start_time: std::time::Instant::now(),
-                conf: self.conf,
-                services: self.services,
-                pool,
-                shutdown_notifier: Arc::new(tokio::sync::Notify::new()),
-                timezone,
-                task_engine,
-                authenticator,
-                template_env: env,
-                beacon: beacon::Beacon::new(128, false),
-                bundle,
-            }),
+        let task_store = TaskStore::new(pool.inner().clone(), 1024);
+
+        let task_config = self.conf.tasks.clone();
+
+        let task_registry = Arc::new(bundle.tasks.clone().with_config(task_config));
+
+        let task_dispatcher = task_registry.dispatcher(Arc::new(task_store));
+
+        let signal_engine = bundle.signals.engine();
+
+        let emitter_engine = bundle.emitters.create_engine();
+
+        let logging_guard = logging::init_tracing(&project_dir, &self.conf.logging)?;
+
+        let mut site = SiteInner {
+            _logging_guard: logging_guard,
+            project_dir,
+            start_time: std::time::Instant::now(),
+            conf: self.conf.clone(),
+            pool,
+            shutdown_notifier: CancellationNotifier::new(),
+            service_engine: services::ServiceEngine::new(),
+            timezone,
+            authenticator,
+            template_engine,
+            joinset: Arc::new(parking_lot::Mutex::new(tokio::task::JoinSet::new())),
+            beacon: beacon::Beacon::new(128, false),
+            bundle,
+            signal_engine,
+            emitter_engine,
+            task_engine: task_dispatcher,
         };
 
-        if !self.disable_tasks {
-            // Start the task runner in the background
-            site.inner.task_engine.start_runner(site.clone(), site.inner.shutdown_notifier.clone()).await?;
-        }
+        site.load_services().await?;
 
         Ok(site)
     }
 }
 
-
-pub struct Service<T>(pub Arc<T>);
-
-impl<T: 'static + Send + Sync> axum::extract::FromRequestParts<Site> for Service<T> {
-    type Rejection = crate::ApiError;
-
-    async fn from_request_parts(_parts: &mut axum::http::request::Parts, state: &Site) -> Result<Self, Self::Rejection> {
-        match state.get_service::<T>() {
-            Some(service) => Ok(Service(service)),
-            None => {
-                let type_name = std::any::type_name::<T>();
-                Err(crate::ApiError::internal_error().with_details(format!("Service not found: {}", type_name)))
-            }
-        }
-    }
-}
-
-impl<T> std::ops::Deref for Service<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-
-
-#[derive(Clone, Debug)]
 struct SiteInner {
     start_time: std::time::Instant,
     project_dir: PathBuf,
     conf: SiteConf,
     authenticator: Authenticator,
-    services: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
-    pool: PgPool,
+    pool: DbPool,
     beacon: beacon::Beacon,
+    template_engine: TemplateEngine,
     timezone: Tz,
-    task_engine: tasks::TaskEngine,
     bundle: Bundle,
-    template_env: minijinja::Environment<'static>,
-    shutdown_notifier: Arc<tokio::sync::Notify>,
+    signal_engine: crate::signals::SignalEngine,
+    emitter_engine: crate::emitters::EmitterEngine,
+    task_engine: TaskDispatcher<TaskStore>,
+    service_engine: services::ServiceEngine,
+    shutdown_notifier: CancellationNotifier,
+    _logging_guard: LoggingGuard,
+    joinset: Arc<parking_lot::Mutex<tokio::task::JoinSet<()>>>,
 }
 
-#[derive(Debug, Clone)]
+impl SiteInner {
+    async fn load_services(&mut self) -> Result<(), SiteError> {
+        let registry = self.bundle.services.clone();
+        let partial_site = PartialSite {
+            db: self.pool.clone(),
+        };
+
+        self.service_engine.load(registry, partial_site).await?;
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
 pub struct Site {
     inner: Arc<SiteInner>,
 }
 
-impl Site {
-    pub fn builder(conf: SiteConf) -> SiteBuilder {
-        SiteBuilder::new(conf)
+impl std::fmt::Debug for Site {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Site")
+            .field("project_dir", &self.inner.project_dir)
+            .field("conf", &self.inner.conf)
+            .finish()
     }
+}
 
+impl Site {
     pub fn uptime(&self) -> std::time::Duration {
         self.inner.start_time.elapsed()
+    }
+
+    pub fn iter_operations(&self) -> impl Iterator<Item = &callables::Operation> {
+        self.inner.bundle.iter_operations()
+    }
+
+    pub fn shutdown_notifier(&self) -> CancellationNotifier {
+        self.inner.shutdown_notifier.child()
+    }
+
+    /// Notify all components to shutdown
+    pub fn shutdown(&self) {
+        self.inner.shutdown_notifier.notify_waiters();
+    }
+
+    /// Notify all components to shutdown
+    pub async fn shutdown_and_wait(&self) {
+        self.inner.shutdown_notifier.notify_waiters();
+        self.inner.joinset.lock().shutdown().await
+    }
+
+    pub(crate) async fn dispatch_payload(
+        &self,
+        payload: PayloadData,
+        target: EmitTarget,
+    ) -> Result<(), SiteError> {
+        match target {
+            EmitTarget::Signal => {
+                self.inner
+                    .signal_engine
+                    .dispatch_payload(self.clone(), payload)
+                    .await?;
+            }
+            EmitTarget::Task => {
+                // self.inner.task_dispatcher.submit_data(name, payload)
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) async fn consume_notify(
+        &self,
+        topics: &[String],
+    ) -> Result<mpsc::Receiver<Notify>, DbError> {
+        let capacity = topics.len() * 100 + 10;
+        self.db()
+            .consume_notify(topics, capacity, self.shutdown_notifier())
+            .await
+    }
+
+    pub(crate) fn spawn(&self, fut: impl std::future::Future<Output = ()> + Send + 'static) {
+        self.inner.joinset.lock().spawn(fut);
     }
 
     pub fn project_dir(&self) -> &Path {
@@ -344,19 +356,8 @@ impl Site {
         &self,
         template_name: &str,
         context: &S,
-    ) -> Result<String, minijinja::Error> {
-        self.inner
-            .template_env
-            .get_template(template_name)?
-            .render(context)
-    }
-
-    pub fn get_service<T: 'static + Send + Sync>(&self) -> Option<Arc<T>> {
-        let type_id = TypeId::of::<T>();
-        self.inner
-            .services
-            .get(&type_id)
-            .and_then(|service| service.clone().downcast::<T>().ok())
+    ) -> Result<String, TemplateError> {
+        self.inner.template_engine.render(template_name, context)
     }
 
     pub fn authenticator(&self) -> &Authenticator {
@@ -367,8 +368,8 @@ impl Site {
         self.inner.timezone
     }
 
-    pub fn db(&self) -> DbPool<'_> {
-        DbPool::new(&self.inner.pool)
+    pub fn db(&self) -> DbPool {
+        self.inner.pool.clone()
     }
 
     /// Mainly needed for testing purposes.
@@ -378,82 +379,43 @@ impl Site {
         router.with_state(self.clone())
     }
 
-    async fn serve_forever(self, verbose: bool) -> Result<(), SiteError> {
-        let host = self.inner.conf.host.clone();
-        let port = self.inner.conf.port;
-
-        // Parse the address and handle errors gracefully
-        let addr: SocketAddr = format!("{}:{}", host, port)
-            .to_socket_addrs()
-            .ok()
-            .and_then(|mut iter| iter.next())
-            .ok_or_else(|| {
-                SiteError::ConfigError(format!(
-                    "Failed to resolve address for {}:{}. Ensure the address is valid.",
-                    host, port
-                ))
-            })?;
-
-        let listener = tokio::net::TcpListener::bind(addr).await?;
-
-        if verbose {
-            println!("Server running at http://{}", addr);
-        }
-
-        let service = tower::util::MapRequestLayer::new(rewrite_request_path).layer(self.router());
-
-        let touch_reload = self.inner.conf.touch_reload.clone();
-        
-        axum::serve(listener, service.into_make_service())
-            .with_graceful_shutdown(watch::shutdown_signal(touch_reload, self.inner.shutdown_notifier.clone()))
-            .await?;
-
-        Ok(())
-    }
-
-    pub fn tasks(&self) -> TaskManager<'_> {
-        self.inner.task_engine.manager()
-    }
-
     pub fn beacon(&self) -> beacon::Beacon {
         self.inner.beacon.clone()
     }
 
-    pub async fn notify_stream(
+    pub async fn submit_typed_task<T: Serialize + 'static>(
         &self,
-        topics: &[&str],
-        capacity: usize,
-    ) -> Result<mpsc::Receiver<crate::db::Notify>, SiteError> {
-        let db_url = self.inner.conf.database.clone();
-        let receiver = crate::db::DbPool::consume_notify(&db_url, topics, capacity)
-            .await
-            .map_err(|e| SiteError::DatabaseError(e))?;
-        Ok(receiver)
+        input: T,
+    ) -> Result<uuid::Uuid, TaskError> {
+        self.inner.task_engine.submit_typed(input).await
     }
 
-    async fn run(self) -> Result<(), SiteError> {
-        if self.inner.conf.log_init{
-            tracing_subscriber::fmt()
-                .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-                .init();
-        }
-        let cmd: SiteCommand = argh::from_env();
-        match cmd.nested {
-            NestedCommand::Init(_) => {}
-            NestedCommand::Serve(_) => {
-                self.serve_forever(cmd.verbose).await?;
-            }
-        }
-        Ok(())
+    pub async fn submit_task<T: Serialize + 'static>(
+        &self,
+        task_name: &str,
+        input: T,
+    ) -> Result<uuid::Uuid, TaskError> {
+        self.inner.task_engine.submit(task_name, input).await
+    }
+
+    pub async fn submit_task_data(
+        &self,
+        task_name: &str,
+        data: String,
+    ) -> Result<uuid::Uuid, TaskError> {
+        self.inner.task_engine.submit_data(task_name, &data).await
     }
 }
 
-impl axum::extract::FromRequest<Site> for Site {
+impl axum::extract::FromRequestParts<Site> for Site {
     type Rejection = axum::http::StatusCode;
 
     // Suppress the unused variable warning for `req` in `from_request`
     #[allow(unused_variables)]
-    async fn from_request(req: Request<Body>, state: &Site) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &Site,
+    ) -> Result<Self, Self::Rejection> {
         Ok(state.clone())
     }
 }
@@ -461,4 +423,33 @@ impl axum::extract::FromRef<Site> for beacon::Beacon {
     fn from_ref(site: &Site) -> Self {
         site.beacon()
     }
+}
+
+pub async fn build_site(conf: SiteConf, bundle: impl IntoBundle) -> Result<Site, SiteError> {
+    let builder = SiteBuilder::new(conf);
+    let site = builder.build(None, bundle).await?;
+    let site = Site {
+        inner: Arc::new(site),
+    };
+    SiteBuilder::start_engines(&site).await?;
+    Ok(site)
+}
+
+pub async fn serve_site(conf: SiteConf, bundle: impl IntoBundle) -> Result<(), SiteError> {
+    let site = build_site(conf, bundle).await?;
+    SiteBuilder::start_server(site).await
+}
+
+pub async fn test_site(
+    conf: SiteConf,
+    bundle: impl IntoBundle,
+    pool: Pool,
+) -> Result<Site, SiteError> {
+    let builder = SiteBuilder::new(conf);
+    let site = builder.build(Some(pool), bundle).await?;
+    let site = Site {
+        inner: Arc::new(site),
+    };
+    SiteBuilder::start_engines(&site).await?;
+    Ok(site)
 }

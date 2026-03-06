@@ -2,7 +2,7 @@
 use std::{path::PathBuf, sync::Arc};
 use notify::{RecursiveMode, Watcher};
 use tokio::signal;
-use crate::{SiteError};
+use crate::{SiteError, notifiers::CancellationNotifier};
 use tracing;
 
 
@@ -11,9 +11,9 @@ pub async fn watch_file(path: PathBuf) -> Result<(), SiteError> {
     let mut watcher = notify::recommended_watcher(move |res| {
         tx.try_send(res).ok();
     })
-    .map_err(|e| SiteError::ConfigError(format!("Failed to create watcher: {}", e)))?;
+    .map_err(|e| SiteError::FileWatchError(format!("Failed to create watcher: {}", e)))?;
     watcher.watch(path.as_path(), RecursiveMode::NonRecursive)
-        .map_err(|e| SiteError::ConfigError(format!("Failed to watch file: {}", e)))?;
+        .map_err(|e| SiteError::FileWatchError(format!("Failed to watch file: {}", e)))?;
     rx.recv().await;
     Ok(())
 }
@@ -37,10 +37,14 @@ async fn interrupt_signal() {
 }
 
 
-pub async fn shutdown_signal(touch_reload: Option<String>, notifier: Arc<tokio::sync::Notify>) {
+pub async fn shutdown_signal(touch_reload: Option<String>, notifier: CancellationNotifier) {
     tokio::select! {
+        _ = notifier.notified() => {
+            tracing::info!("Shutdown signal received, shutting down gracefully");
+        },
         _ = interrupt_signal() => {
             tracing::info!("Ctrl+C received, shutting down gracefully");
+            notifier.notify_waiters();
         },
         touch = reload_signal(touch_reload) => {
             if let Err(e) = touch {
@@ -48,7 +52,7 @@ pub async fn shutdown_signal(touch_reload: Option<String>, notifier: Arc<tokio::
             }else{
                 tracing::info!("File change detected, reloading...");
             }
+            notifier.notify_waiters();
         },
     }
-    notifier.notify_waiters();
 }

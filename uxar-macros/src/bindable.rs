@@ -25,13 +25,20 @@ pub(crate) fn derive_bindable_impl(input: &DeriveInput) -> proc_macro2::TokenStr
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let bind_stmts = gen_bind_statements(&parsed.fields);
+    let column_names = gen_bind_column_names(&parsed.fields);
 
     quote! {
         impl #impl_generics ::uxar::db::Bindable for #ident #ty_generics #where_clause {
-            fn bind_values(
-                &self,
-                args: &mut ::uxar::db::PgArguments,
-            ) -> Result<(), ::uxar::db::SqlxError> {
+            fn bind_column_names() -> Vec<String> {
+                let mut cols = Vec::new();
+                #(#column_names)*
+                cols
+            }
+
+            fn bind_values<'q>(
+                &'q self,
+                args: &mut ::uxar::db::Arguments<'q>,
+            ) -> Result<(), ::uxar::db::sqlx::Error> {
                 #(#bind_stmts)*
                 Ok(())
             }
@@ -69,8 +76,8 @@ fn gen_where_clause(generics: &mut syn::Generics, fields: &[FieldMeta]) {
             }
         } else {
             wc.predicates.push(syn::parse_quote! {
-                for<'q> &'q #ty: ::uxar::db::sqlx::Encode<'q, ::uxar::db::Postgres>
-                    + ::uxar::db::sqlx::Type<::uxar::db::Postgres>
+                for<'q> &'q #ty: ::uxar::db::sqlx::Encode<'q, ::uxar::db::Database>
+                    + ::uxar::db::sqlx::Type<::uxar::db::Database>
                     + ::core::marker::Send
             });
         }
@@ -116,9 +123,9 @@ fn gen_json_bind(ident: &syn::Ident) -> proc_macro2::TokenStream {
     quote! {
         {
             let value = ::uxar::db::serde_json::to_value(&self.#ident)
-                .map_err(|e| ::uxar::db::SqlxError::Decode(Box::new(e)))?;
-            <::uxar::db::PgArguments as ::uxar::db::Arguments<'_>>::add(args, value)
-                .map_err(::uxar::db::SqlxError::Decode)?;
+                .map_err(|e| ::uxar::db::sqlx::Error::Decode(Box::new(e)))?;
+            ::uxar::db::sqlx::Arguments::add(args, value)
+                .map_err(::uxar::db::sqlx::Error::Decode)?;
         }
     }
 }
@@ -127,23 +134,56 @@ fn gen_json_bind(ident: &syn::Ident) -> proc_macro2::TokenStream {
 fn gen_scalar_bind(ident: &syn::Ident) -> proc_macro2::TokenStream {
     quote! {
         {
-            <::uxar::db::PgArguments as ::uxar::db::Arguments<'_>>::add(args, &self.#ident)
-                .map_err(::uxar::db::SqlxError::Decode)?;
+            ::uxar::db::sqlx::Arguments::add(args, &self.#ident)
+                .map_err(::uxar::db::sqlx::Error::Decode)?;
         }
     }
 }
 
-/// Check if field should be skipped (column takes precedence).
+/// Check if field should be skipped (column only).
 fn is_skip(field: &FieldMeta) -> bool {
-    field.column.skip || field.field.skip
+    field.column.skip || is_reference(field)
 }
 
-/// Check if field should be flattened (column takes precedence).
+/// Check if field is a reference to another model.
+fn is_reference(field: &FieldMeta) -> bool {
+    field.column.reference.is_some()
+}
+
+/// Check if field should be flattened (column only).
 fn is_flatten(field: &FieldMeta) -> bool {
-    field.column.flatten || field.field.flatten
+    field.column.flatten
 }
 
-/// Check if field should be JSON-serialized (column takes precedence).
+/// Check if field should be JSON-serialized (column only).
 fn is_json(field: &FieldMeta) -> bool {
-    field.column.json || field.field.json
+    field.column.json
+}
+
+/// Generate the bind_column_names implementation.
+fn gen_bind_column_names(fields: &[FieldMeta]) -> Vec<proc_macro2::TokenStream> {
+    let mut stmts = Vec::new();
+
+    for field in fields {
+        if is_skip(field) {
+            continue;
+        }
+
+        if is_flatten(field) {
+            let ty = &field.ty;
+            stmts.push(quote! {
+                cols.extend(<#ty as ::uxar::db::Bindable>::bind_column_names());
+            });
+        } else {
+            let col_name = field.column.name.as_ref()
+                .map(|lit| lit.value())
+                .or_else(|| field.ident.as_ref().map(|i| i.to_string()))
+                .unwrap_or_default();
+            stmts.push(quote! {
+                cols.push(#col_name.to_string());
+            });
+        }
+    }
+
+    stmts
 }

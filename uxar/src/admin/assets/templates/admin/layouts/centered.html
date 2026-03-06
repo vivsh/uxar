@@ -1,0 +1,9 @@
+{% extends "admin/layouts/base.html" %} {% block extra_styles %}
+.centered-container { max-width: 600px; margin: 0 auto; padding: 2rem 0; } {%
+endblock %} {% block content %}
+<div class="centered-container">
+  {% block main_content %}
+  <p>Centered content goes here</p>
+  {% endblock %}
+</div>
+{% endblock %}

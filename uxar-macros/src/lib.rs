@@ -6,55 +6,22 @@ mod validate;
 mod filterable;
 mod bindable;
 mod scannable;
-mod models;
 mod bitrole;
+mod cron;
+mod periodic;
+mod pgnotify;
+mod signal;
+mod task;
+mod flow;
+mod assets;
+mod openapi;
+mod bundlepart;
+mod service;
+
 
 use proc_macro::TokenStream;
 extern crate proc_macro;
 
-
-
-/// Derives the Schemable trait for unified type schema.
-/// 
-/// Generates static schema metadata for OpenAPI, database DDL, and migrations.
-/// 
-/// # Attributes
-/// 
-/// ## `#[schema(...)]` - Container attributes
-/// - `table = "table_name"` - Database table name
-/// - `tags("tag1", "tag2")` - Schema tags
-/// 
-/// Use doc comments (`///`) for descriptions on structs and fields.
-/// 
-/// ## `#[field(...)]` - Field metadata
-/// - `skip` - Exclude from schema (can also be in #[column])
-/// - `flatten` - Flatten nested struct (can also be in #[column])
-/// - `json` - Store as JSON (can also be in #[column])
-/// - `reference` - Reference to another type (can also be in #[column])
-/// 
-/// ## `#[validate(...)]` - Validation constraints
-/// - String: `min_length`, `max_length`, `exact_length`, `pattern`
-/// - String formats: `email`, `url`, `uuid`, `phone_e164`, `ipv4`, `ipv6`
-/// - Numeric: `min`, `max`, `exclusive_min`, `exclusive_max`, `multiple_of`
-/// - Array: `min_items`, `max_items`, `unique_items`
-/// 
-/// ## `#[column(...)]` - Database column metadata
-/// - `name = "col_name"` - Column name override
-/// - `primary_key` - Mark as primary key
-/// - `serial` - Auto-increment column
-/// - `skip` - Exclude from schema (can also be in #[field])
-/// - `flatten` - Flatten nested struct (can also be in #[field])
-/// - `json` - Store as JSON (can also be in #[field])
-/// - `reference` - Reference to another type (can also be in #[field])
-/// - `default = "value"` - Default value
-/// - `index` - Create index
-/// - `index_type = "btree"` - Index type
-/// - `unique` - Unique constraint
-/// - `unique_groups("group1", "group2")` - Composite unique constraints
-#[proc_macro_derive(Schemable, attributes(schema, field, validate, column))]
-pub fn derive_schemable(input: TokenStream) -> TokenStream {
-    schemable::derive_schemable_impl(input)
-}
 
 /// Derives the Validate trait for data validation.
 /// 
@@ -111,36 +78,22 @@ pub fn derive_validate(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_attribute]
 pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream {
-    // Try to parse as free function first
-    if let Ok(_) = syn::parse::<syn::ItemFn>(item.clone()) {
-        route::parse_route_fn(attr, item)
-    } else if let Ok(_) = syn::parse::<syn::ImplItemFn>(item.clone()) {
-        // It's a method in an impl block
-        route::parse_route_method(attr, item)
-    } else {
-        // Not a function or method - return error
-        syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "#[route] can only be applied to functions or methods"
-        )
-        .to_compile_error()
-        .into()
-    }
+    route::parse_route(attr, item)
 }
 
-/// Collects route handlers into a Bundle for composition and registration.
+/// Collects bundle parts (routes, tasks, signals) into a Bundle for composition and registration.
 ///
-/// Bundles are the primary unit for organizing and composing routes in the application.
-/// Each handler must be annotated with `#[route]` to provide routing metadata.
+/// Bundles are the primary unit for organizing and composing application components.
+/// Each handler must be annotated with appropriate macros (`#[route]`, `#[cron]`, `#[periodic]`, etc.).
 /// 
 /// # Syntax
 /// 
 /// ```ignore
-/// bundle_routes! {
+/// bundle! {
 ///     handler1,
 ///     handler2,
 ///     ...,
-///     tags = ["tag1", "tag2"]  // optional
+///     tags = ["tag1", "tag2"]  // optional, applies only to routes
 /// }
 /// ```
 /// 
@@ -148,98 +101,41 @@ pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// 
 /// - `tags` - Optional array of tags to apply to all routes in the bundle.
 ///            These tags extend (not replace) any tags defined on individual routes.
+///            Note: tags only apply to route parts, not other bundle parts.
 /// 
 /// # Examples
 /// 
 /// ```ignore
 /// // Bundle without tags
-/// let user_routes = bundle_routes! {
-///     get_user,
-///     create_user,
-///     update_user,
+/// let user_bundle = bundle! {
+///     get_user,        // #[route]
+///     create_user,     // #[route]
+///     sync_users,      // #[cron]
 /// };
 /// 
 /// // Bundle with tags - extends individual route tags
-/// let api_routes = bundle_routes! {
+/// let api_bundle = bundle! {
 ///     tags = ["api", "v1"],
 ///     get_user,
 ///     create_user,
 /// };
 /// 
 /// // Compose bundles
-/// let all_routes = bundle_routes! {
-///     user_routes,
-///     api_routes,
+/// let all_bundles = bundle! {
+///     user_bundle,
+///     api_bundle,
 /// };
 /// ```
 /// 
 /// # Notes
 /// 
-/// - All handlers must be annotated with `#[route]` macro
+/// - Handlers must be annotated with `#[route]`, `#[cron]`, `#[periodic]`, `#[pgnotify]`, or `#[signal]`
 /// - Handlers can be free functions or references to IntoBundle types
-/// - Tags are additive - bundle-level tags extend route-level tags
+/// - Tags are additive and only apply to route parts
 /// - Returns a `Bundle` that implements `IntoBundle`
 #[proc_macro]
-pub fn bundle_routes(input: TokenStream) -> TokenStream {
+pub fn bundle(input: TokenStream) -> TokenStream {
     bundle::parse_bundle(input)
-}
-
-/// Implements IntoBundle for an impl block containing route handlers.
-///
-/// Automatically collects all methods annotated with `#[route]` and generates
-/// an implementation of `IntoBundle` that registers them as a bundle.
-/// 
-/// # Syntax
-/// 
-/// ```ignore
-/// #[bundle_impl(tags = ["tag1", "tag2"])]  // tags are optional
-/// impl TypeName {
-///     #[route(method = "get", url = "/path")]
-///     async fn handler1() { }
-///     
-///     #[route(method = "post", url = "/path")]
-///     async fn handler2() { }
-/// }
-/// ```
-/// 
-/// # Options
-/// 
-/// - `tags` - Optional array of tags to apply to all routes in this impl block.
-///            These tags extend (not replace) any tags defined on individual routes.
-/// 
-/// # Examples
-/// 
-/// ```ignore
-/// struct UserApi;
-/// 
-/// #[bundle_impl(tags = ["users", "api"])]
-/// impl UserApi {
-///     /// Get user by ID
-///     #[route(method = "get", url = "/users/{id}")]
-///     async fn get_user(Path(id): Path<i32>) -> Json<User> {
-///         // ...
-///     }
-///     
-///     /// Create a new user
-///     #[route(method = "post", url = "/users")]
-///     async fn create_user(Json(data): Json<CreateUser>) -> Json<User> {
-///         // ...
-///     }
-/// }
-/// 
-/// // Usage
-/// let bundle = UserApi.into_bundle();
-/// ```
-/// 
-/// # Notes
-/// 
-/// - Only methods with `#[route]` are included in the bundle
-/// - Non-route methods are ignored and remain as regular methods
-/// - Tags are additive - bundle-level tags extend route-level tags
-/// - Generates an `IntoBundle` implementation that can be called via `.into_bundle()`
-#[proc_macro_attribute]
-pub fn bundle_impl(attr: TokenStream, item: TokenStream) -> TokenStream {
-    bundle::parse_bundle_attr(attr, item)
 }
 
 
@@ -256,11 +152,6 @@ pub fn derive_bindable(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Scannable, attributes(field, column))]
 pub fn derive_scannable(input: TokenStream) -> TokenStream {
     scannable::derive_scannable(input)
-}
-
-#[proc_macro_derive(Model, attributes(schema, field, validate, column))]
-pub fn derive_model(input: TokenStream) -> TokenStream {
-    models::derive_model(input)
 }
 
 /// Derives the BitRole trait for role-based access control.
@@ -285,4 +176,225 @@ pub fn derive_model(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(BitRole, attributes(bitrole))]
 pub fn derive_bitrole(input: TokenStream) -> TokenStream {
     bitrole::derive_bitrole(input)
+}
+
+/// Schedules a function to run periodically based on a cron expression.
+/// 
+/// Annotated functions will be registered as cron jobs in the bundle.
+/// The function must accept a `Site` parameter and return a type that can be
+/// wrapped in `SignalPayload`.
+/// 
+/// # Attributes
+/// 
+/// - `expr` - Cron expression (required): `"0 0 * * *"` (daily at midnight)
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Free function
+/// #[cron(expr = "0 0 * * *")]
+/// fn sync_daily(site: Site) -> SyncResult {
+///     // runs daily at midnight
+/// }
+/// 
+/// // Method in impl block
+/// impl SyncTasks {
+///     #[cron(expr = "*/5 * * * *")]
+///     fn sync_frequent(site: Site) -> SyncResult {
+///         // runs every 5 minutes
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn cron(attr: TokenStream, item: TokenStream) -> TokenStream {
+    cron::parse_cron(attr, item)
+}
+
+/// Schedules a function to run periodically at fixed intervals.
+/// 
+/// Annotated functions will be registered as periodic tasks in the bundle.
+/// The function must accept a `Site` parameter and return a type that can be
+/// wrapped in `SignalPayload`.
+/// 
+/// # Attributes
+/// 
+/// - `secs` - Interval in seconds (optional)
+/// - `millis` - Interval in milliseconds (optional)
+/// 
+/// At least one of `secs` or `millis` must be specified. Both can be used together.
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Free function - runs every 30 seconds
+/// #[periodic(secs = 30)]
+/// fn health_check(site: Site) -> CheckResult {
+///     // ...
+/// }
+/// 
+/// // Method - runs every 500ms
+/// impl Monitor {
+///     #[periodic(millis = 500)]
+///     fn monitor_metrics(site: Site) -> Metrics {
+///         // ...
+///     }
+/// }
+/// 
+/// // Combined - runs every 1.5 seconds
+/// #[periodic(secs = 1, millis = 500)]
+/// fn poll_queue(site: Site) -> QueueStatus {
+///     // ...
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
+    periodic::parse_periodic(attr, item)
+}
+
+/// Registers a function as a PostgreSQL NOTIFY/LISTEN handler.
+/// 
+/// Annotated functions will listen for notifications on a PostgreSQL channel.
+/// The function must accept a `&str` payload and return `Result<T, SignalError>`
+/// where T can be wrapped in `SignalPayload`.
+/// 
+/// # Attributes
+/// 
+/// - `channel` - PostgreSQL channel name (required): `"user_updates"`
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Free function
+/// #[pgnotify(channel = "user_updates")]
+/// fn handle_user_update(payload: &str) -> Result<UserUpdate, SignalError> {
+///     serde_json::from_str(payload)
+///         .map_err(|_| SignalError::PayloadTypeMismatch)
+/// }
+/// 
+/// // Method in impl block
+/// impl UserHandlers {
+///     #[pgnotify(channel = "notifications")]
+///     fn handle_notification(payload: &str) -> Result<Notification, SignalError> {
+///         // parse and return notification
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn pgnotify(attr: TokenStream, item: TokenStream) -> TokenStream {
+    pgnotify::parse_pgnotify(attr, item)
+}
+
+/// Registers a function as a generic signal handler.
+/// 
+/// Annotated functions will be registered to handle any signal events.
+/// The function must accept `Site` and `Arc<dyn Any + Send + Sync>` parameters
+/// and return a Future.
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Free function
+/// #[signal]
+/// async fn handle_signal(site: Site, payload: Arc<dyn Any + Send + Sync>) {
+///     // handle generic signal
+/// }
+/// 
+/// // Method in impl block
+/// impl SignalHandlers {
+///     #[signal]
+///     async fn process_event(site: Site, payload: Arc<dyn Any + Send + Sync>) {
+///         // process event
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn signal(attr: TokenStream, item: TokenStream) -> TokenStream {
+    signal::parse_signal(attr, item)
+}
+
+/// Registers a function as a unit task handler.
+/// 
+/// Unit tasks are async operations that execute once and complete. The function
+/// must accept `Site` and a deserializable input type, returning a TaskUnitOutput.
+/// 
+/// # Attributes
+/// 
+/// - `name` - Optional task name (defaults to function name)
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Free function with default name
+/// #[task]
+/// async fn send_email(site: Site, input: EmailData) -> Result<TaskUnitOutput, TaskError> {
+///     // send email
+/// }
+/// 
+/// // Method with custom name
+/// impl TaskHandlers {
+///     #[task(name = "custom_task_name")]
+///     async fn process_order(site: Site, order: Order) -> Result<TaskUnitOutput, TaskError> {
+///         // process order
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {
+    task::parse_task(attr, item)
+}
+
+/// Registers a function as a flow task handler.
+/// 
+/// Flow tasks are synchronous operations that can spawn child tasks. The function
+/// accepts a deserializable input type and returns TaskFlowOutput.
+/// 
+/// # Attributes
+/// 
+/// - `name` - Optional task name (defaults to function name)
+/// 
+/// # Examples
+/// 
+/// ```ignore
+/// // Free function with default name
+/// #[flow]
+/// fn process_batch(input: BatchData) -> Result<TaskFlowOutput, TaskError> {
+///     // process and potentially spawn child tasks
+/// }
+/// 
+/// // Method with custom name
+/// impl FlowHandlers {
+///     #[flow(name = "workflow_step")]
+///     fn execute_workflow(data: WorkflowData) -> Result<TaskFlowOutput, TaskError> {
+///         // execute workflow step
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn flow(attr: TokenStream, item: TokenStream) -> TokenStream {
+    flow::parse_flow(attr, item)
+}
+
+
+
+// #[proc_macro_attribute]
+// pub fn fnspec(attr: TokenStream, item: TokenStream) -> TokenStream {
+//     fnspec::parse_fnspec_input(attr, item, "fnspec")
+// }
+
+
+#[proc_macro_attribute]
+pub fn openapi(attr: TokenStream, item: TokenStream) -> TokenStream {
+    openapi::parse_openapi(attr, item)
+}
+
+
+#[proc_macro_attribute]
+pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
+    service::parse_service(attr, item)
+}
+
+
+#[proc_macro_attribute]
+pub fn asset_dir(attr: TokenStream, item: TokenStream) -> TokenStream {
+    assets::parse_asset_dir(attr, item)
 }

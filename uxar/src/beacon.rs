@@ -1,21 +1,23 @@
-use std::{collections::HashSet, convert::Infallible};
+use std::any::TypeId;
+use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::{collections::HashSet, convert::Infallible};
 
 use axum::response::sse::{Event, KeepAlive, Sse};
 use futures::stream::{Stream, StreamExt};
 use parking_lot::RwLock;
-use tokio::sync::mpsc;
+use tokio::signal;
+use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::AuthUser;
-
+use crate::{AuthUser, Site, callables, signals};
 
 #[derive(Clone, Debug)]
-pub struct Payload{
+pub struct Payload {
     pub topic: Arc<str>,
     pub message: Arc<str>,
 }
-
 
 /// Event target specification
 #[derive(Clone, Debug)]
@@ -37,27 +39,18 @@ enum DeliveryStatus {
 /// Subscriber representation
 #[derive(Debug)]
 struct Subscriber {
-    user: AuthUser,
+    id: uuid::Uuid,
     sender: mpsc::Sender<Payload>,
     topics: HashSet<String>,
 }
 
 impl Subscriber {
-    fn matches(&self, target: &Target, topic: &str) -> bool {
-        let allowed = match target {
-            Target::User(uid) => self.user.key == *uid,
-            Target::RoleMask(mask) => (self.user.roles & mask) != 0,
-            Target::All => true,
-        };
-        if allowed {
-            self.topics.contains(topic)
-        } else{
-            false
-        }
+    fn matches(&self, topic: &str) -> bool {
+        self.topics.contains(topic)
     }
 
-    fn send(&self, target: &Target, payload: &Payload) -> DeliveryStatus {
-        if !self.matches(target, &payload.topic) {
+    fn send(&self, payload: &Payload) -> DeliveryStatus {
+        if !self.matches(&payload.topic) {
             return DeliveryStatus::Excluded;
         }
 
@@ -78,38 +71,24 @@ struct BeaconInner {
 }
 
 impl BeaconInner {
-    fn remove_closed(&mut self) {
-        self.subscribers.retain(|sub| !sub.sender.is_closed());
-    }
-
-    fn remove_user(&mut self, user_key: &str) {
-        self.subscribers.retain(|sub| sub.user.key.as_ref() != user_key);
-    }
-
-    fn add_subscriber<S, I>(&mut self, user: AuthUser, topics: I) -> mpsc::Receiver<Payload> 
+    fn add_subscriber<S, I>(&mut self, topics: I) -> mpsc::Receiver<Payload>
     where
         S: AsRef<str>,
         I: IntoIterator<Item = S>,
     {
-        if self.exclusive {
-            self.remove_user(user.key.as_ref());
-        }
-
         let (sender, receiver) = mpsc::channel(self.capacity);
-        let subscriber = Subscriber { user, sender, topics: topics.into_iter().map(|s| s.as_ref().to_string()).collect() };
+        let subscriber = Subscriber {
+            id: uuid::Uuid::now_v7(),
+            sender,
+            topics: topics.into_iter().map(|s| s.as_ref().to_string()).collect(),
+        };
         self.subscribers.push(subscriber);
         receiver
     }
 
-    fn send_message(&mut self, target: Target, payload: Payload) {
+    fn send_message(&mut self, payload: Payload) {
         self.subscribers
-            .retain(|sub| !matches!(sub.send(&target, &payload), DeliveryStatus::Closed));
-    }
-
-    fn is_user_active(&self, user_key: &str) -> bool {
-        self.subscribers
-            .iter()
-            .any(|sub| sub.user.key.as_ref() == user_key && !sub.sender.is_closed())
+            .retain(|sub| !matches!(sub.send(&payload), DeliveryStatus::Closed));
     }
 }
 
@@ -133,26 +112,19 @@ impl Beacon {
     }
 
     /// Subscribe a user and return message receiver
-    pub fn subscribe<S, I>(&self, user: AuthUser, topics: I) -> mpsc::Receiver<Payload> 
+    pub fn subscribe<S, I>(&self, topics: I) -> mpsc::Receiver<Payload>
     where
         S: AsRef<str>,
         I: IntoIterator<Item = S>,
     {
         let mut inner = self.inner.write();
-        inner.remove_closed();
-        inner.add_subscriber(user, topics)
-    }
-
-    /// Remove a user's subscription
-    pub fn unsubscribe(&self, user_key: &str) {
-        let mut inner = self.inner.write();
-        inner.remove_user(user_key);
+        inner.add_subscriber(topics)
     }
 
     /// Broadcast message to matching subscribers
-    pub fn publish(&self, target: Target, payload: Payload) {
+    pub fn publish(&self, payload: Payload) {
         let mut inner = self.inner.write();
-        inner.send_message(target, payload);
+        inner.send_message(payload);
     }
 
     /// Get current subscriber count
@@ -160,25 +132,127 @@ impl Beacon {
         self.inner.read().subscribers.len()
     }
 
-    /// Check if a user is actively subscribed
-    pub fn is_active(&self, user_key: &str) -> bool {
-        self.inner.read().is_user_active(user_key)
-    }
-
     /// Axum SSE handler
     pub async fn subscription_route<I, S>(
-        self, 
-        user: AuthUser,
+        self,
         topics: I,
-    ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> 
+    ) -> Sse<impl Stream<Item = Result<Event, Infallible>>>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
-        let receiver = self.subscribe(user, topics);
-        let stream =
-            ReceiverStream::new(receiver).map(|msg| Ok(Event::default().event(msg.topic.as_ref()).data(msg.message.as_ref())));
+        let receiver = self.subscribe(topics);
+        let stream = ReceiverStream::new(receiver).map(|msg| {
+            Ok(Event::default()
+                .event(msg.topic.as_ref())
+                .data(msg.message.as_ref()))
+        });
 
         Sse::new(stream).keep_alive(KeepAlive::default())
+    }
+}
+
+pub struct Subscription {
+    role_mask: u64,
+    signal_type_id: TypeId,
+    signaller: signals::Signaller,
+}
+
+pub struct SubscriptionManager {
+    beacon: Arc<RoleBasedBeacon>,
+    subscriptions: Vec<Subscription>,
+}
+
+impl SubscriptionManager {
+    pub fn new(beacon: Arc<RoleBasedBeacon>) -> Self {
+        Self {
+            beacon,
+            subscriptions: Vec::new(),
+        }
+    }
+
+    pub fn insert<T: callables::Payloadable + Clone>(&mut self, role_mask: u64) {
+        let beacon = self.beacon.clone();
+        let signaller = signals::signal::<T, _, _>(
+            move |t: callables::Payload<T>| {
+                let beacon = beacon.clone();
+                async move {
+                    let p: &T = &t;
+                    beacon.handle_signal(p);
+                }
+            },
+            signals::SignalConf::default(),
+        );
+        let subscription = Subscription {
+            role_mask,
+            signal_type_id: TypeId::of::<T>(),
+            signaller,
+        };
+        self.subscriptions.push(subscription);
+    }
+}
+
+pub struct RoleBasedBeaconUser {
+    roles: u64,
+    sender: mpsc::Sender<Payload>,
+}
+
+pub struct RoleBasedBeacon {
+    senders: Arc<RwLock<Vec<RoleBasedBeaconUser>>>,
+    subscrptions: Arc<RwLock<HashMap<TypeId, u64>>>,
+    capacity: usize,
+}
+
+impl RoleBasedBeacon {
+    pub fn new(capacity: usize) -> Self {
+        let capacity = capacity.max(1);
+        Self {
+            senders: Arc::new(RwLock::new(Vec::new())),
+            subscrptions: Arc::new(RwLock::new(HashMap::new())),
+            capacity,
+        }
+    }
+
+    pub fn subscribe(&self, role_set: u64) -> mpsc::Receiver<Payload> {
+        let (sender, receiver) = mpsc::channel(self.capacity);
+        let mut senders = self.senders.write();
+        senders.push(RoleBasedBeaconUser {
+            roles: role_set,
+            sender,
+        });
+        receiver
+    }
+
+    pub(crate) fn handle_signal<P: callables::Payloadable>(self: Arc<Self>, item: &P) {
+        let type_id = TypeId::of::<P>();
+        let data = serde_json::to_string(&item).unwrap_or_default();
+        let payload = Payload {
+            topic: Arc::from(std::any::type_name::<P>()),
+            message: Arc::from(data),
+        };
+        self.publish(type_id, payload);
+    }
+
+    fn bind_signals(&self, engine: &mut signals::SignalRegistry, subs: Vec<Subscription>) {
+        for sub in subs {
+            engine.register(sub.signaller);
+        }
+    }
+
+    pub fn publish(&self, type_id: TypeId, payload: Payload) {
+        let mut senders = self.senders.write();
+        if let Some(&role_mask) = self.subscrptions.read().get(&type_id) {
+            senders.retain(|user| {
+                if (user.roles & role_mask) != 0 {
+                    match user.sender.try_send(payload.clone()) {
+                        Ok(()) => true,
+                        Err(mpsc::error::TrySendError::Full(_)) => true,
+                        Err(mpsc::error::TrySendError::Closed(_)) => false,
+                    }
+                } else {
+                    true
+                }
+            });
+        }
     }
 }

@@ -4,8 +4,8 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::site::Site;
-use crate::ApiError;
 use axum::http::request::Parts;
+use thiserror::Error;
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum_extra::extract::cookie::{self, Cookie};
@@ -331,8 +331,8 @@ pub struct JWTClaim {
     exp: i64,
     #[serde(default)]
     refresh: bool,
-    #[serde(flatten)]
-    user: AuthUser
+    #[serde(default)]
+    roles: u64,
 }
 
 impl JWTClaim {
@@ -346,25 +346,34 @@ impl JWTClaim {
             iat: now,
             exp: now + ttl,
             refresh: false,
-            user: user.clone(),
+            roles: user.roles,
         }
     }
 
     fn into_auth_user(self) -> AuthUser {
-        self.user
+        AuthUser {
+            key: Arc::from(self.sub),
+            roles: self.roles,
+        }
     }
 
 }
 
 
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum AuthError {
+    #[error("invalid token")]
     InvalidToken,
+    #[error("missing token")]
     MissingToken,
+    #[error("expired token")]
     ExpiredToken,
+    #[error("invalid token signature")]
     InvalidSignature,
+    #[error("forbidden")]
     Forbidden,
+    #[error("internal authentication error: {0}")]
     InternalError(String),
 }
 

@@ -1,8 +1,20 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::atomic::AtomicUsize};
 use std::sync::Arc;
 use parking_lot::RwLock;
-use tokio::sync::{Semaphore, OwnedSemaphorePermit};
+use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore};
 use std::time::{Duration, Instant};
+
+#[derive(Debug, thiserror::Error)]
+pub enum ZoneError {
+    #[error("Rate limit exceeded")]
+    RateLimited,
+
+    #[error("Maximum concurrency reached")]
+    MaxConcurrencyReached,
+
+    #[error("Maximum waiters reached")]
+    MaxWaitersReached,
+}
 
 /// Rate limiting configuration for a zone
 #[derive(Debug, Clone)]
@@ -43,6 +55,7 @@ impl RateLimit {
 pub struct ZoneConf {
     pub rate_limit: Option<RateLimit>,
     pub concurrency: Option<usize>,
+    pub waiters: Option<usize>,
 }
 
 impl ZoneConf {
@@ -57,6 +70,11 @@ impl ZoneConf {
 
     pub fn with_concurrency(mut self, max_concurrent: usize) -> Self {
         self.concurrency = Some(max_concurrent);
+        self
+    }
+
+    pub fn with_waiters(mut self, max_waiters: usize) -> Self {
+        self.waiters = Some(max_waiters);
         self
     }
 }
@@ -119,28 +137,41 @@ impl RateLimitState {
 /// Permit that enforces zone policies
 pub struct ZonePermit {
     _semaphore_permit: Option<OwnedSemaphorePermit>,
+    counter: Arc<AtomicUsize>
 }
 
 impl ZonePermit {
-    fn new(permit: Option<OwnedSemaphorePermit>) -> Self {
+    fn new(permit: Option<OwnedSemaphorePermit>, counter: Arc<AtomicUsize>) -> Self {
+        counter.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Self {
             _semaphore_permit: permit,
+            counter,
         }
     }
 }
+
+impl Drop for ZonePermit {
+    fn drop(&mut self) {
+        // Notify any waiters that a permit has been released
+        self.counter.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
 
 #[derive(Debug)]
 struct ZonePolicyInner {
     name: Cow<'static, str>,
     rate_limit: Option<RateLimit>,
     concurrency: Option<Arc<Semaphore>>,
-    rate_state: Option<RwLock<RateLimitState>>,
+    rate_state: Option<RwLock<RateLimitState>>,   
+    max_waiters: Option<usize>, 
 }
 
 /// Zone policy controls rate limiting and concurrency for routes and signal sources
 #[derive(Debug, Clone)]
 pub struct ZonePolicy {
     inner: Arc<ZonePolicyInner>,
+    counter: Arc<AtomicUsize>
 }
 
 impl ZonePolicy {
@@ -157,12 +188,23 @@ impl ZonePolicy {
                 rate_limit: conf.rate_limit,
                 concurrency,
                 rate_state,
+                max_waiters: conf.waiters,
             }),
+            counter: Arc::new(AtomicUsize::new(0)),
         }
     }
 
     pub fn name(&self) -> String {
         self.inner.name.to_string()
+    }
+
+    pub fn can_wait(&self) -> bool {
+        if let Some(max_waiters) = self.inner.max_waiters {
+            let current = self.counter.load(std::sync::atomic::Ordering::Relaxed);
+            return current < max_waiters;
+        }else{
+            return true;
+        }
     }
 
     pub fn rate_limit(&self) -> Option<RateLimit> {
@@ -204,7 +246,7 @@ impl ZonePolicy {
         }
     }
 
-    async fn wait_for_rate_limit(&self) {
+    async fn wait_for_rate_limit(&self, unchecked: bool) -> bool {
         let inner = &self.inner;
         if let Some(state) = &inner.rate_state {
             loop {
@@ -213,34 +255,75 @@ impl ZonePolicy {
                     let duration = state.time_until_token();
                     // If token available, consume atomically
                     if duration.is_zero() && state.can_proceed() {
-                        return;
+                        return true;
                     }
                     duration
                 };
                 
+                if unchecked && !self.can_wait() {
+                    return false;
+                }
                 // Sleep and retry
                 tokio::time::sleep(wait_duration).await;
+
+
             }
         }
+        true
     }
 
     /// Acquire a zone permit, respecting rate limit and concurrency constraints
     /// Waits (sleeps) until both rate limit and concurrency allow
-    pub async fn acquire(&self) -> ZonePermit {
+    pub(crate) async fn acquire_without_waiter_check(&self) -> Result<ZonePermit, ZoneError> {
         // Wait for rate limit
-        self.wait_for_rate_limit().await;
+        if !self.wait_for_rate_limit(true).await{
+            return Err(ZoneError::MaxWaitersReached);
+        }
 
         // Wait for concurrency semaphore
         let permit = match &self.inner.concurrency {
             Some(sem) => {
-                let owned = sem.clone().acquire_owned().await
-                    .expect("Semaphore closed - this should not happen");
+                let owned = match sem.clone().acquire_owned().await {
+                    Ok(owned) => owned,
+                    Err(_) => {
+                        return Err(ZoneError::MaxConcurrencyReached);
+                    },
+                };            
                 Some(owned)
-            }
+            },
             None => None,
         };
+        
+        Ok(ZonePermit::new(permit, self.counter.clone()))
+    }    
 
-        ZonePermit::new(permit)
+    /// Acquire a zone permit, respecting rate limit and concurrency constraints
+    /// Waits (sleeps) until both rate limit and concurrency allow
+    pub async fn acquire(&self) -> Result<ZonePermit, ZoneError> {
+        // Wait for rate limit
+        if !self.wait_for_rate_limit(false).await{
+            return Err(ZoneError::MaxWaitersReached);
+        }
+
+        // Wait for concurrency semaphore
+        let permit = match &self.inner.concurrency {
+            Some(sem) => {
+                let owned = match sem.clone().try_acquire_owned() {
+                    Ok(owned) => owned,
+                    Err(_) => {
+                        if ! self.can_wait() {
+                            return Err(ZoneError::MaxWaitersReached);
+                        }
+                        sem.clone().acquire_owned().await
+                            .map_err(|_| ZoneError::MaxConcurrencyReached)?
+                    },
+                };            
+                Some(owned)
+            },
+            None => None,
+        };
+        
+        Ok(ZonePermit::new(permit, self.counter.clone()))
     }
 
     /// Try to acquire a zone permit without blocking
@@ -259,7 +342,7 @@ impl ZonePolicy {
             None => None,
         };
 
-        Some(ZonePermit::new(permit))
+        Some(ZonePermit::new(permit, self.counter.clone()))
     }
 }
 

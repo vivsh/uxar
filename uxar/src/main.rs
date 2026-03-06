@@ -1,176 +1,157 @@
-use axum::{Json, extract::Query, http::StatusCode};
+use std::sync::Arc;
+
+use axum::Json;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uxar::{
-    Path, Site, SiteConf, Validate,
-    bundles::IntoBundle,
-    db::Model,
-    permit,
-    roles::{BitRole, Permit},
-    schemables::{ApiDocGenerator, ApiMeta, DocViewer, TagInfo},
-    views::{self, bundle_impl, bundle_routes, route},
+    Site, SiteConf, SiteError, admin, bundles::{self, Bundle, CronConf, PeriodicConf, SignalConf}, callables::{self, PatchOp, Payload}, emitters, routes::{Methods, RouteConf}, schemables::{ApiMeta, DocViewer}, serve_site, services::ServiceRunner  
 };
-use uxar_macros::{Filterable, Schemable};
 
-#[derive(BitRole)]
-#[repr(u8)]
-pub enum UserRole {
-    Admin = 1,
-    Manager = 2,
-    User = 3,
+#[bundles::route(
+    path = "/bleat",    
+)]
+/// A simple route that returns a bleat.
+/// 
+/// Returns "Blee!" as JSON.
+/// Random comment for description
+async fn bleat(site: Site) -> Json<&'static str> {
+    Json("Blee!")
 }
 
-#[derive(Debug, Validate, Filterable, Schemable, Deserialize)]
-pub struct UserFilter {
-    pub is_active: Option<bool>,
-    pub kind: Option<i16>,
+async fn greet(path: axum::extract::Path<String>) -> Json<String> {
+    Json(format!("Hello, {}!", path.0))
 }
 
-#[derive(Debug)]
-struct Address {
-    street: String,
-    city: String,
-    zip: String,
+#[derive(JsonSchema, Debug, Deserialize, Serialize)]
+struct Reminder;
+
+#[derive(Debug, JsonSchema, Deserialize, Serialize)]
+struct Chime;
+
+async fn daily_chime() -> Payload<Chime> {
+    println!("Chime at {}", chrono::Utc::now());
+    Chime.into()
 }
 
-#[derive(Debug, Serialize, Deserialize, Model)]
-struct User {
-    id: i32,
-    username: String,
-    #[validate(email)]
-    email: String,
-    is_active: bool,
-    kind: i16,
-    /// User age with validation
-    #[validate(min = 0, max = 100)]
-    age: i32,
+async fn on_chime(c: Payload<Chime>) {
+    println!("Received chime at {}", chrono::Utc::now());
 }
 
-#[route(method = "get", url = "/greet")]
-pub async fn greet() -> &'static str {
-    "Hello, Uxar!"
+async fn remind_me() -> Payload<Reminder> {
+    println!("Reminder emitted at {}", chrono::Utc::now());
+    Reminder.into()
 }
 
-#[route(method = "get", url = "/users")]
-async fn list_staff() -> Json<Vec<User>> {
-    let users = vec![
-        User {
-            id: 1,
-            username: "alice".to_string(),
-            email: "alice@example.com".to_string(),
-            is_active: true,
-            kind: 1,
-            age: 30,
-        },
-        User {
-            id: 2,
-            username: "bob".to_string(),
-            email: "bob@example.com".to_string(),
-            is_active: false,
-            kind: 2,
-            age: 45,
-        },
-    ];
-    Json(users)
+async fn on_remind(r: Payload<Reminder>) {
+    println!("Received reminder at {}", chrono::Utc::now());
 }
 
-/// ViewSet for User-related endpoints
-struct UserViewSet;
+async fn test_auth() -> Json<&'static str> {
+    Json("Authenticated!")
+}
 
-#[bundle_impl]
-impl UserViewSet {
-    /// Get user by ID
-    #[route(method = "get", url = "/users/{user_id}")]
-    async fn get_user(
-        Path(user_id): Path<i32>,
-        Permit(user, ..): permit!(UserRole, Admin | Manager),
-    ) -> Json<User> {
-        let user = User {
-            id: user_id,
-            username: "testuser".to_string(),
-            email: "testuser@example.com".to_string(),
-            is_active: true,
-            kind: 1,
-            age: 34,
-        };
-        Json(user)
-    }
+use uxar::services::{Agent, Service, ServiceError};
 
-    /// List all usersss
-    ///
-    /// Returns a paginated list of all users in the system.
-    /// This endpoint supports filtering, sorting, and pagination.
-    ///
-    /// ## Authentication
-    /// Requires valid API key or session token.
-    ///
-    /// ## Rate Limiting
-    /// Limited to 100 requests per minute per IP address.
-    #[route(method = "get", url = "/users")]
-    async fn list_users(
-        q: Query<UserFilter>,
-        permit: permit!(UserRole, Admin & Manager),
-    ) -> Json<Vec<User>> {
-        let users = vec![
-            User {
-                id: 1,
-                username: "alice".to_string(),
-                email: "alice@example.com".to_string(),
-                is_active: true,
-                kind: 1,
-                age: 30,
-            },
-            User {
-                id: 2,
-                username: "bob".to_string(),
-                email: "bob@example.com".to_string(),
-                is_active: false,
-                kind: 2,
-                age: 45,
-            },
-        ];
-        Json(users)
+pub trait EmailService: Send + Sync + 'static {
+    fn send_email(&self, to: &str, subject: &str, _body: &str) -> Result<(), String>;
+}
+
+pub struct EmailServiceImpl;
+
+impl Service for EmailServiceImpl {
+    fn run(&mut self, r: &mut ServiceRunner) -> Result<(), ServiceError>
+    {
+        // expose as DI interface once From<Arc<EmailServiceImpl>> for Arc<dyn EmailService> exists
+        // r.expose::<dyn EmailService>()?;
+        r.run("email-loop", || async move {
+            // background work here
+            Ok(())
+        });
+        Ok(())
     }
 }
+
+impl EmailService for EmailServiceImpl {
+    fn send_email(&self, to: &str, subject: &str, _body: &str) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+#[bundles::service]
+async fn email_service() -> Agent<EmailServiceImpl> {
+    EmailServiceImpl.into()
+}
+
 
 #[tokio::main]
-async fn main() {
-    let mut viewset_bundle = UserViewSet.into_bundle();
-
-    viewset_bundle = viewset_bundle.nest("/staff", "staff", bundle_routes!(greet, list_staff));
-
-    let views: Vec<_> = viewset_bundle.iter_views().collect();
-
-    let conf = SiteConf {
-        ..SiteConf::from_env()
-    };
-
-    let api_meta = ApiMeta {
-        title: "Uxar API".to_string(),
-        version: "1.0.0".to_string(),
-        description: Some("API documentation for Uxar application".to_string()),
-        tags: vec![
-            TagInfo {
-                name: "Users".to_string(),
-                description: Some("User management and authentication endpoints".to_string()),
+async fn main() -> Result<(), SiteError> {
+    let b2 = bundles::bundle! {
+        email_service,
+        bleat
+    };    
+    let bundle: Bundle = uxar::bundles::bundle([
+        uxar::bundles::merge(b2),
+        uxar::bundles::nest("/admin", "admin", admin::admin_bundle()),
+        uxar::bundles::route(
+            greet,
+            RouteConf {
+                name: "greet".into(),
+                path: "/greet/{path}".into(),
+                methods: Methods::GET.or(Methods::POST),
             },
-            TagInfo {
-                name: "User Management".to_string(),
-                description: Some(
-                    "Operations for creating, updating, and managing user accounts".to_string(),
-                ),
+        )
+        .patch(
+            PatchOp::new()
+                .description("Hello to the description")
+                .arg(0)
+                .name("tail")
+                .done(),
+        ),
+        uxar::bundles::cron(
+            daily_chime,
+            CronConf {
+                expr: "0 0 * * * *".into(),
+                target: emitters::EmitTarget::Signal,
             },
-        ],
-    };
+        ),
+        uxar::bundles::periodic(
+            remind_me,
+            PeriodicConf {
+                interval: tokio::time::Duration::from_secs(3),
+                target: emitters::EmitTarget::Signal,
+            },
+        )
+        .patch(
+            callables::PatchOp::new()
+                .description("Hello World")
+                .name("some name"),
+        ),
+        uxar::bundles::openapi(uxar::bundles::OpenApiConf {
+            spec_path: "/api/openapi.json".into(),
+            doc_path: "/api/docs".into(),
+            meta: ApiMeta {
+                title: "UXAR Example API".into(),
+                description: Some("An example API using UXAR".into()),
+                version: "0.1.0".into(),
+                ..Default::default()
+            },
+            viewer: DocViewer::Rapidoc,
+        }),
+        uxar::bundles::signal(on_chime, SignalConf::default()),
+        uxar::bundles::signal(on_remind, SignalConf::default()),
+        uxar::bundles::route(
+            test_auth,
+            RouteConf {
+                name: "test_auth".into(),
+                path: "/test_auth".into(),
+                ..Default::default()
+            },
+        ),
+    ]);
 
-    viewset_bundle = viewset_bundle.with_api_spec_and_doc(
-        "/openapi.json",
-        "/docs/",
-        api_meta,
-        DocViewer::Rapidoc,
-    );
+    
 
-    Site::builder(conf)
-        .run(viewset_bundle)
-        .await
-        .expect("Failed to build site");
+    let conf = SiteConf::from_env().expect("Failed to load site configuration from environment");
+
+    serve_site(conf, bundle).await
 }

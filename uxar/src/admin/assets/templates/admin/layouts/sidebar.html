@@ -1,0 +1,32 @@
+{% extends "admin/layouts/base.html" %} {% block extra_styles %} .sidebar-layout
+{ display: grid; grid-template-columns: var(--admin-sidebar-width) 1fr; gap:
+2rem; max-width: 1400px; margin: 0 auto; } .sidebar { position: sticky; top:
+calc(var(--admin-nav-height) + 2rem); height: fit-content; background:
+var(--pico-card-background-color); border: 1px solid
+var(--pico-muted-border-color); border-radius: var(--pico-border-radius);
+padding: 1rem; } .sidebar nav { display: flex; flex-direction: column; gap:
+0.5rem; } .sidebar nav a { padding: 0.5rem 1rem; text-decoration: none;
+border-radius: var(--pico-border-radius); } .sidebar nav a:hover { background:
+var(--pico-secondary-background); } .sidebar nav a.active { background:
+var(--pico-primary-background); color: var(--pico-primary-inverse); }
+.content-area { min-width: 0; } @media (max-width: 992px) { .sidebar-layout {
+grid-template-columns: 1fr; } .sidebar { position: static; } } {% endblock %} {%
+block content %}
+<div class="sidebar-layout">
+  <aside class="sidebar">
+    {% block sidebar %}
+    <nav>
+      <a href="#section-1">Section 1</a>
+      <a href="#section-2">Section 2</a>
+      <a href="#section-3">Section 3</a>
+    </nav>
+    {% endblock %}
+  </aside>
+
+  <div class="content-area">
+    {% block main_content %}
+    <p>Main content goes here</p>
+    {% endblock %}
+  </div>
+</div>
+{% endblock %}

@@ -3,278 +3,342 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use std::error::Error as StdError;
+use smallvec::SmallVec;
+use std::{borrow::Cow, error::Error as StdError};
 use std::fmt;
 use crate::validation::{ValidationError, ValidationReport};
-use crate::db::{DbError, IntegrityKind};
+use crate::db::{DbError};
 use crate::auth::AuthError;
 
-/// Central error type for API responses.
-/// Always returns JSON responses with consistent structure.
+
+
+/// Source of an error, avoiding boxing for common error types.
 #[derive(Debug)]
-pub struct ApiError {
-    /// HTTP status code
-    status: StatusCode,
-    /// User-friendly error message
-    user_message: String,
-    /// Optional error code for programmatic handling
-    error_code: Option<String>,
-    /// Optional additional details (only shown in debug mode)
-    details: Option<String>,
-    /// Structured validation errors
-    validation_errors: Option<serde_json::Value>,
-    /// The underlying error (for logging/debugging)
-    source: Option<Box<dyn StdError + Send + Sync + 'static>>,
+pub enum ErrorSource {
+    Validation(ValidationReport),
+    Database(DbError),
+    Auth(AuthError),
+    Sqlx(sqlx::Error),
+    Other(Box<dyn StdError + Send + Sync + 'static>),
 }
 
-impl ApiError {
-    /// Create a new API error with default status
-    pub fn new(message: impl Into<String>) -> Self {
-        Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            user_message: message.into(),
-            error_code: None,
-            details: None,
-            validation_errors: None,
-            source: None,
+
+/// Semantic error categories for consistent error handling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    NotFound,
+    BadRequest,
+    Unauthorized,
+    Forbidden,
+    Invalid,      // Validation failures
+    Integrity,    // Database constraint violations
+    Conflict,     // Business logic conflicts (e.g., version mismatch)
+    RateLimited,  // API rate limiting
+    Unavailable,  // Service unavailable
+    Other,        // Unexpected errors
+}
+
+impl ErrorKind {
+    pub fn default_message(&self) -> &'static str {
+        match self {
+            Self::NotFound => "Resource not found",
+            Self::BadRequest => "Bad request",
+            Self::Unauthorized => "Authentication required",
+            Self::Forbidden => "Permission denied",
+            Self::Invalid => "Validation failed",
+            Self::Integrity => "Data integrity violation",
+            Self::Conflict => "Resource conflict",
+            Self::RateLimited => "Too many requests",
+            Self::Unavailable => "Service unavailable",
+            Self::Other => "Internal server error",
         }
     }
 
-    /// Set the HTTP status code
-    pub fn with_status(mut self, status: StatusCode) -> Self {
-        self.status = status;
-        self
+    fn status_code(&self) -> StatusCode {
+        match self {
+            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::BadRequest => StatusCode::BAD_REQUEST,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Invalid => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::Integrity => StatusCode::CONFLICT,
+            Self::Conflict => StatusCode::CONFLICT,
+            Self::RateLimited => StatusCode::TOO_MANY_REQUESTS,
+            Self::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
+            Self::Other => StatusCode::INTERNAL_SERVER_ERROR,
+        }
     }
 
-    /// Set an error code for programmatic handling
-    pub fn with_code(mut self, code: impl Into<String>) -> Self {
-        self.error_code = Some(code.into());
-        self
+    fn error_code(&self) -> &'static str {
+        match self {
+            Self::NotFound => "NOT_FOUND",
+            Self::BadRequest => "BAD_REQUEST",
+            Self::Unauthorized => "UNAUTHORIZED",
+            Self::Forbidden => "FORBIDDEN",
+            Self::Invalid => "VALIDATION_ERROR",
+            Self::Integrity => "INTEGRITY_ERROR",
+            Self::Conflict => "CONFLICT",
+            Self::RateLimited => "RATE_LIMITED",
+            Self::Unavailable => "UNAVAILABLE",
+            Self::Other => "INTERNAL_ERROR",
+        }
+    }
+}
+
+
+/// Universal error type for all uxar handlers (signals, tasks, commands, routes).
+/// Provides semantic error categories while preserving full error chains.
+/// Context uses SmallVec to avoid heap allocations for typical error chains (0-4 items).
+#[derive(Debug)]
+pub struct Error {
+    pub kind: ErrorKind,
+    pub source: Option<ErrorSource>,
+    pub context: SmallVec<[Cow<'static, str>; 4]>,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.kind.default_message())?;
+        if !self.context.is_empty() {
+            write!(f, ": {}", self.context.join(" -> "))?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
+        self.source.as_ref().map(|src| match src {
+            ErrorSource::Auth(e) => e as &(dyn StdError + 'static),
+            ErrorSource::Database(e) => e as &(dyn StdError + 'static),
+            ErrorSource::Sqlx(e) => e as &(dyn StdError + 'static),
+            ErrorSource::Other(e) => e.as_ref() as &(dyn StdError + 'static),
+            ErrorSource::Validation(e) => e as &(dyn StdError + 'static),
+        })
+    }
+}
+
+impl Error {
+    /// Create error with kind only (use sparingly - prefer wrapping source errors)
+    pub fn new(kind: ErrorKind) -> Self {
+        Self {
+            kind,
+            source: None,
+            context: SmallVec::new(),
+        }
     }
 
-    /// Add additional details (only shown in debug mode)
-    pub fn with_details(mut self, details: impl Into<String>) -> Self {
-        self.details = Some(details.into());
-        self
-    }
-
-    /// Attach structured validation errors
-    pub fn with_validation_errors(mut self, errors: serde_json::Value) -> Self {
-        self.validation_errors = Some(errors);
-        self
-    }
-
-    /// Wrap an existing error
-    pub fn wrap<E>(err: E) -> Self
+    /// Wrap an external error as ErrorKind::Other (most common case)
+    pub fn other<E>(err: E) -> Self
     where
         E: StdError + Send + Sync + 'static,
     {
         Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            user_message: "An internal error occurred".to_string(),
-            error_code: None,
-            details: Some(err.to_string()),
-            validation_errors: None,
-            source: Some(Box::new(err)),
+            kind: ErrorKind::Other,
+            source: Some(ErrorSource::Other(Box::new(err))),
+            context: SmallVec::new(),
         }
     }
 
-    // Common error constructors
-    pub fn not_found(resource: &str) -> Self {
-        Self::new(format!("{} not found", resource))
-            .with_status(StatusCode::NOT_FOUND)
-            .with_code("NOT_FOUND")
+    /// Wrap source error with explicit kind (use when semantic categorization matters)
+    pub fn wrap<E>(kind: ErrorKind, err: E) -> Self
+    where
+        E: StdError + Send + Sync + 'static,
+    {
+        Self {
+            kind,
+            source: Some(ErrorSource::Other(Box::new(err))),
+            context: SmallVec::new(),
+        }
     }
 
-    pub fn bad_request(message: impl Into<String>) -> Self {
-        Self::new(message)
-            .with_status(StatusCode::BAD_REQUEST)
-            .with_code("BAD_REQUEST")
+    /// Add context to the error chain
+    pub fn with_context(mut self, ctx: impl Into<Cow<'static, str>>) -> Self {
+        self.context.push(ctx.into());
+        self
     }
 
-    pub fn unauthorized(message: impl Into<String>) -> Self {
-        Self::new(message)
-            .with_status(StatusCode::UNAUTHORIZED)
-            .with_code("UNAUTHORIZED")
+    /// Get user-facing message
+    fn user_message(&self) -> &str {
+        self.kind.default_message()
     }
 
-    pub fn forbidden(message: impl Into<String>) -> Self {
-        Self::new(message)
-            .with_status(StatusCode::FORBIDDEN)
-            .with_code("FORBIDDEN")
-    }
-
-    pub fn validation_error(message: impl Into<String>) -> Self {
-        Self::new(message)
-            .with_status(StatusCode::UNPROCESSABLE_ENTITY)
-            .with_code("VALIDATION_ERROR")
-    }
-
-    pub fn internal_error() -> Self {
-        Self::new("Internal server error")
-            .with_status(StatusCode::INTERNAL_SERVER_ERROR)
-            .with_code("INTERNAL_ERROR")
-    }
-}
-
-impl fmt::Display for ApiError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.user_message)
-    }
-}
-
-impl StdError for ApiError {
-    fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.source.as_ref().map(|e| e.as_ref() as &(dyn StdError + 'static))
-    }
-}
-
-/// JSON response structure for API errors
-// Removed intermediate structs to allow dynamic DRF-style responses
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        // DRF-style response format
-        let body = if let Some(validation_errors) = self.validation_errors {
-            // For validation errors, return the map directly (e.g. {"field": ["error"]})
-            validation_errors
-        } else {
-            // For other errors, return {"detail": "message", "code": "..."}
-            let mut map = serde_json::Map::new();
-            map.insert("detail".to_string(), serde_json::Value::String(self.user_message));
-            
-            if let Some(code) = self.error_code {
-                map.insert("code".to_string(), serde_json::Value::String(code));
-            }
-            
-            // Include debug details if in debug mode
-            if cfg!(debug_assertions) {
-                if let Some(details) = self.details {
-                    map.insert("debug_details".to_string(), serde_json::Value::String(details));
-                }
-            }
-            
-            serde_json::Value::Object(map)
-        };
-
-        (self.status, Json(body)).into_response()
-    }
-}
-
-// Generic conversion from anyhow::Error
-impl From<anyhow::Error> for ApiError {
-    fn from(err: anyhow::Error) -> Self {
-        // anyhow::Error can be converted to Box<dyn StdError>
-        let details = format!("{:#}", err);
-        let source: Box<dyn StdError + Send + Sync + 'static> = err.into();
+    /// Pretty format for CLI/command output with full error chain
+    pub fn display_verbose(&self) -> String {
+        let mut output = String::new();
         
-        Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            user_message: "An internal error occurred".to_string(),
-            error_code: Some("INTERNAL_ERROR".to_string()),
-            details: Some(details),
-            validation_errors: None,
-            source: Some(source),
+        // Main error message
+        output.push_str("Error: ");
+        output.push_str(self.kind.default_message());
+        output.push('\n');
+        
+        // Context chain
+        if !self.context.is_empty() {
+            for (i, ctx) in self.context.iter().enumerate() {
+                output.push_str(&format!("  {} {}\n", 
+                    if i == self.context.len() - 1 { "↳" } else { "│" },
+                    ctx
+                ));
+            }
         }
-    }
-}
-
-// Generic conversion from Box<dyn Error>
-impl From<Box<dyn StdError + Send + Sync + 'static>> for ApiError {
-    fn from(err: Box<dyn StdError + Send + Sync + 'static>) -> Self {
-        Self {
-            status: StatusCode::INTERNAL_SERVER_ERROR,
-            user_message: "An internal error occurred".to_string(),
-            error_code: Some("INTERNAL_ERROR".to_string()),
-            details: Some(err.to_string()),
-            validation_errors: None,
-            source: Some(err),
-        }
-    }
-}
-
-// Convenient conversions from common error types
-impl From<sqlx::Error> for ApiError {
-    fn from(err: sqlx::Error) -> Self {
-        match err {
-            sqlx::Error::RowNotFound => ApiError::not_found("Resource"),
-            sqlx::Error::Database(db_err) => {
-                // Check for common database constraint violations
-                let message = db_err.message();
-                if message.contains("violates unique constraint") {
-                    ApiError::bad_request("Resource already exists")
-                } else if message.contains("violates foreign key constraint") {
-                    ApiError::bad_request("Invalid reference")
-                } else if message.contains("violates check constraint") {
-                    ApiError::bad_request("Invalid data")
-                } else {
-                    ApiError::internal_error().with_details(db_err.message())
+        
+        // Source chain (walk the error chain)
+        let mut source_chain: Vec<String> = Vec::new();
+        if let Some(src) = &self.source {
+            match src {
+                ErrorSource::Validation(report) => {
+                    if !report.is_empty() {
+                        source_chain.push(format!("Validation failed with {} error(s)", report.issues.len()));
+                    }
+                }
+                ErrorSource::Database(e) => {
+                    source_chain.push(e.to_string());
+                }
+                ErrorSource::Auth(e) => {
+                    source_chain.push(e.to_string());
+                }
+                ErrorSource::Sqlx(e) => {
+                    source_chain.push(e.to_string());
+                    // Walk sqlx's source chain
+                    let mut current: Option<&(dyn StdError + 'static)> = e.source();
+                    while let Some(err) = current {
+                        source_chain.push(err.to_string());
+                        current = err.source();
+                    }
+                }
+                ErrorSource::Other(e) => {
+                    source_chain.push(e.to_string());
+                    // Walk generic error's source chain
+                    let mut current: Option<&(dyn StdError + 'static)> = e.source();
+                    while let Some(err) = current {
+                        source_chain.push(err.to_string());
+                        current = err.source();
+                    }
                 }
             }
-            _ => ApiError::internal_error().with_details(err.to_string()),
+        }
+        
+        if !source_chain.is_empty() {
+            output.push('\n');
+            output.push_str("Caused by:\n");
+            for (i, cause) in source_chain.iter().enumerate() {
+                output.push_str(&format!("  {}: {}\n", i, cause));
+            }
+        }
+        
+        output
+    }
+
+    /// Compact single-line format for logging
+    pub fn display_compact(&self) -> String {
+        let mut parts = vec![self.kind.default_message().to_string()];
+        if !self.context.is_empty() {
+            parts.extend(self.context.iter().map(|c| c.to_string()));
+        }
+        parts.join(": ")
+    }
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> Response {
+        let status = self.kind.status_code();
+        let code = self.kind.error_code();
+
+        // Special handling for validation errors with field-level details
+        if let Some(ErrorSource::Validation(report)) = self.source {
+            return (status, Json(report.to_nested_map())).into_response();
+        }
+
+        // Standard error response
+        let mut map = serde_json::Map::new();
+        map.insert("detail".to_string(), serde_json::Value::String(self.user_message().to_string()));
+        map.insert("code".to_string(), serde_json::Value::String(code.to_string()));
+
+        // Add context in debug mode
+        if cfg!(debug_assertions) && !self.context.is_empty() {
+            let ctx_array: Vec<_> = self.context
+                .iter()
+                .map(|c| serde_json::Value::String(c.to_string()))
+                .collect();
+            map.insert("context".to_string(), serde_json::Value::Array(ctx_array));
+        }
+
+        (status, Json(serde_json::Value::Object(map))).into_response()
+    }
+}
+
+
+impl From<ValidationReport> for Error {
+    fn from(report: ValidationReport) -> Self {
+        Self {
+            kind: ErrorKind::Invalid,
+            source: Some(ErrorSource::Validation(report)),
+            context: SmallVec::new(),
         }
     }
 }
 
-impl From<serde_json::Error> for ApiError {
-    fn from(err: serde_json::Error) -> Self {
-        ApiError::bad_request("Invalid JSON").with_details(err.to_string())
-    }
-}
-
-impl From<std::io::Error> for ApiError {
-    fn from(err: std::io::Error) -> Self {
-        ApiError::internal_error().with_details(err.to_string())
-    }
-}
-
-impl From<ValidationReport> for ApiError {
-    fn from(report: ValidationReport) -> Self {
-        ApiError::validation_error("Validation failed")
-            .with_validation_errors(report.to_nested_map())
-    }
-}
-
-impl From<ValidationError> for ApiError {
+impl From<ValidationError> for Error {
     fn from(err: ValidationError) -> Self {
         let mut report = ValidationReport::empty();
         report.push_root(err);
-        ApiError::from(report)
+        Self::from(report)
     }
 }
 
-impl From<DbError> for ApiError {
+impl From<DbError> for Error {
     fn from(err: DbError) -> Self {
-        match err {
-            DbError::DoesNotExist => ApiError::not_found("Resource"),
-            DbError::Integrity { kind, .. } => match kind {
-                IntegrityKind::Unique => ApiError::bad_request("Resource already exists")
-                    .with_code("ALREADY_EXISTS"),
-                IntegrityKind::ForeignKey => ApiError::bad_request("Invalid reference")
-                    .with_code("INVALID_REFERENCE"),
-                IntegrityKind::Check => ApiError::bad_request("Invalid data")
-                    .with_code("INVALID_DATA"),
-                IntegrityKind::NotNull => ApiError::bad_request("Missing required field")
-                    .with_code("MISSING_FIELD"),
-                _ => ApiError::bad_request("Integrity violation"),
-            },
-            DbError::Bind(msg) => ApiError::bad_request(format!("Invalid query parameter: {}", msg)),
-            DbError::MultipleObjects => ApiError::internal_error()
-                .with_details("Query returned multiple rows when one was expected"),
-            _ => ApiError::internal_error().with_details(err.to_string()),
+        let kind = match &err {
+            DbError::DoesNotExist => ErrorKind::NotFound,
+            DbError::Integrity { .. } => ErrorKind::Integrity,
+            DbError::QuerySet(_) => ErrorKind::BadRequest,
+            DbError::MultipleObjects => ErrorKind::Conflict,
+            _ => ErrorKind::Other,
+        };
+        Self {
+            kind,
+            source: Some(ErrorSource::Database(err)),
+            context: SmallVec::new(),
         }
     }
 }
 
-impl From<AuthError> for ApiError {
+impl From<AuthError> for Error {
     fn from(err: AuthError) -> Self {
-        match err {
-            AuthError::InvalidToken | AuthError::MissingToken | AuthError::ExpiredToken | AuthError::InvalidSignature => {
-                ApiError::unauthorized("Invalid authentication credentials")
-            }
-            AuthError::Forbidden => ApiError::forbidden("Permission denied"),
-            AuthError::InternalError(msg) => ApiError::internal_error().with_details(msg),
+        let kind = match &err {
+            AuthError::Forbidden => ErrorKind::Forbidden,
+            _ => ErrorKind::Unauthorized,
+        };
+        Self {
+            kind,
+            source: Some(ErrorSource::Auth(err)),
+            context: SmallVec::new(),
         }
     }
 }
 
+impl From<sqlx::Error> for Error {
+    fn from(err: sqlx::Error) -> Self {
+        let kind = match &err {
+            sqlx::Error::RowNotFound => ErrorKind::NotFound,
+            _ => ErrorKind::Other,
+        };
+        Self {
+            kind,
+            source: Some(ErrorSource::Sqlx(err)),
+            context: SmallVec::new(),
+        }
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(err: serde_json::Error) -> Self {
+        Self::other(err).with_context("JSON parsing failed")
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::other(err).with_context("I/O operation failed")
+    }
+}

@@ -1,0 +1,30 @@
+{% extends "admin/layouts/sidebar.html" %}
+{% from "admin/components/macros.html" import sidebar_nav, card %}
+
+{% block title %}Sidebar Demo - Admin{% endblock %}
+
+{% block sidebar %}
+{{ sidebar_nav([
+  {"label": "Dashboard", "url": "/admin", "icon": "🏠", "active": false},
+  {"label": "Kitchen Sink", "url": "/admin/kitchen-sink", "icon": "🎨", "active": true},
+  {"label": "Operations", "url": "/admin/operations", "icon": "⚙️"},
+  {"label": "Configuration", "url": "/admin/conf", "icon": "🔧"},
+  {"label": "System Info", "url": "/admin/sysfinfo", "icon": "📊"}
+]) }}
+{% endblock %}
+
+{% block main_content %}
+<article>
+  <h1>Sidebar Layout Demo</h1>
+  <p>This page demonstrates the sidebar layout with navigation.</p>
+</article>
+
+{% call card(title="Example Content") %}
+  <p>This is an example card in the main content area with a sidebar navigation on the left.</p>
+  <p>The sidebar is sticky and will stay visible as you scroll.</p>
+{% endcall %}
+
+{% call card(title="Another Section") %}
+  <p>You can add as many content blocks as needed. The sidebar will remain in place.</p>
+{% endcall %}
+{% endblock %}

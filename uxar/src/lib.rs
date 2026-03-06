@@ -2,31 +2,48 @@ mod site;
 mod conf;
 mod cmd;
 mod host;
+
+extern crate self as uxar;
+
+pub(crate) mod templates;
+mod data;
+pub mod services;
+pub mod assets;
 pub mod errors;
-pub use errors::ApiError;
+pub(crate) mod debounce;
+pub(crate) mod schedulers;
+pub mod flows;
+pub mod channels;
+pub(crate) mod notifiers;
 mod auth;
-mod cli;
+mod commands;
 pub mod roles;
 pub mod validation;
 pub mod validators;
+pub mod logging;
 mod layers;
-mod tasks;
+pub mod tasks;
+pub mod admin;
 mod watch;
+pub mod callables;
+pub mod emitters;
 pub mod schemables;
 pub mod beacon;
 pub mod signals;
-pub mod signal_sources;
 pub mod zones;
 pub mod bundles;
 pub mod db;
 pub mod embed;
 pub mod testing;
 
+#[cfg(test)]
+mod testing_tests;
 
-pub mod views;
-pub use site::{Site, SiteError, Service};
+pub mod routes;
+pub use site::{Site, SiteError, build_site, serve_site, test_site};
 pub use conf::{SiteConf, StaticDir};
 pub use host::{HostService};
 pub use axum::extract::{FromRequest, Json, Path, State, FromRequestParts};
 pub use axum_extra::extract::{Query, Form, TypedHeader, Multipart};
 pub use auth::{AuthUser, AuthConf, AuthError};pub use validation::{Valid, ValidRejection, Validate, ValidationReport, ValidationError};
+pub use callables::{Operation, OperationKind};

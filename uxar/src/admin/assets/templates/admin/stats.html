@@ -1,0 +1,128 @@
+{% extends "admin/layouts/full.html" %}
+{% from "admin/components/macros.html" import stats_card, card, badge %}
+
+{% block title %}System Statistics{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="admin-alert admin-alert-danger" style="margin-bottom: 2rem;">
+  <strong>Error:</strong> {{ error }}
+</div>
+{% else %}
+<div class="admin-page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+  <div>
+    <h1>System Statistics</h1>
+    <p class="text-muted">Real-time server metrics from sysinfo</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <button class="admin-button admin-button-outline admin-button-sm" onclick="window.location.reload()">🔄 Refresh</button>
+  </div>
+</div>
+
+<!-- System-Wide Metrics -->
+<section style="margin-bottom: 3rem;">
+  <h2 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: var(--admin-text);">System Resources</h2>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+    <div class="admin-card" style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">⚡</div>
+        <span class="admin-badge admin-badge-info" style="font-size: 0.75rem;">{{ cpu_count }} cores</span>
+      </div>
+      <div style="font-size: 2rem; font-weight: 700; color: var(--admin-text); margin-bottom: 0.25rem;">{{ cpu_usage }}%</div>
+      <div style="color: var(--admin-text-muted); font-size: 0.875rem;">CPU Usage</div>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--admin-border); font-size: 0.75rem; color: var(--admin-text-muted);">
+        {% if load_avg_1 %}Load: {{ load_avg_1 }} / {{ load_avg_5 }} / {{ load_avg_15 }}{% else %}Load avg unavailable{% endif %}
+      </div>
+    </div>
+
+    <div class="admin-card" style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981 0%, #34d399 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">💾</div>
+        <span class="admin-badge {% if memory_percent|float > 90 %}admin-badge-danger{% elif memory_percent|float > 75 %}admin-badge-warning{% else %}admin-badge-success{% endif %}" style="font-size: 0.75rem;">{{ memory_percent }}%</span>
+      </div>
+      <div style="font-size: 2rem; font-weight: 700; color: var(--admin-text); margin-bottom: 0.25rem;">{{ memory_used }}</div>
+      <div style="color: var(--admin-text-muted); font-size: 0.875rem;">Memory Used</div>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--admin-border); font-size: 0.75rem; color: var(--admin-text-muted);">
+        {{ memory_available }} available of {{ memory_total }}
+      </div>
+    </div>
+
+    <div class="admin-card" style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">🔄</div>
+        <span class="admin-badge admin-badge-success" style="font-size: 0.75rem;">healthy</span>
+      </div>
+      <div style="font-size: 2rem; font-weight: 700; color: var(--admin-text); margin-bottom: 0.25rem;">{{ system_uptime }}</div>
+      <div style="color: var(--admin-text-muted); font-size: 0.875rem;">System Uptime</div>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--admin-border); font-size: 0.75rem; color: var(--admin-text-muted);">
+        {{ system_uptime_secs }} seconds
+      </div>
+    </div>
+
+    <div class="admin-card" style="padding: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+        <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">💿</div>
+        <span class="admin-badge admin-badge-neutral" style="font-size: 0.75rem;">swap</span>
+      </div>
+      <div style="font-size: 2rem; font-weight: 700; color: var(--admin-text); margin-bottom: 0.25rem;">{{ swap_used }}</div>
+      <div style="color: var(--admin-text-muted); font-size: 0.875rem;">Swap Used</div>
+      <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--admin-border); font-size: 0.75rem; color: var(--admin-text-muted);">
+        Total: {{ swap_total }}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Process-Specific Metrics -->
+<section style="margin-bottom: 3rem;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2 style="font-size: 1.25rem; font-weight: 600; color: var(--admin-text);">Current Process (PID {{ process_pid }})</h2>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmin(240px, 1fr)); gap: 1.25rem;">
+    <div class="admin-card" style="padding: 1.25rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+        <div style="width: 40px; height: 40px; background: var(--admin-info-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">⚡</div>
+        <div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--admin-text);">{{ process_cpu }}%</div>
+          <div style="color: var(--admin-text-muted); font-size: 0.8rem;">Process CPU</div>
+        </div>
+      </div>
+      <span class="admin-badge admin-badge-info" style="font-size: 0.75rem;">current process</span>
+    </div>
+
+    <div class="admin-card" style="padding: 1.25rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+        <div style="width: 40px; height: 40px; background: var(--admin-success-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">💾</div>
+        <div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--admin-text);">{{ process_memory }}</div>
+          <div style="color: var(--admin-text-muted); font-size: 0.8rem;">Process Memory (RSS)</div>
+        </div>
+      </div>
+      <span class="admin-badge admin-badge-success" style="font-size: 0.75rem;">{{ process_memory_percent }}% of total</span>
+    </div>
+
+    <div class="admin-card" style="padding: 1.25rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+        <div style="width: 40px; height: 40px; background: var(--admin-info-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">📦</div>
+        <div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--admin-text);">{{ process_virtual_memory }}</div>
+          <div style="color: var(--admin-text-muted); font-size: 0.8rem;">Virtual Memory</div>
+        </div>
+      </div>
+      <span class="admin-badge admin-badge-neutral" style="font-size: 0.75rem;">virtual</span>
+    </div>
+
+    <div class="admin-card" style="padding: 1.25rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+        <div style="width: 40px; height: 40px; background: var(--admin-success-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;">⏱️</div>
+        <div>
+          <div style="font-size: 1.5rem; font-weight: 700; color: var(--admin-text);">{{ process_uptime }}</div>
+          <div style="color: var(--admin-text-muted); font-size: 0.8rem;">Process Uptime</div>
+        </div>
+      </div>
+      <span class="admin-badge admin-badge-success" style="font-size: 0.75rem;">running</span>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
