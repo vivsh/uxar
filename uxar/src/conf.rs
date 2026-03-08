@@ -3,7 +3,7 @@
 //! Secrets and deployment-specific values go in env vars.
 //! Project structure and logic go in source code.
 
-use std::path::PathBuf;
+use std::{ffi::OsString, path::PathBuf};
 
 use crate::{auth::AuthConf, db::DbConf, logging, tasks::TaskConf};
 use serde::{Deserialize, Serialize};
@@ -12,28 +12,25 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum ConfError {
     #[error("missing required field '{field}': {reason}")]
-    RequiredField { 
-        field: String, 
-        reason: String 
-    },
-    
+    RequiredField { field: String, reason: String },
+
     #[error("invalid value for '{field}': {reason}{}", expected.as_ref().map(|e| format!(" (expected: {})", e)).unwrap_or_default())]
-    InvalidValue { 
-        field: String, 
-        reason: String, 
-        expected: Option<String> 
+    InvalidValue {
+        field: String,
+        reason: String,
+        expected: Option<String>,
     },
-    
-    #[error("invalid path for '{field}': {reason}")]
-    InvalidPath { 
-        field: String, 
-        path: String, 
-        reason: String 
+
+    #[error("invalid path for '{field}' at '{path}': {reason}")]
+    InvalidPath {
+        field: String,
+        path: String,
+        reason: String,
     },
-    
-    #[error("validation failed with {} error(s)", .0.len())]
+
+    #[error("validation failed with {} error(s):\n{}", .0.len(), ConfError::display_many(.0))]
     Many(Vec<ConfError>),
-    
+
     #[error("missing required field: {0}")]
     MissingField(String),
 
@@ -41,9 +38,39 @@ pub enum ConfError {
     Other(String),
 }
 
+impl ConfError{
+
+    fn display_many(errors: &[ConfError]) -> String {
+        errors.iter().map(|e| format!("- {}", e)).collect::<Vec<_>>().join("\n")
+    }
+
+}
+
+pub fn workspace_root(crate_dir: OsString) -> PathBuf {
+    let mut dir = PathBuf::from(crate_dir);
+
+    loop {
+        let cargo = dir.join("Cargo.toml");
+
+        if cargo.exists() {
+            if let Ok(content) = std::fs::read_to_string(&cargo) {
+                if content.contains("[workspace]") {
+                    return dir;
+                }
+            }
+        }
+
+        if !dir.pop() {
+            break;
+        }
+    }
+
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
 pub fn project_dir() -> PathBuf {
-    if let Some(manifest_dir) = std::env::var_os("CARGO_MANIFEST_DIR") {
-        PathBuf::from(manifest_dir)
+    if let Some(crate_dir) = std::env::var_os("CARGO_MANIFEST_DIR") {
+        workspace_root(crate_dir)
     } else {
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
     }
@@ -94,7 +121,7 @@ pub struct SiteConf {
     pub tasks: TaskConf,
 
     pub logging: logging::LoggingConf,
-}  
+}
 
 impl Default for SiteConf {
     fn default() -> Self {
@@ -328,7 +355,7 @@ impl SiteConf {
         for (idx, static_dir) in self.static_dirs.iter().enumerate() {
             let field_path = format!("static_dirs[{}].path", idx);
             let field_url = format!("static_dirs[{}].url", idx);
-            
+
             if static_dir.path.is_empty() {
                 errors.push(ConfError::RequiredField {
                     field: field_path.clone(),
@@ -337,7 +364,7 @@ impl SiteConf {
             } else {
                 validate_dir_readable(&base.join(&static_dir.path), &field_path, errors);
             }
-            
+
             if static_dir.url.is_empty() {
                 errors.push(ConfError::RequiredField {
                     field: field_url,
@@ -352,7 +379,7 @@ impl SiteConf {
             }
         }
     }
-}  
+}
 
 fn apply_env_patches(conf: &mut SiteConf, prefix: Option<&str>) -> Result<(), ConfError> {
     let strip_prefix = |key: &str, pref: Option<&str>| -> String {
@@ -382,7 +409,10 @@ fn apply_env_patches(conf: &mut SiteConf, prefix: Option<&str>) -> Result<(), Co
             "port" => match value.parse::<u16>() {
                 Ok(p) => conf.port = p,
                 Err(_) => {
-                    return Err(ConfError::Other(format!("PORT must be a valid u16, got: {}", value)));
+                    return Err(ConfError::Other(format!(
+                        "PORT must be a valid u16, got: {}",
+                        value
+                    )));
                 }
             },
             "tz" => conf.tz = Some(value),
@@ -453,7 +483,7 @@ fn validate_file_writable(base: &PathBuf, file: &str, field: &str, errors: &mut 
         return;
     }
     let path = base.join(file);
-    
+
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             errors.push(ConfError::InvalidPath {
@@ -471,7 +501,7 @@ fn validate_file_writable(base: &PathBuf, file: &str, field: &str, errors: &mut 
             });
             return;
         }
-        
+
         let test_file = parent.join(format!(".uxar_touch_write_{}", std::process::id()));
         if std::fs::write(&test_file, b"").is_err() {
             errors.push(ConfError::InvalidPath {
@@ -483,6 +513,4 @@ fn validate_file_writable(base: &PathBuf, file: &str, field: &str, errors: &mut 
             let _ = std::fs::remove_file(test_file);
         }
     }
-}  
-
-
+}
