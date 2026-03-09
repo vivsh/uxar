@@ -257,7 +257,7 @@ impl Bundle {
         self
     }
 
-    fn nest<B: IntoBundle>(mut self, path: &str, namespace: &str, other: B) -> Self {
+    pub fn nest<B: IntoBundle>(mut self, path: &str, namespace: &str, other: B) -> Self {
         debug_assert!(!path.ends_with('/'), "Mount path should not end with '/'");
         debug_assert!(
             path.starts_with('/'),
