@@ -11,6 +11,7 @@ type SchemaGen = fn(&mut schemars::SchemaGenerator) -> schemars::Schema;
 
 pub type CommandHandlerIn = Callable<CommandContext, CommandError>;
 
+#[derive(serde::Serialize)]
 pub struct CommandConf{
     pub name: Option<String>
 }
@@ -33,6 +34,14 @@ pub(crate) struct Command{
     pub(crate) options: CommandConf,
     pub(crate) args: Vec<CommandArg>,
     pub(crate) parser: fn(&[&str], &[CommandArg]) -> Result<callables::PayloadData, CommandError>,
+}
+
+impl Command {
+    pub(crate) fn operation(&self) -> callables::Operation {
+        let spec = self.handler.inspect();
+        callables::Operation::from_specs(callables::OperationKind::Command, spec)
+            .with_conf(&self.options)
+    }
 }
 
 

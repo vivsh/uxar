@@ -126,6 +126,12 @@ impl<T: JsonSchema + Send + 'static> IntoArgPart for axum::extract::Query<T> {
     }
 }
 
+impl<T: JsonSchema + Send + 'static> IntoArgPart for axum_extra::extract::Query<T> {
+    fn into_arg_part() -> ArgPart {
+        ArgPart::Query(TypeSchema::wrap::<T>())
+    }
+}
+
 impl<T: JsonSchema + Send + 'static> IntoArgPart for axum::extract::Json<T> {
     fn into_arg_part() -> ArgPart {
         ArgPart::Body(TypeSchema::wrap::<T>(), Cow::Borrowed("application/json"))

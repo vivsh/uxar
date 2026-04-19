@@ -12,7 +12,7 @@ use openapiv3::{
 };
 
 use crate::{
-    schemables::schema::{ComponentRegistry, SchemaConversionError},
+    apidocs::schema::{ComponentRegistry, SchemaConversionError},
     callables::{ArgPart, ReturnPart, ReturnSpec, ArgSpec, TypeSchema},
 };
 

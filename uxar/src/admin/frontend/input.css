@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@source "../assets/templates/**/*.html";
+@plugin "daisyui";
+
+/* HTMX transition hooks */
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+.htmx-request .htmx-indicator {
+  opacity: 1;
+}
+.htmx-request.htmx-indicator {
+  opacity: 1;
+}
+.htmx-swapping {
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+.htmx-settling {
+  transition: opacity 200ms ease-in;
+}

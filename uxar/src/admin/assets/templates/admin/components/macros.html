@@ -1,277 +1,313 @@
-{# ============================================ UXAR Admin Component Macros
-Single source of truth for all reusable components
-============================================ #} {# Alert/Flash Message Component
-@param type: success|error|warning|info @param message: Text content @param
-dismissible: Show close button (default: true) #} {% macro alert(type="info",
-message="", dismissible=true) %}
-<div class="alert alert-{{ type }}" role="alert">
-    <div class="alert-content">
-        {% if type == "success" %}✓{% elif type == "error" %}✗{% elif type ==
-        "warning" %}⚠{% else %}ℹ{% endif %}
-        <span>{{ message }}</span>
-    </div>
-    {% if dismissible %}
-    <button class="alert-close" aria-label="Close" onclick="this.parentElement.remove()">
-        ×
-    </button>
-    {% endif %}
+{#
+  UXAR Admin Component Macros
+  Single source of truth for all reusable UI components.
+  All macros use daisyUI v5 component classes.
+#}
+
+{# Alert / Flash Message
+   @param type: success|error|warning|info
+   @param message: Text content
+   @param dismissible: Show close button (default: true)
+#}
+{% macro alert(type="info", message="", dismissible=true) %}
+<div role="alert" class="alert {% if type == 'success' %}alert-success{% elif type == 'error' %}alert-error{% elif type == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-sm mb-3">
+  <span>
+    {% if type == "success" %}✓{% elif type == "error" %}✗{% elif type == "warning" %}⚠{% else %}ℹ{% endif %}
+    {{ message }}
+  </span>
+  {% if dismissible %}
+  <button class="btn btn-ghost btn-xs" onclick="this.closest('[role=alert]').remove()" aria-label="Close">✕</button>
+  {% endif %}
 </div>
-{% endmacro %} {# Card Component @param title: Card header title @param variant:
-default|primary|secondary @param footer: Optional footer content #} {% macro
-card(title="", variant="default", footer="") %}
-<article class="card card-{{ variant }}">
-    {% if title %}
-    <header class="card-header">{{ title }}</header>
-    {% endif %}
-    <div class="card-body">{{ caller() }}</div>
-    {% if footer %}
-    <footer class="card-footer">{{ footer }}</footer>
-    {% endif %}
-</article>
-{% endmacro %} {# Stats Card Component @param label: Stat label @param value:
-Stat value @param change: Optional change indicator (+5%, -2%) @param trend:
-up|down|neutral #} {% macro stats_card(label, value, change="", trend="neutral")
-%}
-<div class="stats-card">
-    <div class="stats-label">{{ label }}</div>
-    <div class="stats-value">{{ value }}</div>
+{% endmacro %}
+
+{# Card
+   @param title: Optional card title
+   @param variant: default|primary|secondary
+   @param footer: Optional footer text
+#}
+{% macro card(title="", variant="default", footer="") %}
+<div class="card bg-base-100 border border-base-300 shadow-sm mb-6">
+  {% if title %}
+  <div class="card-body pb-2">
+    <h2 class="card-title {% if variant == 'primary' %}text-primary{% elif variant == 'secondary' %}text-secondary{% endif %}">{{ title }}</h2>
+  {% else %}
+  <div class="card-body">
+  {% endif %}
+    {{ caller() }}
+  </div>
+  {% if footer %}
+  <div class="border-t border-base-300 px-6 py-3 text-sm text-base-content/60">{{ footer }}</div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# Stats Card
+   @param label: Stat label
+   @param value: Stat value
+   @param change: Optional change indicator (e.g. "+5%")
+   @param trend: up|down|neutral
+#}
+{% macro stats_card(label, value, change="", trend="neutral") %}
+<div class="stats shadow border border-base-300">
+  <div class="stat">
+    <div class="stat-title">{{ label }}</div>
+    <div class="stat-value">{{ value }}</div>
     {% if change %}
-    <div class="stats-change stats-trend-{{ trend }}">
-        {% if trend == "up" %}↑{% elif trend == "down" %}↓{% else %}→{% endif %} {{
-        change }}
+    <div class="stat-desc {% if trend == 'up' %}text-success{% elif trend == 'down' %}text-error{% endif %}">
+      {% if trend == "up" %}↑{% elif trend == "down" %}↓{% else %}→{% endif %} {{ change }}
     </div>
     {% endif %}
+  </div>
 </div>
-{% endmacro %} {# Data Table Component @param headers: List of header labels
-@param rows: List of row data @param striped: Enable striped rows @param
-hoverable: Enable hover effect #} {% macro table(headers=[], striped=true,
-hoverable=true) %}
-<div class="table-wrapper">
-    <table class="{% if striped %}table-striped{% endif %} {% if hoverable %}table-hover{% endif %}">
-        <thead>
-            <tr>
-                {% for header in headers %}
-                <th>{{ header }}</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {{ caller() }}
-        </tbody>
-    </table>
+{% endmacro %}
+
+{# Data Table
+   @param headers: List of header labels
+   @param striped: Enable zebra striping (default: true)
+   @param hoverable: Enable hover highlight (default: true)
+#}
+{% macro table(headers=[], striped=true, hoverable=true) %}
+<div class="overflow-x-auto">
+  <table class="table {% if striped %}table-zebra{% endif %} w-full">
+    <thead>
+      <tr>
+        {% for header in headers %}
+        <th>{{ header }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {{ caller() }}
+    </tbody>
+  </table>
 </div>
-{% endmacro %} {# Badge Component @param text: Badge text @param variant:
-default|primary|success|warning|danger|info #} {% macro badge(text,
-variant="default") %}
-<span class="badge badge-{{ variant }}">{{ text }}</span>
-{% endmacro %} {# Button Component @param text: Button text @param variant:
-primary|secondary|success|danger|outline @param size: sm|md|lg @param href:
-Optional link URL (renders
-<a>
-    instead of
-    <button>
-        ) @param attrs: Additional HTML attributes #} {% macro button(text,
-        variant="primary", size="md", href="", attrs="") %} {% if href %}
-        <a href="{{ href }}" role="button" class="btn btn-{{ variant }} btn-{{ size }}" {{ attrs }}>{{ text }}</a>
-        {% else %}
-        <button class="btn btn-{{ variant }} btn-{{ size }}" {{ attrs }}>
-            {{ text }}
-        </button>
-        {% endif %} {% endmacro %} {# Breadcrumb Component @param items: List of
-        {label, url} dicts #} {% macro breadcrumb(items=[]) %}
-        <nav aria-label="Breadcrumb" class="breadcrumb">
-            <ol>
-                {% for item in items %}
-                <li {% if loop.last %}aria-current="page" {% endif %}>
-                    {% if item.url and not loop.last %}
-                    <a href="{{ item.url }}">{{ item.label }}</a>
-                    {% else %} {{ item.label }} {% endif %}
-                </li>
-                {% endfor %}
-            </ol>
-        </nav>
-        {% endmacro %} {# Form Field Component @param name: Input name @param label:
-        Field label @param type: text|email|password|textarea|select|checkbox @param
-        placeholder: Placeholder text @param required: Required field @param help:
-        Help text below field @param options: For select type, list of options #} {%
-        macro form_field(name, label="", type="text", placeholder="",
-        required=false, help="", options=[]) %}
-        <div class="form-field">
-            {% if label %}
-            <label for="{{ name }}">
-                {{ label }} {% if required %}<span class="required">*</span>{% endif %}
-            </label>
-            {% endif %} {% if type == "textarea" %}
-            <textarea id="{{ name }}" name="{{ name }}" placeholder="{{ placeholder }}" {% if required %}required{%
-                endif %}></textarea>
-            {% elif type == "select" %}
-            <select id="{{ name }}" name="{{ name }}" {% if required %}required{% endif %}>
-                {% for option in options %}
-                <option value="{{ option.value }}">{{ option.label }}</option>
-                {% endfor %}
-            </select>
-            {% elif type == "checkbox" %}
-            <input type="checkbox" id="{{ name }}" name="{{ name }}" {% if required %}required{% endif %} />
-            {% else %}
-            <input type="{{ type }}" id="{{ name }}" name="{{ name }}" placeholder="{{ placeholder }}" {% if required
-                %}required{% endif %} />
-            {% endif %} {% if help %}
-            <small class="form-help">{{ help }}</small>
-            {% endif %}
-        </div>
-        {% endmacro %} {# Pagination Component @param current_page: Current page
-        number @param total_pages: Total number of pages @param base_url: Base URL
-        for pagination links #} {% macro pagination(current_page=1, total_pages=1,
-        base_url="") %}
-        <nav class="pagination" role="navigation" aria-label="Pagination">
-            <ul>
-                {% if current_page > 1 %}
-                <li>
-                    <a href="{{ base_url }}?page={{ current_page - 1 }}" rel="prev">← Previous</a>
-                </li>
-                {% else %}
-                <li><span class="disabled">← Previous</span></li>
-                {% endif %} {% for page in range(1, total_pages + 1) %} {% if page ==
-                current_page %}
-                <li><span class="current" aria-current="page">{{ page }}</span></li>
-                {% else %}
-                <li><a href="{{ base_url }}?page={{ page }}">{{ page }}</a></li>
-                {% endif %} {% endfor %} {% if current_page < total_pages %} <li>
-                    <a href="{{ base_url }}?page={{ current_page + 1 }}" rel="next">Next →</a>
-                    </li>
-                    {% else %}
-                    <li><span class="disabled">Next →</span></li>
-                    {% endif %}
-            </ul>
-        </nav>
-        {% endmacro %} {# Modal Component @param id: Modal ID for targeting @param
-        title: Modal title @param size: sm|md|lg #} {% macro modal(id, title="",
-        size="md") %}
-        <dialog id="{{ id }}" class="modal modal-{{ size }}">
-            <article>
-                {% if title %}
-                <header>
-                    <h3>{{ title }}</h3>
-                    <button class="modal-close" aria-label="Close"
-                        onclick="document.getElementById('{{ id }}').close()">
-                        ×
-                    </button>
-                </header>
-                {% endif %}
-                <div class="modal-body">{{ caller() }}</div>
-            </article>
-        </dialog>
-        {% endmacro %} {# Empty State Component @param title: Empty state title
-        @param message: Empty state message @param action_text: Optional CTA button
-        text @param action_url: Optional CTA button URL #} {% macro
-        empty_state(title="No data", message="", action_text="", action_url="") %}
-        <div class="empty-state">
-            <div class="empty-icon">📭</div>
-            <h3>{{ title }}</h3>
-            {% if message %}
-            <p>{{ message }}</p>
-            {% endif %} {% if action_text and action_url %}
-            <a href="{{ action_url }}" role="button">{{ action_text }}</a>
-            {% endif %}
-        </div>
-        {% endmacro %} {# Loading Spinner Component @param size: sm|md|lg #} {%
-        macro spinner(size="md") %}
-        <div class="spinner spinner-{{ size }}" role="status" aria-label="Loading">
-            <div class="spinner-ring"></div>
-        </div>
-        {% endmacro %} {# Code Block Component @param language: Language for syntax
-        highlighting hint #} {% macro code_block(language="") %}
-        <pre><code class="language-{{ language }}">{{ caller() }}</code></pre>
-        {% endmacro %}
+{% endmacro %}
 
+{# Badge
+   @param text: Badge text
+   @param variant: primary|secondary|success|warning|danger|info|ghost
+#}
+{% macro badge(text, variant="ghost") %}
+<span class="badge {% if variant == 'primary' %}badge-primary{% elif variant == 'secondary' %}badge-secondary{% elif variant == 'success' %}badge-success{% elif variant == 'warning' %}badge-warning{% elif variant == 'danger' %}badge-error{% elif variant == 'info' %}badge-info{% else %}badge-ghost{% endif %}">{{ text }}</span>
+{% endmacro %}
 
-        {# Multi-Select Component
-        @param name: Input name
-        @param label: Field label
-        @param options: List of {value, label} dicts
-        @param selected: List of selected values
-        @param size: Number of visible options
-        #}
-        {% macro multi_select(name, label="", options=[], selected=[], size=5) %}
-        <div class="form-field">
-            {% if label %}
-            <label for="{{ name }}">{{ label }}</label>
-            {% endif %}
-            <select id="{{ name }}" name="{{ name }}[]" multiple size="{{ size }}">
-                {% for option in options %}
-                <option value="{{ option.value }}" {% if option.value in selected %}selected{% endif %}>{{ option.label
-                    }}</option>
-                {% endfor %}
-            </select>
-            <small class="form-help">Hold Ctrl/Cmd to select multiple</small>
-        </div>
-        {% endmacro %}
+{# Button
+   @param text: Button label
+   @param variant: primary|secondary|success|danger|outline|ghost
+   @param size: sm|md|lg
+   @param href: Optional URL (renders <a> instead of <button>)
+   @param attrs: Additional HTML attributes string
+#}
+{% macro button(text, variant="primary", size="md", href="", attrs="") %}
+{% set cls = "btn " ~ ("btn-primary" if variant == "primary" else "btn-secondary" if variant == "secondary" else "btn-success" if variant == "success" else "btn-error" if variant == "danger" else "btn-outline" if variant == "outline" else "btn-ghost") ~ (" btn-sm" if size == "sm" else " btn-lg" if size == "lg" else "") %}
+{% if href %}
+<a href="{{ href }}" class="{{ cls }}" {{ attrs }}>{{ text }}</a>
+{% else %}
+<button class="{{ cls }}" {{ attrs }}>{{ text }}</button>
+{% endif %}
+{% endmacro %}
 
+{# Breadcrumb
+   @param items: List of {label, url} dicts; last item rendered as current page
+#}
+{% macro breadcrumb(items=[]) %}
+<div class="breadcrumbs text-sm mb-4">
+  <ul>
+    {% for item in items %}
+    <li {% if loop.last %}aria-current="page"{% endif %}>
+      {% if item.url and not loop.last %}<a href="{{ item.url }}">{{ item.label }}</a>{% else %}{{ item.label }}{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endmacro %}
 
-        {# Checkbox Group Component
-        @param name: Input name (will be name[])
-        @param label: Group label
-        @param options: List of {value, label} dicts
-        @param checked: List of checked values
-        #}
-        {% macro checkbox_group(name, label="", options=[], checked=[]) %}
-        <div class="form-field">
-            {% if label %}
-            <fieldset>
-                <legend>{{ label }}</legend>
-                {% endif %}
-                {% for option in options %}
-                <label class="checkbox-item">
-                    <input type="checkbox" name="{{ name }}[]" value="{{ option.value }}" {% if option.value in checked
-                        %}checked{% endif %}>
-                    {{ option.label }}
-                </label>
-                {% endfor %}
-                {% if label %}
-            </fieldset>
-            {% endif %}
-        </div>
-        {% endmacro %}
+{# Form Field
+   @param name: Input name/id
+   @param label: Field label
+   @param type: text|email|password|textarea|select|checkbox
+   @param placeholder: Placeholder text
+   @param required: Mark as required
+   @param help: Help text below field
+   @param options: For select, list of {value, label} dicts
+#}
+{% macro form_field(name, label="", type="text", placeholder="", required=false, help="", options=[]) %}
+<div class="mb-4">
+  {% if label %}
+  <label class="label" for="{{ name }}">
+    <span class="label-text font-medium">{{ label }}{% if required %} <span class="text-error">*</span>{% endif %}</span>
+  </label>
+  {% endif %}
+  {% if type == "textarea" %}
+  <textarea class="textarea textarea-bordered w-full" id="{{ name }}" name="{{ name }}" placeholder="{{ placeholder }}"{% if required %} required{% endif %}></textarea>
+  {% elif type == "select" %}
+  <select class="select select-bordered w-full" id="{{ name }}" name="{{ name }}"{% if required %} required{% endif %}>
+    {% for option in options %}
+    <option value="{{ option.value }}">{{ option.label }}</option>
+    {% endfor %}
+  </select>
+  {% elif type == "checkbox" %}
+  <input type="checkbox" class="checkbox" id="{{ name }}" name="{{ name }}"{% if required %} required{% endif %} />
+  {% else %}
+  <input type="{{ type }}" class="input input-bordered w-full" id="{{ name }}" name="{{ name }}" placeholder="{{ placeholder }}"{% if required %} required{% endif %} />
+  {% endif %}
+  {% if help %}
+  <label class="label"><span class="label-text-alt text-base-content/60">{{ help }}</span></label>
+  {% endif %}
+</div>
+{% endmacro %}
 
+{# Pagination
+   @param current_page: Current page number (1-based)
+   @param total_pages: Total page count
+   @param base_url: Base URL (page appended as ?page=N)
+#}
+{% macro pagination(current_page=1, total_pages=1, base_url="") %}
+<div class="flex justify-center my-4">
+  <div class="join">
+    {% if current_page > 1 %}
+    <a href="{{ base_url }}?page={{ current_page - 1 }}" class="join-item btn btn-sm">«</a>
+    {% else %}
+    <button class="join-item btn btn-sm btn-disabled" disabled>«</button>
+    {% endif %}
+    {% for page in range(1, total_pages + 1) %}
+    <a href="{{ base_url }}?page={{ page }}" class="join-item btn btn-sm {% if page == current_page %}btn-active{% endif %}">{{ page }}</a>
+    {% endfor %}
+    {% if current_page < total_pages %}
+    <a href="{{ base_url }}?page={{ current_page + 1 }}" class="join-item btn btn-sm">»</a>
+    {% else %}
+    <button class="join-item btn btn-sm btn-disabled" disabled>»</button>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
 
-        {# Range Slider Component
-        @param name: Input name
-        @param label: Field label
-        @param min: Minimum value
-        @param max: Maximum value
-        @param value: Current value
-        @param step: Step increment
-        @param show_value: Display current value
-        #}
-        {% macro range_slider(name, label="", min=0, max=100, value=50, step=1, show_value=true) %}
-        <div class="form-field">
-            {% if label %}
-            <label for="{{ name }}">{{ label }} {% if show_value %}<span id="{{ name }}-value" class="slider-value">{{
-                    value }}</span>{% endif %}</label>
-            {% endif %}
-            <input type="range" id="{{ name }}" name="{{ name }}" min="{{ min }}" max="{{ max }}" value="{{ value }}"
-                step="{{ step }}" {% if show_value
-                %}oninput="document.getElementById('{{ name }}-value').textContent = this.value" {% endif %}>
-            <div class="slider-labels">
-                <small>{{ min }}</small>
-                <small>{{ max }}</small>
-            </div>
-        </div>
-        {% endmacro %}
+{# Modal
+   @param id: Dialog element ID
+   @param title: Optional modal title
+   @param size: sm|md|lg
+#}
+{% macro modal(id, title="", size="md") %}
+<dialog id="{{ id }}" class="modal">
+  <div class="modal-box {% if size == 'sm' %}max-w-sm{% elif size == 'lg' %}max-w-3xl{% endif %}">
+    {% if title %}
+    <h3 class="font-bold text-lg mb-4">{{ title }}</h3>
+    {% endif %}
+    {{ caller() }}
+    <div class="modal-action">
+      <form method="dialog"><button class="btn btn-ghost btn-sm">Close</button></form>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% endmacro %}
 
+{# Empty State
+   @param title: Heading text
+   @param message: Supporting message
+   @param action_text: Optional CTA label
+   @param action_url: Optional CTA URL
+#}
+{% macro empty_state(title="No data", message="", action_text="", action_url="") %}
+<div class="flex flex-col items-center justify-center py-16 text-base-content/50">
+  <div class="text-6xl mb-4">📭</div>
+  <h3 class="text-lg font-semibold mb-2 text-base-content/70">{{ title }}</h3>
+  {% if message %}<p class="text-sm mb-4">{{ message }}</p>{% endif %}
+  {% if action_text and action_url %}
+  <a href="{{ action_url }}" class="btn btn-primary btn-sm">{{ action_text }}</a>
+  {% endif %}
+</div>
+{% endmacro %}
 
-        {# Sidebar Navigation Component
-        @param items: List of {label, url, active, icon, badge} dicts
-        #}
-        {% macro sidebar_nav(items=[]) %}
-        <nav class="sidebar-nav">
-            {% for item in items %}
-            <a href="{{ item.url }}" class="sidebar-nav-item {% if item.active %}active{% endif %}">
-                {% if item.icon %}<span class="sidebar-icon">{{ item.icon }}</span>{% endif %}
-                <span class="sidebar-label">{{ item.label }}</span>
-                {% if item.badge %}<span class="sidebar-badge">{{ item.badge }}</span>{% endif %}
-            </a>
-            {% endfor %}
-        </nav>
-        {% endmacro %}
-    </button></a>
+{# Loading Spinner
+   @param size: sm|md|lg
+#}
+{% macro spinner(size="md") %}
+<span class="loading loading-spinner {% if size == 'sm' %}loading-sm{% elif size == 'lg' %}loading-lg{% else %}loading-md{% endif %}" role="status" aria-label="Loading"></span>
+{% endmacro %}
+
+{# Code Block
+   @param language: Language hint for syntax highlighting
+#}
+{% macro code_block(language="") %}
+<pre class="bg-base-300 rounded-lg p-4 overflow-x-auto text-sm"><code class="language-{{ language }}">{{ caller() }}</code></pre>
+{% endmacro %}
+
+{# Multi-Select
+   @param name: Input name
+   @param label: Field label
+   @param options: List of {value, label} dicts
+   @param selected: List of selected values
+   @param size: Number of visible rows
+#}
+{% macro multi_select(name, label="", options=[], selected=[], size=5) %}
+<div class="mb-4">
+  {% if label %}
+  <label class="label" for="{{ name }}"><span class="label-text font-medium">{{ label }}</span></label>
+  {% endif %}
+  <select id="{{ name }}" name="{{ name }}[]" multiple size="{{ size }}" class="select select-bordered w-full h-auto">
+    {% for option in options %}
+    <option value="{{ option.value }}"{% if option.value in selected %} selected{% endif %}>{{ option.label }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endmacro %}
+
+{# Checkbox Group
+   @param name: Input name (individual checkboxes use name[])
+   @param label: Group label
+   @param options: List of {value, label} dicts
+   @param checked: List of checked values
+#}
+{% macro checkbox_group(name, label="", options=[], checked=[]) %}
+<fieldset class="mb-4">
+  {% if label %}<legend class="font-medium mb-2">{{ label }}</legend>{% endif %}
+  {% for option in options %}
+  <label class="flex items-center gap-2 cursor-pointer mb-2">
+    <input type="checkbox" name="{{ name }}[]" value="{{ option.value }}" class="checkbox checkbox-sm"{% if option.value in checked %} checked{% endif %} />
+    <span>{{ option.label }}</span>
+  </label>
+  {% endfor %}
+</fieldset>
+{% endmacro %}
+
+{# Range Slider
+   @param name: Input name/id
+   @param label: Field label
+   @param min: Minimum value
+   @param max: Maximum value
+   @param value: Default value
+   @param step: Step increment
+   @param show_value: Show live value display
+#}
+{% macro range_slider(name, label="", min=0, max=100, value=50, step=1, show_value=true) %}
+<div class="mb-4">
+  <label class="label" for="{{ name }}">
+    <span class="label-text font-medium">{{ label }}</span>
+    {% if show_value %}<span class="label-text-alt font-semibold text-primary" id="{{ name }}-value">{{ value }}</span>{% endif %}
+  </label>
+  <input type="range" id="{{ name }}" name="{{ name }}" min="{{ min }}" max="{{ max }}" value="{{ value }}" step="{{ step }}" class="range range-primary w-full"
+    {% if show_value %}oninput="document.getElementById('{{ name }}-value').textContent = this.value"{% endif %} />
+  <div class="flex justify-between text-xs text-base-content/50 mt-1">
+    <span>{{ min }}</span><span>{{ max }}</span>
+  </div>
+</div>
+{% endmacro %}
+
+{# Sidebar Navigation
+   @param items: List of {label, url, active, icon, badge} dicts
+#}
+{% macro sidebar_nav(items=[]) %}
+<ul class="menu w-full">
+  {% for item in items %}
+  <li>
+    <a href="{{ item.url }}" class="{% if item.active %}active{% endif %}">
+      {% if item.icon %}<span>{{ item.icon }}</span>{% endif %}
+      <span>{{ item.label }}</span>
+      {% if item.badge %}<span class="badge badge-sm badge-error ml-auto">{{ item.badge }}</span>{% endif %}
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endmacro %}

@@ -1,8 +1,9 @@
 [package]
 name = "uxar"
-version = "0.1.4"
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
+description = "Opinionated Rust web framework built on Axum for Postgres-backed JSON APIs"
 
 [features]
 default = ["postgres"]
@@ -48,7 +49,7 @@ http-serde = "2.1.1"
 serde_urlencoded = "0.7"
 rust-silos = {version="^0.3"}
 
-uxar-macros = { path = "../uxar-macros" }
+uxar-macros = { path = "../uxar-macros", version = "0.1.1" }
 once_cell = { version = "1.21.3", features = ["parking_lot"] }
 axum-test = "17.3.0"
 notify = "^8.1"

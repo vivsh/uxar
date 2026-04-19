@@ -7,6 +7,7 @@ use crate::emitters::EmitTarget;
 use crate::logging::{self, LoggingGuard};
 use crate::notifiers::CancellationNotifier;
 use crate::tasks::{TaskDispatcher, TaskError, TaskRunner, TaskStore};
+use crate::tasks::store::AbstractTaskStore as _;
 use crate::templates::{TemplateEngine, TemplateError};
 use crate::{beacon, embed, services, watch};
 use axum::ServiceExt;
@@ -79,6 +80,9 @@ pub enum SiteError {
 
     #[error(transparent)]
     ServiceError(#[from] services::ServiceError),
+
+    #[error("Task migration error: {0}")]
+    TaskMigrationError(#[from] TaskError),
 }
 
 struct SiteBuilder {
@@ -91,11 +95,6 @@ impl SiteBuilder {
     }
 
     async fn start_engines(site: &Site) -> Result<(), SiteError> {
-        // let task_store = site.inner.task_engine.store();
-        // task_store.run_migrations().await.map_err(|e| {
-        //     return SiteError::ConfigError(format!("Failed to run task store migrations: {}", e));
-        // })?;
-
         let task_runner = TaskRunner::new(site.inner.task_engine.clone());
 
         let signal_site = site.clone();
@@ -199,6 +198,8 @@ impl SiteBuilder {
         )?;
 
         let authenticator = Authenticator::new(&self.conf.auth, &self.conf.secret_key);
+
+        bundle.doc_engine.setup(&mut router, &bundle.ops)?;
 
         let bundle = bundle.with_router_unchecked(router);
 
@@ -348,6 +349,10 @@ impl Site {
         self.inner.project_dir.as_path()
     }
 
+    pub fn conf(&self) -> &SiteConf {
+        &self.inner.conf
+    }
+
     pub fn reverse(&self, name: &str, args: &[(&str, &str)]) -> Option<String> {
         self.inner.bundle.reverse(name, args)
     }
@@ -431,6 +436,7 @@ pub async fn build_site(conf: SiteConf, bundle: impl IntoBundle) -> Result<Site,
     let site = Site {
         inner: Arc::new(site),
     };
+    site.inner.task_engine.store().run_migrations().await?;
     SiteBuilder::start_engines(&site).await?;
     Ok(site)
 }

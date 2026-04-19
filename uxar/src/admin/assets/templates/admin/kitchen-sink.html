@@ -1,383 +1,203 @@
-{% extends "admin/layouts/base.html" %}
+{% extends "admin/layouts/full.html" %}
 {% from "admin/components/macros.html" import alert, card, stats_card, table, badge, button, breadcrumb, form_field, pagination, modal, empty_state, spinner, code_block, multi_select, checkbox_group, range_slider, sidebar_nav %}
 
-{% block title %}Kitchen Sink - Component Library{% endblock %}
+{% block title %}Kitchen Sink — UXAR Admin{% endblock %}
 
-{% block extra_styles %}
-/* Kitchen Sink specific styles */
-.kitchen-sink-section {
-  margin-bottom: 4rem;
-}
+{% block main_content %}
+<div class="mb-8 text-center">
+  <h1 class="text-3xl font-bold">🎨 Kitchen Sink</h1>
+  <p class="text-base-content/60 mt-2">Component library and style guide for UXAR Admin (daisyUI v5)</p>
+</div>
 
-.kitchen-sink-section h2 {
-  border-bottom: 2px solid var(--admin-border);
-  padding-bottom: 0.5rem;
-  margin-bottom: 2rem;
-}
+<!-- Alerts -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Alerts</h2>
+  {{ alert(type="success", message="Successfully saved the configuration!") }}
+  {{ alert(type="error", message="Failed to connect to the database.") }}
+  {{ alert(type="warning", message="This action cannot be undone.") }}
+  {{ alert(type="info", message="New updates are available.") }}
+  {{ alert(type="info", message="Non-dismissible alert", dismissible=false) }}
+</section>
 
-.component-demo {
-  background: var(--admin-bg-surface);
-  padding: 2rem;
-  border-radius: var(--pico-border-radius);
-  margin-bottom: 1.5rem;
-}
+<!-- Badges -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Badges</h2>
+  <div class="flex flex-wrap gap-2">
+    {{ badge("Ghost (default)") }}
+    {{ badge("Primary", "primary") }}
+    {{ badge("Success", "success") }}
+    {{ badge("Warning", "warning") }}
+    {{ badge("Danger", "danger") }}
+    {{ badge("Info", "info") }}
+    <span class="badge badge-outline">Outline</span>
+    <span class="badge badge-sm">Small</span>
+    <span class="badge badge-lg">Large</span>
+  </div>
+</section>
 
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.color-swatch {
-  text-align: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--pico-border-radius);
-  overflow: hidden;
-}
-
-.color-preview {
-  height: 100px;
-}
-
-.color-info {
-  padding: 1rem;
-  background: white;
-}
-
-.color-name {
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.color-value {
-  font-family: monospace;
-  font-size: 0.875rem;
-  color: var(--admin-text-muted);
-}
-
-.typography-scale > * {
-  margin: 1rem 0;
-}
-{% endblock %}
-
-{% block content %}
-<div class="container">
-  <header style="text-align: center; margin-bottom: 3rem;">
-    <h1>🎨 Kitchen Sink</h1>
-    <p>Complete component library and style guide for UXAR Admin</p>
-  </header>
-
-  <!-- Color Palette Section -->
-  <section class="kitchen-sink-section">
-    <h2>Color Palette</h2>
-    <div class="color-grid">
-      <div class="color-swatch">
-        <div class="color-preview" style="background: var(--admin-primary);"></div>
-        <div class="color-info">
-          <div class="color-name">Primary · Cyan</div>
-          <div class="color-value">#0891b2</div>
-        </div>
-      </div>
-      <div class="color-swatch">
-        <div class="color-preview" style="background: var(--admin-success);"></div>
-        <div class="color-info">
-          <div class="color-name">Success · Emerald</div>
-          <div class="color-value">#059669</div>
-        </div>
-      </div>
-      <div class="color-swatch">
-        <div class="color-preview" style="background: var(--admin-warning);"></div>
-        <div class="color-info">
-          <div class="color-name">Warning · Amber</div>
-          <div class="color-value">#d97706</div>
-        </div>
-      </div>
-      <div class="color-swatch">
-        <div class="color-preview" style="background: var(--admin-danger);"></div>
-        <div class="color-info">
-          <div class="color-name">Danger · Red</div>
-          <div class="color-value">#dc2626</div>
-        </div>
-      </div>
-      <div class="color-swatch">
-        <div class="color-preview" style="background: var(--admin-info);"></div>
-        <div class="color-info">
-          <div class="color-name">Info · Sky Blue</div>
-          <div class="color-value">#0284c7</div>
-        </div>
-      </div>
-      <div class="color-swatch">
-        <div class="color-preview" style="background: var(--admin-neutral);"></div>
-        <div class="color-info">
-          <div class="color-name">Neutral · Slate</div>
-          <div class="color-value">#64748b</div>
-        </div>
-      </div>
+<!-- Buttons -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Buttons</h2>
+  <div class="mb-4">
+    <h3 class="font-semibold text-sm text-base-content/60 uppercase mb-3">Variants</h3>
+    <div class="flex flex-wrap gap-2">
+      {{ button("Primary", "primary") }}
+      {{ button("Secondary", "secondary") }}
+      {{ button("Success", "success") }}
+      {{ button("Danger", "danger") }}
+      {{ button("Outline", "outline") }}
+      {{ button("Ghost", "ghost") }}
     </div>
-  </section>
-
-  <!-- Typography Section -->
-  <section class="kitchen-sink-section">
-    <h2>Typography</h2>
-    <div class="component-demo">
-      <div class="typography-scale">
-        <h1>Heading 1 - Main Page Title</h1>
-        <h2>Heading 2 - Section Title</h2>
-        <h3>Heading 3 - Subsection Title</h3>
-        <h4>Heading 4 - Component Title</h4>
-        <h5>Heading 5 - Minor Heading</h5>
-        <h6>Heading 6 - Smallest Heading</h6>
-        <p>Paragraph text - This is the default body text used throughout the admin interface. It should be readable and comfortable at various screen sizes.</p>
-        <small>Small text - Used for captions, footnotes, and secondary information.</small>
-        <br><br>
-        <code>Code inline - Used for code snippets and technical values</code>
-        <br><br>
-        <strong>Bold text</strong> · <em>Italic text</em> · <mark>Highlighted text</mark> · <del>Deleted text</del>
-      </div>
-    </div>
-  </section>
-
-  <!-- Alerts Section -->
-  <section class="kitchen-sink-section">
-    <h2>Alerts</h2>
-    <div class="component-demo">
-      {{ alert(type="success", message="Successfully saved the configuration!") }}
-      {{ alert(type="error", message="Failed to connect to the database.") }}
-      {{ alert(type="warning", message="This action cannot be undone.") }}
-      {{ alert(type="info", message="New updates are available.") }}
-      {{ alert(type="info", message="Non-dismissible alert", dismissible=false) }}
-    </div>
-  </section>
-
-  <!-- Badges Section -->
-  <section class="kitchen-sink-section">
-    <h2>Badges</h2>
-    <div class="component-demo">
-      {{ badge("Default") }}
-      {{ badge("Primary", "primary") }}
-      {{ badge("Success", "success") }}
-      {{ badge("Warning", "warning") }}
-      {{ badge("Danger", "danger") }}
-      {{ badge("Info", "info") }}
-    </div>
-  </section>
-
-  <!-- Buttons Section -->
-  <section class="kitchen-sink-section">
-    <h2>Buttons</h2>
-    <div class="component-demo">
-      <h4>Variants</h4>
-      {{ button("Primary Button", "primary") }}
-      {{ button("Secondary Button", "secondary") }}
-      {{ button("Success Button", "success") }}
-      {{ button("Danger Button", "danger") }}
-      {{ button("Outline Button", "outline") }}
-      
-      <h4 style="margin-top: 2rem;">Sizes</h4>
+  </div>
+  <div class="mb-4">
+    <h3 class="font-semibold text-sm text-base-content/60 uppercase mb-3">Sizes</h3>
+    <div class="flex flex-wrap items-center gap-2">
       {{ button("Small", "primary", "sm") }}
       {{ button("Medium", "primary", "md") }}
       {{ button("Large", "primary", "lg") }}
-      
-      <h4 style="margin-top: 2rem;">As Links</h4>
-      {{ button("Link Button", "primary", "md", href="/admin/kitchen-sink") }}
     </div>
-  </section>
+  </div>
+  <div>
+    <h3 class="font-semibold text-sm text-base-content/60 uppercase mb-3">Link button</h3>
+    {{ button("Go to Kitchen Sink", "outline", "sm", href="/admin/kitchen-sink") }}
+  </div>
+</section>
 
-  <!-- Cards Section -->
-  <section class="kitchen-sink-section">
-    <h2>Cards</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
-      {% call card(title="Default Card") %}
-        <p>This is a default card with a title and content.</p>
-      {% endcall %}
-      
-      {% call card(title="Primary Card", variant="primary", footer="Card footer text") %}
-        <p>This is a primary variant card with header and footer.</p>
-      {% endcall %}
-      
-      {% call card(title="Secondary Card", variant="secondary") %}
-        <p>This is a secondary variant card.</p>
-      {% endcall %}
-    </div>
-  </section>
+<!-- Cards -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Cards</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% call card(title="Default Card") %}
+      <p>A default card with a title and content area.</p>
+    {% endcall %}
+    {% call card(title="Primary Card", variant="primary", footer="Card footer text") %}
+      <p>A primary variant card with a coloured title and footer.</p>
+    {% endcall %}
+    {% call card(title="Secondary Card", variant="secondary") %}
+      <p>A secondary variant card.</p>
+    {% endcall %}
+  </div>
+</section>
 
-  <!-- Stats Cards Section -->
-  <section class="kitchen-sink-section">
-    <h2>Stats Cards</h2>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
-      {{ stats_card("Total Users", "1,234") }}
-      {{ stats_card("Active Sessions", "567", change="+12%", trend="up") }}
-      {{ stats_card("Error Rate", "0.5%", change="-3%", trend="down") }}
-      {{ stats_card("Avg Response", "42ms", change="0%", trend="neutral") }}
-    </div>
-  </section>
+<!-- Stats -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Stats Cards</h2>
+  <div class="flex flex-wrap gap-4">
+    {{ stats_card("Total Requests", "1,234", "+12%", "up") }}
+    {{ stats_card("Error Rate", "0.4%", "-0.1%", "down") }}
+    {{ stats_card("Avg Latency", "42ms", "stable", "neutral") }}
+  </div>
+</section>
 
-  <!-- Breadcrumb Section -->
-  <section class="kitchen-sink-section">
-    <h2>Breadcrumb</h2>
-    <div class="component-demo">
-      {{ breadcrumb([
-        {"label": "Home", "url": "/admin"},
-        {"label": "Settings", "url": "/admin/settings"},
-        {"label": "General", "url": ""}
-      ]) }}
-    </div>
-  </section>
+<!-- Tables -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Tables</h2>
+  {% call table(headers=["Name", "Status", "Role", "Actions"]) %}
+  <tr>
+    <td>Alice</td>
+    <td><span class="badge badge-success badge-sm">Active</span></td>
+    <td>Admin</td>
+    <td><button class="btn btn-ghost btn-xs">Edit</button></td>
+  </tr>
+  <tr>
+    <td>Bob</td>
+    <td><span class="badge badge-warning badge-sm">Pending</span></td>
+    <td>Viewer</td>
+    <td><button class="btn btn-ghost btn-xs">Edit</button></td>
+  </tr>
+  <tr>
+    <td>Carol</td>
+    <td><span class="badge badge-error badge-sm">Inactive</span></td>
+    <td>Editor</td>
+    <td><button class="btn btn-ghost btn-xs">Edit</button></td>
+  </tr>
+  {% endcall %}
+</section>
 
-  <!-- Table Section -->
-  <section class="kitchen-sink-section">
-    <h2>Table</h2>
-    <div class="component-demo">
-      {% call table(headers=["Name", "Status", "Role", "Actions"]) %}
-        <tr>
-          <td>Alice Johnson</td>
-          <td>{{ badge("Active", "success") }}</td>
-          <td>Administrator</td>
-          <td><a href="#">Edit</a> · <a href="#">Delete</a></td>
-        </tr>
-        <tr>
-          <td>Bob Smith</td>
-          <td>{{ badge("Inactive", "danger") }}</td>
-          <td>Editor</td>
-          <td><a href="#">Edit</a> · <a href="#">Delete</a></td>
-        </tr>
-        <tr>
-          <td>Carol White</td>
-          <td>{{ badge("Active", "success") }}</td>
-          <td>Viewer</td>
-          <td><a href="#">Edit</a> · <a href="#">Delete</a></td>
-        </tr>
-      {% endcall %}
-    </div>
-  </section>
+<!-- Breadcrumb -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Breadcrumbs</h2>
+  {{ breadcrumb(items=[{"label": "Admin", "url": "/admin"}, {"label": "Settings", "url": "/admin/conf"}, {"label": "Kitchen Sink", "url": ""}]) }}
+</section>
 
-  <!-- Form Fields Section -->
-  <section class="kitchen-sink-section">
-    <h2>Form Fields</h2>
-    <div class="component-demo">
-      {{ form_field("email", label="Email Address", type="email", placeholder="user@example.com", required=true) }}
-      {{ form_field("password", label="Password", type="password", help="Must be at least 8 characters") }}
-      {{ form_field("bio", label="Biography", type="textarea", placeholder="Tell us about yourself...") }}
-      {{ form_field("role", label="Role", type="select", options=[
-        {"value": "admin", "label": "Administrator"},
-        {"value": "editor", "label": "Editor"},
-        {"value": "viewer", "label": "Viewer"}
-      ]) }}
-      {{ form_field("agree", label="I agree to the terms and conditions", type="checkbox") }}
-    </div>
-  </section>
+<!-- Forms -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Form Fields</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8">
+    {{ form_field("username", "Username", "text", "e.g. alice", required=true) }}
+    {{ form_field("email", "Email", "email", "alice@example.com") }}
+    {{ form_field("password", "Password", "password", "Min 8 characters", help="Must contain uppercase, number and symbol.") }}
+    {{ form_field("role", "Role", "select", options=[{"value": "admin", "label": "Admin"}, {"value": "viewer", "label": "Viewer"}]) }}
+    {{ form_field("notes", "Notes", "textarea", "Optional notes...") }}
+    {{ form_field("agree", "I accept the terms", "checkbox") }}
+  </div>
+</section>
 
-  <!-- Pagination Section -->
-  <section class="kitchen-sink-section">
-    <h2>Pagination</h2>
-    <div class="component-demo">
-      {{ pagination(current_page=3, total_pages=10, base_url="/admin/kitchen-sink") }}
-    </div>
-  </section>
+<!-- Multi-select & Checkbox group -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Advanced Form Inputs</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    {{ multi_select("tags", "Tags", options=[{"value": "rust", "label": "Rust"}, {"value": "web", "label": "Web"}, {"value": "api", "label": "API"}, {"value": "cli", "label": "CLI"}], selected=["rust"]) }}
+    {{ checkbox_group("features", "Features", options=[{"value": "auth", "label": "Authentication"}, {"value": "api", "label": "API"}, {"value": "admin", "label": "Admin UI"}], checked=["auth", "admin"]) }}
+    {{ range_slider("volume", "Volume", min=0, max=100, value=65) }}
+  </div>
+</section>
 
-  <!-- Empty State Section -->
-  <section class="kitchen-sink-section">
-    <h2>Empty State</h2>
-    <div class="component-demo">
-      {{ empty_state(
-        title="No items found",
-        message="Get started by creating your first item.",
-        action_text="Create Item",
-        action_url="/admin/items/new"
-      ) }}
-    </div>
-  </section>
+<!-- Pagination -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Pagination</h2>
+  {{ pagination(current_page=3, total_pages=7, base_url="/admin/kitchen-sink") }}
+</section>
 
-  <!-- Spinner Section -->
-  <section class="kitchen-sink-section">
-    <h2>Loading Spinner</h2>
-    <div class="component-demo" style="display: flex; gap: 2rem; align-items: center;">
-      {{ spinner("sm") }}
-      {{ spinner("md") }}
-      {{ spinner("lg") }}
-    </div>
-  </section>
+<!-- Spinners -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Spinners</h2>
+  <div class="flex items-center gap-6">
+    {{ spinner("sm") }}
+    {{ spinner("md") }}
+    {{ spinner("lg") }}
+    <span class="loading loading-dots loading-md"></span>
+    <span class="loading loading-ring loading-md"></span>
+    <span class="loading loading-bars loading-md"></span>
+  </div>
+</section>
 
-  <!-- Modal Section -->
-  <section class="kitchen-sink-section">
-    <h2>Modal</h2>
-    <div class="component-demo">
-      <button onclick="document.getElementById('demo-modal').showModal()">Open Modal</button>
-      
-      {% call modal(id="demo-modal", title="Example Modal", size="md") %}
-        <p>This is an example modal dialog. It can contain any content including forms, images, or text.</p>
-        <footer style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
-          <button class="secondary" onclick="document.getElementById('demo-modal').close()">Cancel</button>
-          <button onclick="document.getElementById('demo-modal').close()">Confirm</button>
-        </footer>
-      {% endcall %}
-    </div>
-  </section>
+<!-- Empty State -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Empty State</h2>
+  {{ empty_state("No results found", "Try adjusting your filters or search terms.", "Clear Filters", "#") }}
+</section>
 
-  <!-- Code Block Section -->
-  <section class="kitchen-sink-section">
-    <h2>Code Block</h2>
-    <div class="component-demo">
-      {% call code_block("rust") %}async fn example() -> Result<Html<String>, AdminError> {
-    let context = serde_json::json!({"key": "value"});
-    render(&site, "admin/pages/example.html", &context)
-}{% endcall %}
-    </div>
-  </section>
+<!-- Code Block -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Code Block</h2>
+  {% call code_block("rust") %}let bundle = bundles::bundle!(greeting, admin_assets_dir, operations);{% endcall %}
+</section>
 
-  <!-- Multi-Select Section -->
-  <section class="kitchen-sink-section">
-    <h2>Multi-Select</h2>
-    <div class="component-demo">
-      {{ multi_select("countries", label="Select Countries", options=[
-        {"value": "us", "label": "United States"},
-        {"value": "ca", "label": "Canada"},
-        {"value": "mx", "label": "Mexico"},
-        {"value": "uk", "label": "United Kingdom"},
-        {"value": "fr", "label": "France"},
-        {"value": "de", "label": "Germany"},
-        {"value": "jp", "label": "Japan"}
-      ], selected=["us", "ca"], size=6) }}
+<!-- Modal -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Modal</h2>
+  <button class="btn btn-primary" onclick="document.getElementById("demo-modal").showModal()">Open Modal</button>
+  {% call modal("demo-modal", title="Confirm Action") %}
+    <p>Are you sure you want to perform this action? This cannot be undone.</p>
+    <div class="flex gap-2 mt-4">
+      <button class="btn btn-error btn-sm">Confirm</button>
+      <form method="dialog"><button class="btn btn-ghost btn-sm">Cancel</button></form>
     </div>
-  </section>
+  {% endcall %}
+</section>
 
-  <!-- Checkbox Group Section -->
-  <section class="kitchen-sink-section">
-    <h2>Checkbox Group</h2>
-    <div class="component-demo">
-      {{ checkbox_group("features", label="Select Features", options=[
-        {"value": "auth", "label": "Authentication"},
-        {"value": "api", "label": "API Access"},
-        {"value": "admin", "label": "Admin Panel"},
-        {"value": "reports", "label": "Reporting"},
-        {"value": "export", "label": "Data Export"}
-      ], checked=["auth", "admin"]) }}
-    </div>
-  </section>
+<!-- Sidebar Nav macro -->
+<section class="mb-10">
+  <h2 class="text-xl font-bold mb-4 border-b border-base-300 pb-2">Sidebar Navigation</h2>
+  <div class="w-64 border border-base-300 rounded-lg p-2 bg-base-100">
+    {{ sidebar_nav(items=[
+      {"label": "Operations", "url": "/admin/operations", "active": true, "icon": "⚙️", "badge": ""},
+      {"label": "Stats", "url": "/admin/stats", "active": false, "icon": "📊", "badge": ""},
+      {"label": "Config", "url": "/admin/conf", "active": false, "icon": "🔧", "badge": ""},
+      {"label": "Alerts", "url": "#", "active": false, "icon": "🔔", "badge": "3"}
+    ]) }}
+  </div>
+</section>
 
-  <!-- Range Slider Section -->
-  <section class="kitchen-sink-section">
-    <h2>Range Slider</h2>
-    <div class="component-demo">
-      {{ range_slider("volume", label="Volume", min=0, max=100, value=75) }}
-      {{ range_slider("price", label="Price Range", min=0, max=1000, value=500, step=50) }}
-      {{ range_slider("opacity", label="Opacity", min=0, max=1, value=0.8, step=0.1) }}
-    </div>
-  </section>
-
-  <!-- Sidebar Navigation Section -->
-  <section class="kitchen-sink-section">
-    <h2>Sidebar Navigation</h2>
-    <div class="component-demo">
-      {{ sidebar_nav([
-        {"label": "Dashboard", "url": "/admin", "icon": "🏠", "active": true},
-        {"label": "Users", "url": "/admin/users", "icon": "👥", "badge": "23"},
-        {"label": "Settings", "url": "/admin/settings", "icon": "⚙️"},
-        {"label": "Reports", "url": "/admin/reports", "icon": "📊", "badge": "new"},
-        {"label": "Help", "url": "/admin/help", "icon": "❓"}
-      ]) }}
-    </div>
-  </section>
-</div>
 {% endblock %}

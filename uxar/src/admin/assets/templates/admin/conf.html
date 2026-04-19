@@ -1,0 +1,195 @@
+{% extends "admin/layouts/full.html" %}
+
+{% block title %}Configuration — UXAR Admin{% endblock %}
+
+{% block main_content %}
+<div class="mb-6 flex items-start justify-between">
+  <div>
+    <h1 class="text-2xl font-bold">Configuration</h1>
+    <p class="text-base-content/60 mt-1">Read-only view of active site configuration</p>
+  </div>
+  <div class="badge badge-outline badge-lg">read-only</div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+  <!-- Server -->
+  <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title text-base gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Server
+      </h2>
+      <dl class="divide-y divide-base-200 text-sm">
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Address</dt>
+          <dd class="font-mono font-medium">{{ server.host }}:{{ server.port }}</dd>
+        </div>
+        <div class="flex justify-between items-start py-2 gap-4">
+          <dt class="text-base-content/60 shrink-0">Project dir</dt>
+          <dd class="font-mono text-xs text-right break-all">{{ server.project_dir }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Timezone</dt>
+          <dd class="font-mono">{{ server.timezone }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Log init</dt>
+          <dd>{% if server.log_init %}<span class="badge badge-success badge-sm">enabled</span>{% else %}<span class="badge badge-ghost badge-sm">disabled</span>{% endif %}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Touch reload</dt>
+          <dd>{% if server.touch_reload %}<span class="font-mono text-xs">{{ server.touch_reload }}</span>{% else %}<span class="text-base-content/40">—</span>{% endif %}</dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Database -->
+  <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title text-base gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7c0-1.657 3.582-3 8-3s8 1.343 8 3v10c0 1.657-3.582 3-8 3s-8-1.343-8-3V7z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 12c0 1.657 3.582 3 8 3s8-1.343 8-3"/></svg>
+        Database
+      </h2>
+      <dl class="divide-y divide-base-200 text-sm">
+        <div class="py-2">
+          <dt class="text-base-content/60 mb-1">Connection URL</dt>
+          <dd class="font-mono text-xs bg-base-200 rounded px-3 py-2 break-all">{{ database.url }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Min connections</dt>
+          <dd class="font-mono font-medium">{{ database.min_connections }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Max connections</dt>
+          <dd class="font-mono font-medium">{{ database.max_connections }}</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Lazy connect</dt>
+          <dd>{% if database.lazy %}<span class="badge badge-info badge-sm">lazy</span>{% else %}<span class="badge badge-ghost badge-sm">eager</span>{% endif %}</dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+
+  <!-- Authentication -->
+  <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title text-base gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+        Authentication
+      </h2>
+      <dl class="divide-y divide-base-200 text-sm">
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Access token TTL</dt>
+          <dd class="font-mono">{{ auth.access_ttl }}s</dd>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <dt class="text-base-content/60">Refresh token TTL</dt>
+          <dd class="font-mono">{{ auth.refresh_ttl }}s</dd>
+        </div>
+        {% if auth.access_cookie %}
+        <div class="py-2">
+          <dt class="text-base-content/60 mb-1">Access cookie</dt>
+          <dd>
+            <span class="font-mono font-medium">{{ auth.access_cookie.name }}</span>
+            <span class="text-base-content/50 mx-1">·</span>
+            <span class="font-mono text-xs text-base-content/60">{{ auth.access_cookie.path }}</span>
+            <div class="flex flex-wrap gap-1 mt-1">
+              {% if auth.access_cookie.http_only %}<span class="badge badge-outline badge-xs">HttpOnly</span>{% endif %}
+              {% if auth.access_cookie.secure %}<span class="badge badge-outline badge-xs">Secure</span>{% endif %}
+              <span class="badge badge-ghost badge-xs">SameSite={{ auth.access_cookie.same_site }}</span>
+            </div>
+          </dd>
+        </div>
+        {% endif %}
+        {% if auth.refresh_cookie %}
+        <div class="py-2">
+          <dt class="text-base-content/60 mb-1">Refresh cookie</dt>
+          <dd>
+            <span class="font-mono font-medium">{{ auth.refresh_cookie.name }}</span>
+            <span class="text-base-content/50 mx-1">·</span>
+            <span class="font-mono text-xs text-base-content/60">{{ auth.refresh_cookie.path }}</span>
+            <div class="flex flex-wrap gap-1 mt-1">
+              {% if auth.refresh_cookie.http_only %}<span class="badge badge-outline badge-xs">HttpOnly</span>{% endif %}
+              {% if auth.refresh_cookie.secure %}<span class="badge badge-outline badge-xs">Secure</span>{% endif %}
+              <span class="badge badge-ghost badge-xs">SameSite={{ auth.refresh_cookie.same_site }}</span>
+            </div>
+          </dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <!-- Task Queue -->
+  <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title text-base gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+        Task Queue
+      </h2>
+      <div class="stats stats-vertical shadow-none border border-base-200 rounded-box mt-1">
+        <div class="stat py-3 px-4">
+          <div class="stat-title text-xs">Poll Interval</div>
+          <div class="stat-value text-lg">{{ tasks.poll_interval_ms }}<span class="text-sm font-normal text-base-content/50 ml-1">ms</span></div>
+        </div>
+        <div class="stat py-3 px-4">
+          <div class="stat-title text-xs">Concurrency</div>
+          <div class="stat-value text-lg">{{ tasks.concurrency }}</div>
+          <div class="stat-desc">capacity {{ tasks.capacity }}</div>
+        </div>
+        <div class="stat py-3 px-4">
+          <div class="stat-title text-xs">Batch Size</div>
+          <div class="stat-value text-lg">{{ tasks.batch_size }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Paths -->
+  <div class="card bg-base-100 border border-base-300 shadow-sm lg:col-span-2">
+    <div class="card-body">
+      <h2 class="card-title text-base gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+        File Paths
+      </h2>
+      <dl class="divide-y divide-base-200 text-sm mb-4">
+        <div class="flex justify-between items-start py-2 gap-4">
+          <dt class="text-base-content/60 shrink-0">Media dir</dt>
+          <dd>{% if media_dir %}<span class="font-mono text-xs">{{ media_dir }}</span>{% else %}<span class="text-base-content/40">—</span>{% endif %}</dd>
+        </div>
+        <div class="flex justify-between items-start py-2 gap-4">
+          <dt class="text-base-content/60 shrink-0">Templates dir</dt>
+          <dd>{% if templates_dir %}<span class="font-mono text-xs">{{ templates_dir }}</span>{% else %}<span class="text-base-content/40">—</span>{% endif %}</dd>
+        </div>
+      </dl>
+      {% if static_dirs %}
+      <h3 class="text-xs font-semibold text-base-content/60 uppercase tracking-wide mb-2">Static Directories</h3>
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>URL prefix</th>
+              <th>Filesystem path</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dir in static_dirs %}
+            <tr>
+              <td><span class="badge badge-ghost font-mono text-xs">{{ dir.url }}</span></td>
+              <td class="font-mono text-xs">{{ dir.path }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="text-sm text-base-content/40">No static directories configured.</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

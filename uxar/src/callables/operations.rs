@@ -16,10 +16,13 @@ pub enum OperationKind {
     Task,
     Command,
     Route,
+    ApiDoc,
+    Service,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Operation {
+    pub id: uuid::Uuid,
     pub name: String,
     pub description: Option<String>,
     pub summary: Option<String>,
@@ -32,13 +35,14 @@ pub struct Operation {
     pub tags: Vec<Cow<'static, str>>,
     pub conf: Option<serde_json::Value>,
     pub owner: Option<String>,
+    pub hidden: bool,
+    pub(crate) bundle_id: Option<uuid::Uuid>,
 }
 
 impl Operation {
 
-    pub(crate) fn nest(&mut self, path: &str, namespace: &str) {
+    pub(crate) fn nest(&mut self, path: &str) {
         self.path = format!("{}{}", path.trim_end_matches('/'), self.path);
-        self.name = format!("{}:{}", namespace, self.name);
     }
 
     pub fn with_owner<T: Into<String>>(mut self, owner: T) -> Self {
@@ -58,10 +62,31 @@ impl Operation {
         return self.methods.to_vec();
     }
 
+    pub fn from_api_doc(name: &str, path: &str) -> Self {
+        Operation {
+            id: uuid::Uuid::new_v4(),
+            name: name.to_string(),
+            description: None,
+            summary: None,
+            path: path.to_string(),
+            methods: Methods::GET,
+            kind: OperationKind::ApiDoc,
+            args: Vec::new(),
+            layers: Vec::new(),
+            returns: Vec::new(),
+            tags: Vec::new(),
+            conf: None,
+            owner: None,
+            hidden: true,
+            bundle_id: None,
+        }
+    }
+
     pub fn from_specs(kind: OperationKind, specs: &CallSpec) -> Self {
         let (summary, description) =
             Self::split_str_into_summary_description(specs.description.as_deref());
         Operation {
+            id: uuid::Uuid::new_v4(),
             name: specs.name.clone(),
             description: description,
             summary: summary,
@@ -74,6 +99,8 @@ impl Operation {
             tags: Vec::new(),
             conf: None,
             owner: None,
+            hidden: false,
+            bundle_id: None,
         }
     }
 

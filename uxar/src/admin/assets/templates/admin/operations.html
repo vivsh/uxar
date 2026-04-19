@@ -1,133 +1,204 @@
-{% extends "admin/base.html" %} {% block title %}Operations - Admin{% endblock
-%} {% block content %}
-<article>
-  <header>
-    <h1>System Operations</h1>
-    <p>All registered operations in the system</p>
-  </header>
+{% extends "admin/layouts/full.html" %}
 
-  {% for kind, ops in operations_by_kind %}
-  <section>
-    <h2>{{ kind }}</h2>
+{% block title %}Operations — UXAR Admin{% endblock %}
 
-    {% for op in ops %}
-    <details>
-      <summary>
-        <strong>{{ op.name }}</strong>
-        {% if op.methods %} {% for method in op.methods %}
-        <kbd>{{ method }}</kbd>
-        {% endfor %} {% endif %}
-        <code>{{ op.path }}</code>
-      </summary>
+{% block main_content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold">System Operations</h1>
+  <p class="text-base-content/60 mt-1">All registered operations in this site</p>
+</div>
 
-      <article>
-        {% if op.summary %}
-        <p><strong>{{ op.summary }}</strong></p>
-        {% endif %} {% if op.description %}
-        <p>{{ op.description }}</p>
-        {% endif %} {% if op.args %}
-        <h4>Arguments</h4>
-        <table role="grid">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Description</th>
-            </tr>
-          </thead>
+{# ── Toolbar ─────────────────────────────────────────────────────────────── #}
+<div class="flex flex-col sm:flex-row gap-2 mb-5">
+  <div class="relative flex-1">
+    <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-base-content/40 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+    </svg>
+    <input id="op-search" type="search" placeholder="Search by name or path…"
+           class="input input-bordered input-sm w-full pl-8"
+           oninput="filterOps()" />
+  </div>
+
+  <div class="flex gap-2 flex-wrap sm:flex-nowrap">
+    <select id="op-kind" class="select select-sm select-bordered flex-1 sm:flex-none sm:w-36" onchange="filterOps()">
+      <option value="">All kinds</option>
+      {% for k in all_kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+    </select>
+
+    {% if all_tags %}
+    <select id="op-tag" class="select select-sm select-bordered flex-1 sm:flex-none sm:w-36" onchange="filterOps()">
+      <option value="">All tags</option>
+      {% for t in all_tags %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+    </select>
+    {% endif %}
+
+    <span id="op-count" class="self-center text-sm text-base-content/50 whitespace-nowrap"></span>
+  </div>
+</div>
+
+{# ── Operations list ──────────────────────────────────────────────────────── #}
+{% if operations_by_kind %}
+<div id="ops-container">
+{% for kind, ops in operations_by_kind %}
+<section class="mb-8" data-kind="{{ kind }}">
+  <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+    {{ kind }}
+    <span class="badge badge-ghost badge-sm kind-count">{{ ops | length }}</span>
+  </h2>
+
+  <div class="space-y-2">
+  {% for op in ops %}
+  <div class="collapse collapse-arrow bg-base-100 border border-base-300 op-item"
+       data-name="{{ op.name | lower }}"
+       data-path="{{ op.path | lower }}"
+       data-kind="{{ kind }}"
+       data-tags="{{ op.tags | join(' ') | lower }}">
+    <input type="checkbox" />
+    <div class="collapse-title flex items-center flex-wrap gap-2 font-medium">
+      <span class="font-semibold">{{ op.name }}</span>
+      {% if op.methods %}
+        {% for method in op.methods %}
+          {% if method == "GET" %}<span class="badge badge-info badge-sm badge-outline">{{ method }}</span>
+          {% elif method == "POST" %}<span class="badge badge-success badge-sm badge-outline">{{ method }}</span>
+          {% elif method == "DELETE" %}<span class="badge badge-error badge-sm badge-outline">{{ method }}</span>
+          {% elif method == "PUT" or method == "PATCH" %}<span class="badge badge-warning badge-sm badge-outline">{{ method }}</span>
+          {% else %}<span class="badge badge-ghost badge-sm badge-outline">{{ method }}</span>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+      {% if op.path %}<code class="text-sm font-mono text-primary bg-base-200 px-2 py-0.5 rounded">{{ op.path }}</code>{% endif %}
+      {% if op.summary %}<span class="text-base-content/60 text-sm font-normal">{{ op.summary }}</span>{% endif %}
+    </div>
+    <div class="collapse-content">
+      {% if op.description %}
+      <p class="text-base-content/70 text-sm mb-4">{{ op.description }}</p>
+      {% endif %}
+
+      {% if op.args %}
+      <h4 class="font-semibold text-sm mb-2">Arguments</h4>
+      <div class="overflow-x-auto mb-4">
+        <table class="table table-sm table-zebra w-full">
+          <thead><tr><th>Name</th><th>Type</th><th>Description</th></tr></thead>
           <tbody>
             {% for arg in op.args %}
             <tr>
-              <td><code>{{ arg.name }}</code></td>
-              <td>{{ arg.type_name }}</td>
-              <td>{{ arg.description }}</td>
+              <td><code class="text-xs">{{ arg.name }}</code></td>
+              <td class="text-sm">
+                {% if arg.schema_json %}
+                <button class="font-mono text-primary hover:underline cursor-pointer"
+                        data-schema="{{ arg.schema_json }}"
+                        data-type="{{ arg.type_name }}"
+                        onclick="showSchema(this)">{{ arg.type_name }}</button>
+                {% else %}<span class="text-base-content/70">{{ arg.type_name }}</span>{% endif %}
+              </td>
+              <td class="text-sm text-base-content/60">{{ arg.description }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
-        {% endif %} {% if op.returns %}
-        <h4>Returns</h4>
-        <table role="grid">
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Type</th>
-              <th>Description</th>
-            </tr>
-          </thead>
+      </div>
+      {% endif %}
+
+      {% if op.returns %}
+      <h4 class="font-semibold text-sm mb-2">Returns</h4>
+      <div class="overflow-x-auto mb-4">
+        <table class="table table-sm table-zebra w-full">
+          <thead><tr><th>Status</th><th>Type</th><th>Description</th></tr></thead>
           <tbody>
             {% for ret in op.returns %}
             <tr>
-              <td>{% if ret.status %}<kbd>{{ ret.status }}</kbd>{% endif %}</td>
-              <td>{{ ret.type_name }}</td>
-              <td>{{ ret.description }}</td>
+              <td>{% if ret.status %}<span class="badge badge-ghost badge-sm font-mono">{{ ret.status }}</span>{% endif %}</td>
+              <td class="text-sm">
+                {% if ret.schema_json %}
+                <button class="font-mono text-primary hover:underline cursor-pointer"
+                        data-schema="{{ ret.schema_json }}"
+                        data-type="{{ ret.type_name }}"
+                        onclick="showSchema(this)">{{ ret.type_name }}</button>
+                {% else %}<span class="text-base-content/70">{{ ret.type_name }}</span>{% endif %}
+              </td>
+              <td class="text-sm text-base-content/60">{{ ret.description }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
-        {% endif %} {% if op.tags %}
-        <p>
-          <small>
-            Tags: {% for tag in op.tags %}
-            <mark>{{ tag }}</mark>
-            {% endfor %}
-          </small>
-        </p>
-        {% endif %}
-      </article>
-    </details>
-    {% endfor %}
-  </section>
+      </div>
+      {% endif %}
+
+      {% if op.tags %}
+      <div class="flex flex-wrap gap-1">
+        {% for tag in op.tags %}<span class="badge badge-ghost badge-sm">{{ tag }}</span>{% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
   {% endfor %}
-</article>
+  </div>
+</section>
+{% endfor %}
+</div>
 
-<style>
-  details {
-    margin-bottom: 1rem;
-    border: 1px solid var(--pico-muted-border-color);
-    border-radius: var(--pico-border-radius);
-    padding: 0;
-  }
+<div id="ops-empty" class="hidden flex flex-col items-center justify-center py-16 text-base-content/50">
+  <div class="text-4xl mb-3">🔍</div>
+  <p class="text-base font-medium">No operations match your filters</p>
+</div>
 
-  details summary {
-    padding: 1rem;
-    cursor: pointer;
-    background: var(--pico-background-color);
-  }
+{% else %}
+<div class="flex flex-col items-center justify-center py-16 text-base-content/50">
+  <div class="text-6xl mb-4">📭</div>
+  <h3 class="text-lg font-semibold mb-2 text-base-content/70">No operations registered</h3>
+  <p class="text-sm">Add routes, cron jobs, or signals to your bundles to see them here.</p>
+</div>
+{% endif %}
 
-  details summary:hover {
-    background: var(--pico-secondary-background);
-  }
+{# ── Schema modal ─────────────────────────────────────────────────────────── #}
+<dialog id="schema-modal" class="modal">
+  <div class="modal-box w-11/12 max-w-3xl">
+    <form method="dialog">
+      <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3">✕</button>
+    </form>
+    <h3 id="schema-modal-title" class="font-bold text-lg mb-4 font-mono break-all"></h3>
+    <pre id="schema-modal-body" class="bg-base-200 rounded-lg p-4 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-all"></pre>
+  </div>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 
-  details[open] summary {
-    border-bottom: 1px solid var(--pico-muted-border-color);
-  }
+<script>
+function showSchema(btn) {
+  const schema = JSON.parse(btn.dataset.schema);
+  const typeName = btn.dataset.type;
+  document.getElementById('schema-modal-title').textContent = typeName;
+  document.getElementById('schema-modal-body').textContent = JSON.stringify(schema, null, 2);
+  document.getElementById('schema-modal').showModal();
+}
 
-  details article {
-    padding: 1rem;
-    margin: 0;
-  }
+function filterOps() {
+  const query = document.getElementById('op-search').value.toLowerCase();
+  const kind  = document.getElementById('op-kind').value;
+  const tagEl = document.getElementById('op-tag');
+  const tag   = tagEl ? tagEl.value.toLowerCase() : '';
 
-  kbd {
-    margin-right: 0.5rem;
-    font-size: 0.875rem;
-  }
+  let total = 0;
+  document.querySelectorAll('section[data-kind]').forEach(section => {
+    let sectionVisible = 0;
+    section.querySelectorAll('.op-item').forEach(item => {
+      const nameMatch = !query || item.dataset.name.includes(query) || item.dataset.path.includes(query);
+      const kindMatch = !kind  || item.dataset.kind === kind;
+      const tagMatch  = !tag   || item.dataset.tags.split(' ').includes(tag);
+      const visible   = nameMatch && kindMatch && tagMatch;
+      item.classList.toggle('hidden', !visible);
+      if (visible) { sectionVisible++; total++; }
+    });
+    section.classList.toggle('hidden', sectionVisible === 0);
+    const counter = section.querySelector('.kind-count');
+    if (counter) counter.textContent = sectionVisible;
+  });
 
-  code {
-    color: var(--pico-primary);
-  }
+  const empty = document.getElementById('ops-empty');
+  if (empty) empty.classList.toggle('hidden', total > 0);
+  const countEl = document.getElementById('op-count');
+  if (countEl) countEl.textContent = total + ' operation' + (total === 1 ? '' : 's');
+}
 
-  mark {
-    padding: 0.25rem 0.5rem;
-    margin-right: 0.25rem;
-    border-radius: var(--pico-border-radius);
-  }
-
-  h2 {
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid var(--pico-primary);
-  }
-</style>
+filterOps();
+</script>
 {% endblock %}

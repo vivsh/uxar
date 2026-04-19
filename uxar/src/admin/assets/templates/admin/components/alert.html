@@ -1,0 +1,6 @@
+{# Flash message partial — included by layouts/base.html when flash_message is set.
+   Context vars: flash_message (string), flash_type (success|error|warning|info, default: info) #}
+<div role="alert" class="alert {% if flash_type == 'success' %}alert-success{% elif flash_type == 'error' %}alert-error{% elif flash_type == 'warning' %}alert-warning{% else %}alert-info{% endif %} shadow-lg">
+  <span>{{ flash_message }}</span>
+  <button class="btn btn-ghost btn-xs" onclick="this.closest('[role=alert]').remove()" aria-label="Dismiss">✕</button>
+</div>

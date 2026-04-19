@@ -50,6 +50,14 @@ pub(crate) struct Signaller{
     pub(crate) options: SignalConf,
 }
 
+impl Signaller {
+    pub(crate) fn operation(&self) -> crate::callables::Operation {
+        let spec = self.handler.func.inspect();
+        crate::callables::Operation::from_specs(crate::callables::OperationKind::Signal, spec)
+            .with_conf(&self.options)
+    }
+}
+
 
 pub(crate) fn signal<T, H, Args>(handler: H, options: SignalConf) -> Signaller
 where

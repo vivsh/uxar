@@ -4,3 +4,4 @@ target/
 .env.test
 Cargo.lock
 .github/
+uxar/src/admin/frontend/node_modules/

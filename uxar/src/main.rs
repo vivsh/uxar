@@ -4,7 +4,7 @@ use axum::Json;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uxar::{
-    Site, SiteConf, SiteError, admin, bundles::{self, Bundle, CronConf, PeriodicConf, SignalConf}, callables::{self, PatchOp, Payload}, emitters, routes::{Methods, RouteConf}, schemables::{ApiMeta, DocViewer}, serve_site, services::ServiceRunner  
+    Site, SiteConf, SiteError, admin, bundles::{self, Bundle, CronConf, PeriodicConf, SignalConf}, callables::{self, PatchOp, Payload}, emitters, routes::{Methods, RouteConf}, apidocs::{ApiMeta, DocViewer}, serve_site, services::ServiceRunner  
 };
 
 #[bundles::route(
@@ -90,8 +90,6 @@ async fn main() -> Result<(), SiteError> {
         bleat
     };    
     let bundle: Bundle = uxar::bundles::bundle([
-        uxar::bundles::merge(b2),
-        uxar::bundles::nest("/admin", "admin", admin::admin_bundle()),
         uxar::bundles::route(
             greet,
             RouteConf {
@@ -126,17 +124,6 @@ async fn main() -> Result<(), SiteError> {
                 .description("Hello World")
                 .name("some name"),
         ),
-        uxar::bundles::openapi(uxar::bundles::OpenApiConf {
-            spec_path: "/api/openapi.json".into(),
-            doc_path: "/api/docs".into(),
-            meta: ApiMeta {
-                title: "UXAR Example API".into(),
-                description: Some("An example API using UXAR".into()),
-                version: "0.1.0".into(),
-                ..Default::default()
-            },
-            viewer: DocViewer::Rapidoc,
-        }),
         uxar::bundles::signal(on_chime, SignalConf::default()),
         uxar::bundles::signal(on_remind, SignalConf::default()),
         uxar::bundles::route(
@@ -147,11 +134,25 @@ async fn main() -> Result<(), SiteError> {
                 ..Default::default()
             },
         ),
-    ]);
+    ])
+    .merge(b2)
+    .merge(admin::admin_bundle().with_prefix("/admin"))
+    .with_openapi(uxar::bundles::OpenApiConf {
+        doc_path: "/api/docs".into(),
+        spec_path: "/api/openapi.json".into(),
+        meta: ApiMeta {
+            title: "UXAR Example API".into(),
+            description: Some("An example API using UXAR".into()),
+            version: "0.1.0".into(),
+            ..Default::default()
+        },
+        viewer: DocViewer::Rapidoc,
+    });
 
     
 
-    let conf = SiteConf::from_env().expect("Failed to load site configuration from environment");
+    let conf = SiteConf::from_env_with_files().expect("Failed to load site configuration from environment");
+    println!("Conf: {conf:#?}");
 
-    serve_site(conf, bundle).await
+    serve_site(conf, bundle.with_prefix("/v1")).await
 }

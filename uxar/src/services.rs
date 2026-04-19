@@ -130,6 +130,7 @@ struct ServiceEntry {
 #[derive(Clone)]
 pub struct ServiceHandler {
     type_id: TypeId,
+    spec: callables::CallSpec,
     build_fn: Arc<
         dyn Fn(
                 ServiceBuildContext,
@@ -147,6 +148,7 @@ impl ServiceHandler {
         Args:
             callables::FromContext<ServiceBuildContext> + callables::IntoArgSpecs + Send + 'static,
     {
+        let spec = callables::CallSpec::new::<Args, H>(&handler);
         let callable: callables::Callable<ServiceBuildContext, ServiceError> =
             callables::Callable::new(handler);
 
@@ -188,8 +190,13 @@ impl ServiceHandler {
 
         ServiceHandler {
             type_id: TypeId::of::<T>(),
+            spec,
             build_fn: Arc::new(build_fn),
         }
+    }
+
+    pub(crate) fn operation(&self) -> callables::Operation {
+        callables::Operation::from_specs(callables::OperationKind::Service, &self.spec)
     }
 }
 

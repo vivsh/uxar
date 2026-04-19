@@ -2,8 +2,6 @@
 mod executor;
 mod query;
 mod interfaces;
-mod migrations;
-mod models;
 mod commons;
 mod argvalue;
 mod scopes;
@@ -21,8 +19,6 @@ pub use interfaces::{
     Filterable, Recordable, Scannable, Bindable, Model,
     rust_to_pg_type,
 };
-pub use models::{TableModel, ColumnModel};
-
 pub use sqlx::test as test_db;
 
 // Re-export sqlx types so macros don't need direct sqlx dependency
