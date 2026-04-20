@@ -5,7 +5,7 @@ Equivalent to uxar/examples/notes.rs — same endpoints, same JWT cookie auth,
 same role model, same cron job, same auto-generated OpenAPI docs.
 
 Install:
-    pip install fastapi uvicorn sqlalchemy asyncpg python-jose apscheduler
+    pip install fastapi uvicorn sqlmodel asyncpg python-jose apscheduler
 
 Run:
     DATABASE_URL=postgresql+asyncpg://user:pass@localhost/notes_db \
@@ -24,9 +24,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlmodel import Field, SQLModel, select
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -55,14 +55,23 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 
 # ── Models ────────────────────────────────────────────────────────────────────
 
-class Note(BaseModel):
-    id: int; owner: str; title: str; body: str
+class Note(SQLModel, table=True):
+    __tablename__ = "notes"
 
-class NoteInput(BaseModel):
-    title: str; body: str
+    id: int | None = Field(default=None, primary_key=True)
+    owner: str
+    title: str
+    body: str
 
-class LoginReq(BaseModel):
-    username: str; password: str
+
+class NoteInput(SQLModel):
+    title: str
+    body: str
+
+
+class LoginReq(SQLModel):
+    username: str
+    password: str
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -110,28 +119,25 @@ async def login(req: LoginReq, response: Response):
 @app.get("/v1/notes", response_model=list[Note])
 async def list_notes(user: User, db: DB):
     """List all notes belonging to the authenticated user."""
-    rows = await db.execute(
-        text("SELECT id, owner, title, body FROM notes WHERE owner = :owner"),
-        {"owner": user["sub"]},
-    )
-    return [Note(**dict(r._mapping)) for r in rows.fetchall()]
+    stmt = select(Note).where(Note.owner == user["sub"])
+    rows = await db.execute(stmt)
+    return rows.scalars().all()
 
 @app.post("/v1/notes", response_model=Note)
 async def create_note(input: NoteInput, user: User, db: DB):
     """Create a note; returns the saved note with its id."""
-    row = (await db.execute(
-        text("INSERT INTO notes (owner, title, body) VALUES (:owner, :title, :body) RETURNING *"),
-        {"owner": user["sub"], "title": input.title, "body": input.body},
-    )).fetchone()
+    row = Note(owner=user["sub"], title=input.title, body=input.body)
+    db.add(row)
     await db.commit()
-    return Note(**dict(row._mapping))
+    await db.refresh(row)
+    return row
 
 @app.delete("/v1/notes/all")
 async def purge_notes(_: Admin, db: DB):
     """Delete all notes. Requires Admin role."""
-    result = await db.execute(text("DELETE FROM notes"))
+    result = await db.execute(delete(Note))
     await db.commit()
-    return {"deleted": result.rowcount}
+    return {"deleted": result.rowcount or 0}
 
 # ── Cron ──────────────────────────────────────────────────────────────────────
 
