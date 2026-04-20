@@ -24,7 +24,7 @@ impl DeleteQuery {
             filters: Vec::new(),
             args: Arguments::default(),
             named_args: HashMap::new(),
-            error: None,
+            error: super::validate_ident(source).err(),
         }
     }
 

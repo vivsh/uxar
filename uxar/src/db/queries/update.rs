@@ -26,7 +26,7 @@ impl UpdateQuery {
             args: Arguments::default(),
             named_args: HashMap::new(),
             set_sql: None,
-            error: None,
+            error: super::validate_ident(source).err(),
         }
     }
 

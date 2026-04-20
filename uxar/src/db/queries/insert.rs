@@ -17,7 +17,7 @@ impl InsertQuery {
             source: source.to_string(),
             args: Arguments::default(),
             sql: None,
-            error: None,
+            error: super::validate_ident(source).err(),
         }
     }
 

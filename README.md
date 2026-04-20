@@ -34,7 +34,7 @@ There is no separate annotation layer for API specs. The code _is_ the spec.
   Access + refresh tokens via HTTP-only cookies or `Authorization` header.
 
 - **SQL-shaped query builders**  
-  `db::select/insert/update/delete` compose SQL with bind parameters while preserving typed binds and scanned rows.
+  `db::select/insert/update/delete` return builders directly; bind parameters, filters, and SQL errors are deferred to the terminal async call.
 
 - **Cron + signals**  
   Compile-time validated cron/periodic emitters connected to typed in-process signal handlers.
@@ -80,10 +80,10 @@ pub struct NoteInput { pub title: String, pub body: String }
 async fn list_notes(site: Site, p: permit!(Role, User)) -> Result<Json<Vec<Note>>, Error> {
     let user: AuthUser = p.into_user();
     let mut db = site.db();
-    let notes: Vec<Note> = uxar::db::select("notes")?
+    let notes: Vec<Note> = uxar::db::select("notes")
         .filter("owner = :owner")
         .bind_as("owner", user.key.to_string())
-        .all(&mut db).await?;
+        .all(&mut db).await?;;
     Ok(Json(notes))
 }
 
@@ -94,9 +94,9 @@ async fn create_note(
 ) -> Result<Json<Note>, Error> {
     let user: AuthUser = p.into_user();
     let mut db = site.db();
-    let saved: Note = uxar::db::insert("notes")?
+    let saved: Note = uxar::db::insert("notes")
         .row(&NewNote { owner: user.key.to_string(), title: input.title, body: input.body })
-        .one(&mut db).await?;
+        .one(&mut db).await?;;
     Ok(Json(saved))
 }
 

@@ -116,7 +116,7 @@ async fn login(site: Site, Json(req): Json<LoginReq>) -> Result<Response, Error>
 async fn list_notes(site: Site, p: permit!(Role, User)) -> Result<Json<Vec<Note>>, Error> {
     let user: AuthUser = p.into_user();
     let mut db = site.db();
-    let notes: Vec<Note> = uxar::db::select("notes")?
+    let notes: Vec<Note> = uxar::db::select("notes")
         .filter("owner = :owner")
         .bind_as("owner", user.key.to_string())
         .all(&mut db)
@@ -138,7 +138,7 @@ async fn create_note(
         body: input.body,
     };
     let mut db = site.db();
-    let saved: Note = uxar::db::insert("notes")?
+    let saved: Note = uxar::db::insert("notes")
         .row(&new_note)
         .one(&mut db)
         .await?;
@@ -149,7 +149,7 @@ async fn create_note(
 #[bundles::route(path = "/notes/all", method = "DELETE")]
 async fn purge_notes(site: Site, _p: permit!(Role, Admin)) -> Result<Json<u64>, Error> {
     let mut db = site.db();
-    let deleted = uxar::db::delete("notes")?
+    let deleted = uxar::db::delete("notes")
         .execute(&mut db)
         .await?;
     Ok(Json(deleted))

@@ -23,26 +23,22 @@ pub use interfaces::{
 pub use sqlx::test as test_db;
 
 /// Start a SELECT query against `table`.
-pub fn select(table: &str) -> Result<SelectQuery, DbError> {
-    queries::validate_ident(table)?;
-    Ok(SelectQuery::new(table))
+pub fn select(table: &str) -> SelectQuery {
+    SelectQuery::new(table)
 }
 
 /// Start an INSERT INTO `table` query.
-pub fn insert(table: &str) -> Result<InsertQuery, DbError> {
-    queries::validate_ident(table)?;
-    Ok(InsertQuery::new(table))
+pub fn insert(table: &str) -> InsertQuery {
+    InsertQuery::new(table)
 }
 
 /// Start an UPDATE `table` query.
-pub fn update(table: &str) -> Result<UpdateQuery, DbError> {
-    queries::validate_ident(table)?;
-    Ok(UpdateQuery::new(table))
+pub fn update(table: &str) -> UpdateQuery {
+    UpdateQuery::new(table)
 }
 
 /// Start a DELETE FROM `table` query.
-pub fn delete(table: &str) -> Result<DeleteQuery, DbError> {
-    queries::validate_ident(table)?;
-    Ok(DeleteQuery::new(table))
+pub fn delete(table: &str) -> DeleteQuery {
+    DeleteQuery::new(table)
 }
 

@@ -41,7 +41,7 @@ impl SelectQuery {
             lock_mode: None,
             args: Arguments::default(),
             named_args: HashMap::new(),
-            error: None,
+            error: super::validate_ident(source).err(),
         }
     }
 
