@@ -4,5 +4,6 @@ target/
 .env.test
 Cargo.lock
 .github/
-uxar/src/admin/frontend/node_modules/__pycache__/
+uxar/src/admin/frontend/node_modules/
+__pycache__/
 *.pyc
