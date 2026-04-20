@@ -105,7 +105,7 @@ impl MockDBSession {
         }
 
         if let Some(needle) = next.sql_contains {
-            let (sql, _) = stmt.clone().into_parts(); // or add Statement::sql() helper
+            let sql = &stmt.sql;
             if !sql.contains(needle) {
                 panic!(
                     "MockDbSession: SQL mismatch. expected contains {:?}, got {:?}",

@@ -4,6 +4,7 @@ use super::commons::Database;
 use super::argvalue::ArgValue;
 use indexmap::IndexMap;
 
+#[derive(Clone)]
 pub struct Scope {
     pub(crate) expr: String,
     pub(crate) named_args: IndexMap<String, ArgValue>,

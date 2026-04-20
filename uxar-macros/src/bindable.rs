@@ -38,7 +38,7 @@ pub(crate) fn derive_bindable_impl(input: &DeriveInput) -> proc_macro2::TokenStr
             fn bind_values<'q>(
                 &'q self,
                 args: &mut ::uxar::db::Arguments<'q>,
-            ) -> Result<(), ::uxar::db::sqlx::Error> {
+            ) -> Result<(), ::sqlx::Error> {
                 #(#bind_stmts)*
                 Ok(())
             }
@@ -76,8 +76,8 @@ fn gen_where_clause(generics: &mut syn::Generics, fields: &[FieldMeta]) {
             }
         } else {
             wc.predicates.push(syn::parse_quote! {
-                for<'q> &'q #ty: ::uxar::db::sqlx::Encode<'q, ::uxar::db::Database>
-                    + ::uxar::db::sqlx::Type<::uxar::db::Database>
+                for<'q> &'q #ty: ::sqlx::Encode<'q, ::uxar::db::Database>
+                    + ::sqlx::Type<::uxar::db::Database>
                     + ::core::marker::Send
             });
         }
@@ -123,9 +123,9 @@ fn gen_json_bind(ident: &syn::Ident) -> proc_macro2::TokenStream {
     quote! {
         {
             let value = ::uxar::db::serde_json::to_value(&self.#ident)
-                .map_err(|e| ::uxar::db::sqlx::Error::Decode(Box::new(e)))?;
-            ::uxar::db::sqlx::Arguments::add(args, value)
-                .map_err(::uxar::db::sqlx::Error::Decode)?;
+                .map_err(|e| ::sqlx::Error::Decode(Box::new(e)))?;
+            ::sqlx::Arguments::add(args, value)
+                .map_err(::sqlx::Error::Decode)?;;
         }
     }
 }
@@ -134,8 +134,8 @@ fn gen_json_bind(ident: &syn::Ident) -> proc_macro2::TokenStream {
 fn gen_scalar_bind(ident: &syn::Ident) -> proc_macro2::TokenStream {
     quote! {
         {
-            ::uxar::db::sqlx::Arguments::add(args, &self.#ident)
-                .map_err(::uxar::db::sqlx::Error::Decode)?;
+            ::sqlx::Arguments::add(args, &self.#ident)
+                .map_err(::sqlx::Error::Decode)?;
         }
     }
 }

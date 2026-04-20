@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 
 use sqlx::TypeInfo;
 
-use crate::db::QuerySet;
 use crate::db::{Row, Arguments, Database};
 
 
@@ -75,11 +74,11 @@ pub trait Recordable: Sized + Send + 'static{
 
     fn record_table() -> &'static RecordTable;
 
-    fn bind_values<'q>(&'q self, args: &mut Arguments<'q>) -> Result<(), crate::db::sqlx::Error>;
+    fn bind_values<'q>(&'q self, args: &mut Arguments<'q>) -> Result<(), sqlx::Error>;
     
-    fn scan_row_ordered(row: &Row, start_idx: &mut usize) -> Result<Self, crate::db::sqlx::Error>;
+    fn scan_row_ordered(row: &Row, start_idx: &mut usize) -> Result<Self, sqlx::Error>;
 
-    fn scan_row(row: &Row) -> Result<Self, crate::db::sqlx::Error> {
+    fn scan_row(row: &Row) -> Result<Self, sqlx::Error> {
         let mut idx = 0;
         Self::scan_row_ordered(row, &mut idx)
     }
@@ -90,11 +89,11 @@ pub trait Scannable: Sized  {
 
     fn scan_column_names() -> Vec<String>;
 
-    fn scan_row_ordered(row: &Row, start_idx: &mut usize) -> Result<Self, crate::db::sqlx::Error>;
+    fn scan_row_ordered(row: &Row, start_idx: &mut usize) -> Result<Self, sqlx::Error>;
     
-    fn scan_row_unordered(row: &Row) -> Result<Self, crate::db::sqlx::Error>;
+    fn scan_row_unordered(row: &Row) -> Result<Self, sqlx::Error>;
 
-    fn scan_row(row: &Row) -> Result<Self, crate::db::sqlx::Error> {
+    fn scan_row(row: &Row) -> Result<Self, sqlx::Error> {
         let mut idx = 0;
         Self::scan_row_ordered(row, &mut idx)
     }
@@ -104,7 +103,7 @@ pub trait Scannable: Sized  {
 
 pub trait Bindable {    
 
-    fn bind_values<'q>(&'q self, args: &mut Arguments<'q>) -> Result<(), crate::db::sqlx::Error>;
+    fn bind_values<'q>(&'q self, args: &mut Arguments<'q>) -> Result<(), sqlx::Error>;
     
     fn bind_column_names() -> Vec<String>;
 }
@@ -119,7 +118,30 @@ pub trait Model: Scannable + Bindable{
 }
 
 pub trait Filterable {
-    fn apply_filters(self, qs: QuerySet) -> QuerySet;
+    fn apply_filters_select(self, qs: crate::db::SelectQuery) -> crate::db::SelectQuery
+    where
+        Self: Sized,
+    {
+        // Default: delegate through the legacy QuerySet path — overridden by macro.
+        let _ = qs;
+        unimplemented!("apply_filters_select not implemented for this Filterable")
+    }
+
+    fn apply_filters_update(self, qs: crate::db::UpdateQuery) -> crate::db::UpdateQuery
+    where
+        Self: Sized,
+    {
+        let _ = qs;
+        unimplemented!("apply_filters_update not implemented for this Filterable")
+    }
+
+    fn apply_filters_delete(self, qs: crate::db::DeleteQuery) -> crate::db::DeleteQuery
+    where
+        Self: Sized,
+    {
+        let _ = qs;
+        unimplemented!("apply_filters_delete not implemented for this Filterable")
+    }
 }
     
 

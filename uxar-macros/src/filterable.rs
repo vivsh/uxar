@@ -66,7 +66,7 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
         _ => unreachable!("Filterable only supports named structs"),
     };
 
-    let field_stmts = fields.iter().map(|f| {
+    let field_stmts: Vec<_> = fields.iter().enumerate().map(|(idx, f)| {
         let ident = f.ident.as_ref().expect("named field");
         let ty = &f.ty;
 
@@ -77,46 +77,53 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 
         // Flatten: delegate to nested Filterable
         if f.delegate {
-            let (is_option, inner_ty) = option_inner_type(ty);
+            let (is_option, _inner_ty) = option_inner_type(ty);
 
             if is_option {
-                // Option<Inner: Filterable>
                 quote! {
-                    if let Some(inner) = self.#ident.as_ref() {
-                        qs = ::uxar::db::Filterable::filter_query(inner, qs);
+                    if let Some(inner) = self.#ident {
+                        qs = ::uxar::db::Filterable::apply_filters_impl(inner, qs);
                     }
                 }
             } else {
-                // Inner: Filterable
                 quote! {
-                    qs = ::uxar::db::Filterable::filter_query(&self.#ident, qs);
+                    qs = ::uxar::db::Filterable::apply_filters_impl(self.#ident, qs);
                 }
             }
         } else {
-            // Normal scalar field
+            // Normal scalar field — use named placeholder to avoid positional ambiguity
             let col_name = f.db_column.clone().unwrap_or_else(|| ident.to_string());
             let expr = f.expr.clone().unwrap_or_else(|| col_name);
             let op = f.op.clone().unwrap_or_else(|| "=".to_string());
-
-            let filter_str = format!("{expr} {op} ?");
+            // Unique placeholder name: _ff_<idx>
+            let param_name = format!("_ff_{}", idx);
+            let filter_str = format!("{expr} {op} :{param_name}");
 
             let (is_option, _inner_ty) = option_inner_type(ty);
 
             if is_option {
-                // Option<T>: filter only when Some, move the value
                 quote! {
                     if let Some(value) = self.#ident {
-                        qs = qs.filter(#filter_str).bind(value);
+                        qs = ::uxar::db::FilteredBuilder::filter(qs, #filter_str);
+                        qs = ::uxar::db::FilteredBuilder::bind_named_dyn(
+                            qs,
+                            #param_name,
+                            ::uxar::db::ArgValue::new(value),
+                        );
                     }
                 }
             } else {
-                // Plain T: always filter, move the value
                 quote! {
-                    qs = qs.filter(#filter_str).bind(self.#ident);
+                    qs = ::uxar::db::FilteredBuilder::filter(qs, #filter_str);
+                    qs = ::uxar::db::FilteredBuilder::bind_named_dyn(
+                        qs,
+                        #param_name,
+                        ::uxar::db::ArgValue::new(self.#ident),
+                    );
                 }
             }
         }
-    });
+    }).collect();
 
     let after = if let Some(after_path) = args.after {
         quote! {
@@ -128,8 +135,28 @@ pub fn derive_filterable(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         impl #impl_generics ::uxar::db::Filterable for #ident #ty_generics #where_clause {
-            fn apply_filters(self, qs: ::uxar::db::Statement) -> ::uxar::db::Statement {
-                let mut qs = qs;
+            fn apply_filters_select(
+                self,
+                mut qs: ::uxar::db::SelectFrom,
+            ) -> ::uxar::db::SelectFrom {
+                #(#field_stmts)*
+                #after
+                qs
+            }
+
+            fn apply_filters_update(
+                self,
+                mut qs: ::uxar::db::UpdateTable,
+            ) -> ::uxar::db::UpdateTable {
+                #(#field_stmts)*
+                #after
+                qs
+            }
+
+            fn apply_filters_delete(
+                self,
+                mut qs: ::uxar::db::DeleteFrom,
+            ) -> ::uxar::db::DeleteFrom {
                 #(#field_stmts)*
                 #after
                 qs

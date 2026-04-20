@@ -11,7 +11,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TrySendError;
 use tracing;
 
-use crate::db::query::{QuerySet, QuerySetError, Statement};
+use crate::db::queries::{QueryError, Statement};
 use crate::db::{Database, Pool, Row};
 #[cfg(feature = "postgres")]
 use crate::notifiers::CancellationNotifier;
@@ -49,7 +49,7 @@ pub enum DbError {
     #[error("temporary database failure")]
     Temporary,
     #[error("QuerySet error: {0}")]
-    QuerySet(#[from] QuerySetError),
+    QuerySet(#[from] QueryError),
     #[error("unhandled db error")]
     Fatal(sqlx::Error),
     #[error("bad query")]
@@ -377,7 +377,7 @@ impl DbPool {
 
 impl DBSession for DbPool {
     async fn execute(&mut self, qs: Statement) -> Result<u64, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         let res = query.execute(&self.pool).await?;
         Ok(res.rows_affected())
@@ -387,7 +387,7 @@ impl DBSession for DbPool {
     where
         for<'d> T: sqlx::Decode<'d, Database> + sqlx::Type<Database> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_scalar_with(&sql, args);
         Ok(query.fetch_one(&self.pool).await?)
     }
@@ -396,7 +396,7 @@ impl DBSession for DbPool {
     where
         M: for<'r> sqlx::FromRow<'r, Row> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_as_with(&sql, args);
         Ok(query.fetch_one(&self.pool).await?)
     }
@@ -405,7 +405,7 @@ impl DBSession for DbPool {
     where
         M: for<'r> sqlx::FromRow<'r, Row> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_as_with(&sql, args);
         Ok(query.fetch_all(&self.pool).await?)
     }
@@ -414,25 +414,25 @@ impl DBSession for DbPool {
     where
         M: for<'r> sqlx::FromRow<'r, Row> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_as_with(&sql, args);
         Ok(query.fetch_optional(&self.pool).await?)
     }
 
     async fn fetch_json_first(&mut self, qs: Statement) -> Result<String, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(&self.pool, query, false).await
     }
 
     async fn fetch_json_one(&mut self, qs: Statement) -> Result<String, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(&self.pool, query, true).await
     }
 
     async fn fetch_json_all(&mut self, qs: Statement) -> Result<String, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         jsql_all(&self.pool, query).await
     }
@@ -440,7 +440,7 @@ impl DBSession for DbPool {
 
 impl DBSession for DbTransaction<'_> {
     async fn execute(&mut self, qs: Statement) -> Result<u64, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         let res = query.execute(&mut *self.transaction).await?;
         Ok(res.rows_affected())
@@ -450,7 +450,7 @@ impl DBSession for DbTransaction<'_> {
     where
         for<'d> T: sqlx::Decode<'d, Database> + sqlx::Type<Database> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_scalar_with(&sql, args);
         Ok(query.fetch_one(&mut *self.transaction).await?)
     }
@@ -459,7 +459,7 @@ impl DBSession for DbTransaction<'_> {
     where
         M: for<'r> sqlx::FromRow<'r, Row> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_as_with(&sql, args);
         Ok(query.fetch_one(&mut *self.transaction).await?)
     }
@@ -468,7 +468,7 @@ impl DBSession for DbTransaction<'_> {
     where
         M: for<'r> sqlx::FromRow<'r, Row> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_as_with(&sql, args);
         Ok(query.fetch_all(&mut *self.transaction).await?)
     }
@@ -477,25 +477,25 @@ impl DBSession for DbTransaction<'_> {
     where
         M: for<'r> sqlx::FromRow<'r, Row> + Send + Unpin,
     {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_as_with(&sql, args);
         Ok(query.fetch_optional(&mut *self.transaction).await?)
     }
 
     async fn fetch_json_first(&mut self, qs: Statement) -> Result<String, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(&mut *self.transaction, query, false).await
     }
 
     async fn fetch_json_one(&mut self, qs: Statement) -> Result<String, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         jsql_get_strict(&mut *self.transaction, query, true).await
     }
 
     async fn fetch_json_all(&mut self, qs: Statement) -> Result<String, DbError> {
-        let (sql, args) = qs.into_parts();
+        let (sql, args) = qs.into_parts().map_err(DbError::from)?;
         let query = sqlx::query_with(&sql, args);
         jsql_all(&mut *self.transaction, query).await
     }

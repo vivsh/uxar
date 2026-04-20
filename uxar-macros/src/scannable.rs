@@ -42,8 +42,8 @@ pub(crate) fn derive_scannable_impl(input: &DeriveInput) -> proc_macro2::TokenSt
             fn scan_row_ordered(
                 row: &#crate_path::db::Row,
                 start_idx: &mut usize,
-            ) -> Result<Self, #crate_path::db::sqlx::Error> {
-                use #crate_path::db::RowTrait as _;
+            ) -> Result<Self, ::sqlx::Error> {
+                use ::sqlx::Row as _;
                 Ok(Self {
                     #(#field_inits)*
                 })
@@ -51,16 +51,16 @@ pub(crate) fn derive_scannable_impl(input: &DeriveInput) -> proc_macro2::TokenSt
 
             fn scan_row_unordered(
                 row: &#crate_path::db::Row,
-            ) -> Result<Self, #crate_path::db::sqlx::Error> {
-                use #crate_path::db::RowTrait as _;
+            ) -> Result<Self, ::sqlx::Error> {
+                use ::sqlx::Row as _;
                 Ok(Self {
                     #(#field_inits_unordered)*
                 })
             }
         }
 
-        impl #impl_generics #crate_path::db::FromRow<'_, #crate_path::db::Row> for #ident #ty_generics #where_clause {
-            fn from_row(row: &#crate_path::db::Row) -> Result<Self, #crate_path::db::sqlx::Error> {
+        impl #impl_generics ::sqlx::FromRow<'_, #crate_path::db::Row> for #ident #ty_generics #where_clause {
+            fn from_row(row: &#crate_path::db::Row) -> Result<Self, ::sqlx::Error> {
                 <Self as #crate_path::db::Scannable>::scan_row(row)
             }
         }
@@ -192,10 +192,10 @@ fn gen_flatten_init(ident: &syn::Ident, ty: &Type, crate_path: &proc_macro2::Tok
 fn gen_json_init(ident: &syn::Ident, crate_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     quote! {
         #ident: {
-            let json_val: #crate_path::db::serde_json::Value = row.try_get(*start_idx)?;
+            let json_val: ::serde_json::Value = row.try_get(*start_idx)?;
             *start_idx += 1;
-            #crate_path::db::serde_json::from_value(json_val)
-                .map_err(|e| #crate_path::db::sqlx::Error::Decode(Box::new(e)))?
+            ::serde_json::from_value(json_val)
+                .map_err(|e| ::sqlx::Error::Decode(Box::new(e)))?
         },
     }
 }
@@ -294,9 +294,9 @@ fn gen_json_init_unordered(ident: &syn::Ident, field: &FieldMeta, crate_path: &p
     
     quote! {
         #ident: {
-            let json_val: #crate_path::db::serde_json::Value = row.try_get(#col_name)?;
-            #crate_path::db::serde_json::from_value(json_val)
-                .map_err(|e| #crate_path::db::sqlx::Error::Decode(Box::new(e)))?
+            let json_val: ::serde_json::Value = row.try_get(#col_name)?;
+            ::serde_json::from_value(json_val)
+                .map_err(|e| ::sqlx::Error::Decode(Box::new(e)))?
         },
     }
 }

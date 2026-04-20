@@ -2,7 +2,7 @@
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use std::{fmt::Debug, marker::PhantomData};
+use std::{borrow::Cow, fmt::Debug, marker::PhantomData};
 
 use crate::{AuthError, AuthUser, Site};
 
@@ -105,6 +105,23 @@ impl<const MASK: RoleType, R: BitRole, O: HasPerm> FromRequestParts<Site> for Pe
             return Err(AuthError::Forbidden);
         }
         Ok(Permit(user, PhantomData, PhantomData))
+    }
+}
+
+impl<const MASK: RoleType, R: BitRole, O: HasPerm> crate::callables::IntoArgPart for Permit<MASK, R, O> {
+    fn into_arg_part() -> crate::callables::ArgPart {
+        let scopes = R::role_pairs()
+            .iter()
+            .filter_map(|(bit, name)| {
+                let role_bit = (1 as RoleType).checked_shl(*bit as u32)?;
+                (MASK & role_bit != 0).then(|| Cow::Borrowed(*name))
+            })
+            .collect();
+        crate::callables::ArgPart::Security {
+            scheme: Cow::Borrowed("bearerAuth"),
+            scopes,
+            join_all: O::join_all(),
+        }
     }
 }
 
