@@ -203,23 +203,43 @@ impl Bundle {
         self
     }
 
-    /// Applies a Tower middleware layer to all routes in this bundle.
-    pub fn layer<L>(mut self, layer: L) -> Self
+    /// Applies a middleware layer to all routes in this bundle.
+    ///
+    /// Accepts any type implementing [`Middleware`]. If the middleware provides a
+    /// [`LayerSpec`] via [`Middleware::layer_spec`], it is injected into every
+    /// operation in this bundle so that apidocs can render it.
+    ///
+    /// To apply a plain tower layer without documentation, wrap it with
+    /// [`routes::layer_from`].
+    ///
+    /// [`Middleware`]: crate::routes::Middleware
+    /// [`LayerSpec`]: crate::callables::LayerSpec
+    /// [`routes::layer_from`]: crate::routes::layer_from
+    pub fn layer<M>(mut self, mw: M) -> Self
     where
-        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
-        L::Service: tower::Service<axum::http::Request<axum::body::Body>>
-            + Clone
-            + Send
-            + Sync
-            + 'static,
-        <L::Service as tower::Service<axum::http::Request<axum::body::Body>>>::Response:
-            axum::response::IntoResponse + 'static,
-        <L::Service as tower::Service<axum::http::Request<axum::body::Body>>>::Error:
-            Into<std::convert::Infallible> + 'static,
-        <L::Service as tower::Service<axum::http::Request<axum::body::Body>>>::Future:
-            Send + 'static,
+        M: routes::middleware::Middleware,
+        <M::Layer as tower::Layer<axum::routing::Route>>::Service:
+            tower::Service<axum::http::Request<axum::body::Body>>
+                + Clone
+                + Send
+                + Sync
+                + 'static,
+        <<M::Layer as tower::Layer<axum::routing::Route>>::Service as tower::Service<
+            axum::http::Request<axum::body::Body>,
+        >>::Response: axum::response::IntoResponse + 'static,
+        <<M::Layer as tower::Layer<axum::routing::Route>>::Service as tower::Service<
+            axum::http::Request<axum::body::Body>,
+        >>::Error: Into<std::convert::Infallible> + 'static,
+        <<M::Layer as tower::Layer<axum::routing::Route>>::Service as tower::Service<
+            axum::http::Request<axum::body::Body>,
+        >>::Future: Send + 'static,
     {
-        self.inner_router = self.inner_router.layer(layer);
+        if let Some(spec) = mw.layer_spec() {
+            for op in self.ops.values_mut() {
+                op.layers.push(spec.clone());
+            }
+        }
+        self.inner_router = self.inner_router.layer(mw.into_layer());
         self
     }
 

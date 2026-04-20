@@ -81,7 +81,7 @@ fn derive_bitrole_impl(
 
         let mask_val = 1u64 << bit_position;
         mask_arms.push(quote! {
-            #enum_name::#variant_ident => #mask_val as ::uxar::roles::RoleType
+            #enum_name::#variant_ident => #mask_val as ::uxar::auth::RoleType
         });
     }
 
@@ -115,7 +115,7 @@ fn derive_bitrole_impl(
 
         impl #impl_generics #enum_name #ty_generics #where_clause {
             #[doc(hidden)]
-            pub const fn __uxar_mask(role: Self) -> ::uxar::roles::RoleType {
+            pub const fn __uxar_mask(role: Self) -> ::uxar::auth::RoleType {
                 match role {
                     #(#mask_arms,)*
                 }
@@ -123,7 +123,7 @@ fn derive_bitrole_impl(
         }
 
         // BitRole trait implementation
-        impl #impl_generics ::uxar::roles::BitRole for #enum_name #ty_generics #where_clause {
+        impl #impl_generics ::uxar::auth::BitRole for #enum_name #ty_generics #where_clause {
             fn role_value(self) -> u8 {
                 match self {
                     #(#role_value_arms,)*

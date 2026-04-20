@@ -11,7 +11,7 @@ use tokio::signal;
 use tokio::sync::{mpsc, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
 
-use crate::{AuthUser, Site, callables, signals};
+use crate::{Site, auth::AuthUser, callables, signals};
 
 #[derive(Clone, Debug)]
 pub struct Payload {

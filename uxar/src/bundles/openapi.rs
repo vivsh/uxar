@@ -4,6 +4,7 @@ use bytes::Bytes;
 use uuid::Uuid;
 
 use crate::apidocs::{ApiDocGenerator, ApiMeta, DocViewer};
+use crate::auth::AuthUser;
 use crate::callables::Operation;
 use crate::routes::AxumRouter;
 use crate::Site;
@@ -18,11 +19,80 @@ use super::{Bundle, BundleError};
 #[derive(Clone, Debug)]
 pub struct OpenApiConf {
     /// Path where the viewer UI is served (e.g. `"/api/docs"`).
-    pub doc_path: String,
+    /// Set to `None` to serve only the JSON spec without a viewer page.
+    pub doc_path: Option<String>,
     /// Path where the OpenAPI JSON spec is served (e.g. `"/api/openapi.json"`).
     pub spec_path: String,
     pub meta: ApiMeta,
     pub viewer: DocViewer,
+    /// Optional auth predicate for both the spec and viewer endpoints.
+    /// When `Some(f)`, the request must carry a valid JWT; the extracted
+    /// `AuthUser` is then passed to `f`. Returning `false` yields `403 Forbidden`.
+    /// `None` (the default) leaves the endpoints publicly accessible.
+    pub auth: Option<fn(&AuthUser) -> bool>,
+}
+
+impl Default for OpenApiConf {
+    fn default() -> Self {
+        Self {
+            spec_path: "/openapi.json".to_string(),
+            doc_path: None,
+            meta: ApiMeta::default(),
+            viewer: DocViewer::Swagger,
+            auth: None,
+        }
+    }
+}
+
+impl OpenApiConf {
+    /// Override the path for the JSON spec endpoint.
+    pub fn spec(mut self, path: impl Into<String>) -> Self {
+        self.spec_path = path.into();
+        self
+    }
+
+    /// Enable the viewer UI at the given path.
+    pub fn doc(mut self, path: impl Into<String>) -> Self {
+        self.doc_path = Some(path.into());
+        self
+    }
+
+    /// Set the doc viewer type (Swagger, Redoc, Rapidoc).
+    pub fn viewer(mut self, viewer: DocViewer) -> Self {
+        self.viewer = viewer;
+        self
+    }
+
+    /// Set the API title.
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.meta.title = title.into();
+        self
+    }
+
+    /// Set the API version string.
+    pub fn version(mut self, version: impl Into<String>) -> Self {
+        self.meta.version = version.into();
+        self
+    }
+
+    /// Set the API description.
+    pub fn description(mut self, description: impl Into<String>) -> Self {
+        self.meta.description = Some(description.into());
+        self
+    }
+
+    /// Set the API tags.
+    pub fn tags(mut self, tags: Vec<crate::apidocs::TagInfo>) -> Self {
+        self.meta.tags = tags;
+        self
+    }
+
+    /// Require authentication. The predicate receives the extracted `AuthUser`
+    /// and must return `true` to allow access; `false` yields `403 Forbidden`.
+    pub fn auth(mut self, pred: fn(&AuthUser) -> bool) -> Self {
+        self.auth = Some(pred);
+        self
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -35,12 +105,13 @@ pub struct OpenApiConf {
 pub(super) struct DocNode {
     /// UUID of the hidden spec-route operation in `Bundle::ops`.
     spec_op_id: Uuid,
-    /// UUID of the hidden viewer-route operation in `Bundle::ops`.
-    doc_op_id: Uuid,
+    /// UUID of the hidden viewer-route operation in `Bundle::ops`, if any.
+    doc_op_id: Option<Uuid>,
     /// UUIDs of the visible operations to include in the generated spec.
     operation_ids: Vec<Uuid>,
     meta: ApiMeta,
     viewer: DocViewer,
+    auth: Option<fn(&AuthUser) -> bool>,
 }
 
 /// Collects OpenAPI doc registrations from across the bundle graph.
@@ -77,10 +148,6 @@ impl DocEngine {
                 .get(&node.spec_op_id)
                 .map(|op| op.path.clone())
                 .unwrap_or_else(|| node.spec_op_id.to_string());
-            let doc_path = ops
-                .get(&node.doc_op_id)
-                .map(|op| op.path.clone())
-                .unwrap_or_else(|| node.doc_op_id.to_string());
 
             let views: Vec<&Operation> = node
                 .operation_ids
@@ -89,33 +156,62 @@ impl DocEngine {
                 .collect();
 
             let spec_bytes = generate_spec(&views, &node.meta)?;
-            let viewer_html = generate_viewer(&doc_path, &spec_path, node.viewer);
 
             // Both captures are plain Bytes / String — cheap clones on each request.
+            let auth_pred = node.auth;
             let spec_route = {
                 let b = spec_bytes;
-                axum::routing::get(move || {
+                axum::routing::get(move |axum::extract::State(site): axum::extract::State<Site>, req: axum::extract::Request| {
                     let body = b.clone();
                     async move {
                         use axum::http::{StatusCode, header};
-                        (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], body)
-                    }
-                })
-            };
-            let viewer_route = {
-                let h = viewer_html;
-                axum::routing::get(move || {
-                    let body = h.clone();
-                    async move {
-                        use axum::http::{StatusCode, header};
-                        (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], body)
+                        use axum::response::IntoResponse;
+                        if let Some(pred) = auth_pred {
+                            let (parts, _) = req.into_parts();
+                            match site.authenticator().extract_user(&parts, &[], false) {
+                                Err(e) => return e.into_response(),
+                                Ok(user) if !pred(&user) => {
+                                    return StatusCode::FORBIDDEN.into_response();
+                                }
+                                Ok(_) => {}
+                            }
+                        }
+                        (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], body).into_response()
                     }
                 })
             };
 
-            *router = std::mem::take(router)
-                .route(&spec_path, spec_route)
-                .route(&doc_path, viewer_route);
+            *router = std::mem::take(router).route(&spec_path, spec_route);
+
+            if let Some(doc_op_id) = node.doc_op_id {
+                let doc_path = ops
+                    .get(&doc_op_id)
+                    .map(|op| op.path.clone())
+                    .unwrap_or_else(|| doc_op_id.to_string());
+                let viewer_html = generate_viewer(&doc_path, &spec_path, node.viewer);
+                let viewer_route = {
+                    let h = viewer_html;
+                    axum::routing::get(move |axum::extract::State(site): axum::extract::State<Site>, req: axum::extract::Request| {
+                        let body = h.clone();
+                        async move {
+                            use axum::http::{StatusCode, header};
+                            use axum::response::IntoResponse;
+                            if let Some(pred) = auth_pred {
+                                let (parts, _) = req.into_parts();
+                                match site.authenticator().extract_user(&parts, &[], false) {
+                                    Err(e) => return e.into_response(),
+                                    Ok(user) if !pred(&user) => {
+                                        return StatusCode::FORBIDDEN.into_response();
+                                    }
+                                    Ok(_) => {}
+                                }
+                            }
+                            (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], body).into_response()
+                        }
+                    })
+                };
+                *router = std::mem::take(router).route(&doc_path, viewer_route);
+            }
         }
         Ok(())
     }
@@ -145,16 +241,18 @@ impl Bundle {
             &format!("__spec__{}", conf.spec_path),
             &conf.spec_path,
         );
-        let doc_op = crate::callables::Operation::from_api_doc(
-            &format!("__doc__{}", conf.doc_path),
-            &conf.doc_path,
-        );
         let spec_op_id = spec_op.id;
-        let doc_op_id = doc_op.id;
-
-        // Hidden ops go into ops only — no name_index entry needed.
         self.ops.insert(spec_op_id, spec_op);
-        self.ops.insert(doc_op_id, doc_op);
+
+        let doc_op_id = conf.doc_path.as_deref().map(|path| {
+            let op = crate::callables::Operation::from_api_doc(
+                &format!("__doc__{}", path),
+                path,
+            );
+            let id = op.id;
+            self.ops.insert(id, op);
+            id
+        });
 
         self.doc_engine.register(DocNode {
             spec_op_id,
@@ -162,6 +260,7 @@ impl Bundle {
             operation_ids,
             meta: conf.meta,
             viewer: conf.viewer,
+            auth: conf.auth,
         });
         self
     }

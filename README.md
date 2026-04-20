@@ -52,11 +52,12 @@ cargo run --example notes
 
 ```rust
 use uxar::{
-    AuthUser, Site, SiteConf, SiteError,
+  Site, SiteConf, SiteError,
+  auth::{AuthUser, BitRole},
     bundles::{self, Bundle, OpenApiConf},
     db::{Bindable, DBSession, FilteredBuilder, Scannable},
     errors::{Error, ErrorKind},
-    permit, roles::BitRole, serve_site,
+  permit, serve_site,
 };
 use axum::Json;
 use schemars::JsonSchema;
@@ -83,7 +84,7 @@ async fn list_notes(site: Site, p: permit!(Role, User)) -> Result<Json<Vec<Note>
     let notes: Vec<Note> = uxar::db::select("notes")
         .filter("owner = :owner")
         .bind_as("owner", user.key.to_string())
-        .all(&mut db).await?;;
+        .all(&mut db).await?;
     Ok(Json(notes))
 }
 
@@ -96,14 +97,19 @@ async fn create_note(
     let mut db = site.db();
     let saved: Note = uxar::db::insert("notes")
         .row(&NewNote { owner: user.key.to_string(), title: input.title, body: input.body })
-        .one(&mut db).await?;;
+        .one(&mut db).await?;
     Ok(Json(saved))
 }
 
 #[tokio::main]
 async fn main() -> Result<(), SiteError> {
     let bundle = bundles::bundle! { list_notes, create_note }
-        .with_openapi(OpenApiConf::default());
+        .with_openapi(
+            OpenApiConf::default()
+                .title("Notes API")
+                .description("Getting-started example for uxar")
+                .doc("/api/docs"),
+        );
     serve_site(SiteConf::from_env_with_files().unwrap(), bundle).await
 }
 ```

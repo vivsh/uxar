@@ -14,6 +14,17 @@ use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Validati
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use time;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use ring::{pbkdf2, rand::{SystemRandom, SecureRandom}, digest};
+use std::fmt::Write as _;
+use std::num::NonZeroU32;
+
+pub use crate::roles::{BitRole, Permit, PermitAll, PermitAny, RoleType, format_roles};
+pub use crate::permit;
+
+const DEFAULT_PBKDF2_ITERATIONS: u32 = 260_000;
+const UNUSABLE_PASSWORD_PREFIX: &str = "!";
+const UNUSABLE_PASSWORD_SUFFIX_LEN: usize = 40;
 
 
 
@@ -77,6 +88,92 @@ fn extract_token(parts: &Parts) -> Option<&str> {
 
 fn unix_timestamp() -> i64 {
     chrono::Utc::now().timestamp()
+}
+
+fn to_hex(input: &[u8]) -> String {
+    let mut out = String::with_capacity(input.len() * 2);
+    for b in input {
+        let _ = write!(&mut out, "{:02x}", b);
+    }
+    out
+}
+
+/// Create a Django-compatible unusable password marker.
+///
+/// Django marks unusable passwords with a value that starts with `!`.
+pub fn unusable_password() -> Result<String, AuthError> {
+    let rng = SystemRandom::new();
+    let mut buf = [0u8; UNUSABLE_PASSWORD_SUFFIX_LEN / 2];
+    rng.fill(&mut buf)
+        .map_err(|_| AuthError::InternalError("rng error".to_string()))?;
+    Ok(format!("{}{}", UNUSABLE_PASSWORD_PREFIX, to_hex(&buf)))
+}
+
+/// Create a Django-compatible password hash using PBKDF2.
+///
+/// Format returned: `<algorithm>$<iterations>$<salt>$<hash>`
+/// Supported algorithms: `pbkdf2_sha256`, `pbkdf2_sha1`
+pub fn make_password(password: &str, salt: Option<&str>, algorithm: Option<&str>) -> Result<String, AuthError> {
+    let alg = algorithm.unwrap_or("pbkdf2_sha256");
+    let iterations = DEFAULT_PBKDF2_ITERATIONS;
+    let salt = match salt {
+        Some(s) => s.to_string(),
+        None => {
+            let rng = SystemRandom::new();
+            let mut buf = [0u8; 16];
+            rng.fill(&mut buf).map_err(|_| AuthError::InternalError("rng error".to_string()))?;
+            STANDARD.encode(buf)
+        }
+    };
+
+    let n = NonZeroU32::new(iterations).ok_or(AuthError::InternalError("invalid iterations".to_string()))?;
+
+    match alg {
+        "pbkdf2_sha256" => {
+            let mut dk = [0u8; digest::SHA256_OUTPUT_LEN];
+            pbkdf2::derive(pbkdf2::PBKDF2_HMAC_SHA256, n, salt.as_bytes(), password.as_bytes(), &mut dk);
+            let hash = STANDARD.encode(dk);
+            Ok(format!("{}${}${}${}", alg, iterations, salt, hash))
+        }
+        "pbkdf2_sha1" => {
+            let mut dk = [0u8; digest::SHA1_OUTPUT_LEN];
+            pbkdf2::derive(pbkdf2::PBKDF2_HMAC_SHA1, n, salt.as_bytes(), password.as_bytes(), &mut dk);
+            let hash = STANDARD.encode(dk);
+            Ok(format!("{}${}${}${}", alg, iterations, salt, hash))
+        }
+        _ => Err(AuthError::InternalError(format!("unsupported algorithm: {}", alg))),
+    }
+}
+
+/// Verify a Django-compatible password hash. Returns `Ok(true)` when passwords match.
+pub fn check_password(password: &str, encoded: &str) -> Result<bool, AuthError> {
+    if encoded.starts_with(UNUSABLE_PASSWORD_PREFIX) {
+        return Ok(false);
+    }
+
+    let parts: Vec<&str> = encoded.split('$').collect();
+    if parts.len() != 4 {
+        return Err(AuthError::InternalError("invalid password hash format".to_string()));
+    }
+    let alg = parts[0];
+    let iterations: u32 = parts[1].parse().map_err(|_| AuthError::InternalError("invalid iterations".to_string()))?;
+    let salt = parts[2];
+    let hash_b64 = parts[3];
+    let decoded = STANDARD.decode(hash_b64).map_err(|_| AuthError::InternalError("invalid base64".to_string()))?;
+
+    let n = NonZeroU32::new(iterations).ok_or(AuthError::InternalError("invalid iterations".to_string()))?;
+
+    match alg {
+        "pbkdf2_sha256" => {
+            let res = pbkdf2::verify(pbkdf2::PBKDF2_HMAC_SHA256, n, salt.as_bytes(), password.as_bytes(), &decoded);
+            Ok(res.is_ok())
+        }
+        "pbkdf2_sha1" => {
+            let res = pbkdf2::verify(pbkdf2::PBKDF2_HMAC_SHA1, n, salt.as_bytes(), password.as_bytes(), &decoded);
+            Ok(res.is_ok())
+        }
+        _ => Err(AuthError::InternalError(format!("unsupported algorithm: {}", alg))),
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -211,7 +308,7 @@ impl Authenticator {
         Ok(TokenPair { access_token, refresh_token})
     }
 
-    pub fn login(&self, token: &str, refresh: bool, resp: &mut Response) {
+    pub fn login_token(&self, token: &str, refresh: bool, resp: &mut Response) {
         let cookie_conf = if refresh {
             &self.refresh_cookie_conf
         } else {
@@ -250,6 +347,13 @@ impl Authenticator {
                 }
             }
         }
+    }
+
+    pub fn login_user(&self, user: AuthUser, aud: &[&str], resp: &mut Response)->Result<TokenPair, AuthError>{
+        let pair = self.create_token_pair(user, aud)?;
+        self.login_token(&pair.access_token, false, resp);
+        self.login_token(&pair.refresh_token, true, resp);
+        Ok(pair)
     }
 
     pub fn refresh(&self, parts: &Parts, aud: &[&str]) -> Result<TokenPair, AuthError> {

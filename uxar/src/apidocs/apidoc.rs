@@ -36,7 +36,7 @@ pub struct ApiMeta {
 impl Default for ApiMeta {
     fn default() -> Self {
         Self {
-            version: "0.1.0".to_string(),
+            version: "0.0.1".to_string(),
             title: "API".to_string(),
             description: None,
             tags: Vec::new(),

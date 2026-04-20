@@ -4,7 +4,7 @@ use axum::{extract::FromRequestParts, http::request::Parts};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{borrow::Cow, fmt::Debug, marker::PhantomData};
 
-use crate::{AuthError, AuthUser, Site};
+use crate::{Site, auth::{AuthError, AuthUser}};
 
 // Re-export the BitRole derive macro
 pub use uxar_macros::BitRole;
@@ -136,24 +136,24 @@ macro_rules! permit {
 
     // permit!(RoleType, Role) - single role, defaults to PermitAny
     ($role_ty:ty, $role:ident $(,)?) => {
-        $crate::roles::Permit::<{
+        $crate::auth::Permit::<{
             $crate::permit!(@mask $role_ty, $role)
-        }, $role_ty, $crate::roles::PermitAny>
+        }, $role_ty, $crate::auth::PermitAny>
     };
 
     // permit!(RoleType, Role1 & Role2 & Role3) - ALL required (PermitAll)
     ($role_ty:ty, $first:ident $( & $rest:ident )+ $(,)?) => {
-        $crate::roles::Permit::<{
+        $crate::auth::Permit::<{
             $crate::permit!(@mask $role_ty, $first)
             $( | $crate::permit!(@mask $role_ty, $rest) )+
-        }, $role_ty, $crate::roles::PermitAll>
+        }, $role_ty, $crate::auth::PermitAll>
     };
 
     // permit!(RoleType, Role1 | Role2 | Role3) - ANY required (PermitAny)
     ($role_ty:ty, $first:ident $( | $rest:ident )+ $(,)?) => {
-        $crate::roles::Permit::<{
+        $crate::auth::Permit::<{
             $crate::permit!(@mask $role_ty, $first)
             $( | $crate::permit!(@mask $role_ty, $rest) )+
-        }, $role_ty, $crate::roles::PermitAny>
+        }, $role_ty, $crate::auth::PermitAny>
     };
 }

@@ -8,7 +8,7 @@ use super::callables::{
     FromContext, FromContextParts, IntoOutput, IntoPayloadData, PayloadData,
 };
 use crate::routes::JsonStr;
-use crate::{AuthUser, Site, site};
+use crate::{Site, auth::AuthUser, site};
 use schemars::JsonSchema;
 use std::borrow::Cow;
 use std::sync::Arc;
