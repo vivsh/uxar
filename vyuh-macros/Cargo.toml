@@ -1,0 +1,28 @@
+[package]
+name = "vyuh-macros"
+version = "0.2.1"
+edition = "2024"
+license = "MIT"
+description = "Procedural macros for the Vyuh web framework"
+readme = "../README.md"
+repository = "https://github.com/vivsh/vyuh"
+documentation = "https://docs.rs/vyuh-macros"
+
+[lib]
+proc-macro = true
+
+
+[dependencies]
+include_dir = { version = "0.7.4", features = ["glob"] }
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+darling = "0.20"
+heck = "0.4"
+cron = "0.12"
+
+tokio = {workspace = true}
+
+[dev-dependencies]
+vyuh = { path = "../vyuh" }
+trybuild = "1.0"

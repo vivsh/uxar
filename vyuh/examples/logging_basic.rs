@@ -1,0 +1,45 @@
+//! Logging configuration with stdout and rotating file sinks.
+//!
+//! Run:
+//!
+//! ```sh
+//! cargo run --example logging_basic
+//! ```
+//!
+//! Override filters with:
+//!
+//! ```sh
+//! VYUH_LOG=info cargo run --example logging_basic
+//! VYUH_LOG_AUDIT=off cargo run --example logging_basic
+//! ```
+
+use vyuh::{
+    SiteConf,
+    logging::{LogRule, LogSink, LoggingConf, Rotation},
+};
+
+fn main() {
+    let conf = SiteConf::default().project_dir(".").logging(LoggingConf {
+        env_prefix: Some("VYUH_LOG".into()),
+        rules: vec![
+            LogRule {
+                name: "APP".into(),
+                sink: LogSink::Stdout { pretty: true },
+                default_filter: "info,vyuh=warn".into(),
+            },
+            LogRule {
+                name: "AUDIT".into(),
+                sink: LogSink::File {
+                    dir: "target/vyuh-example-logs".into(),
+                    rotation: Rotation::Daily,
+                },
+                default_filter: "warn".into(),
+            },
+        ],
+    });
+
+    assert_eq!(conf.logging.resolved_env_prefix(), "VYUH_LOG");
+    conf.logging.validate().unwrap();
+
+    println!("logging configured; build a Site with this SiteConf to initialize tracing");
+}

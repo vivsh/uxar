@@ -1,0 +1,39 @@
+//! Cron emitter registration.
+//!
+//! Run:
+//!
+//! ```sh
+//! cargo run --example emitters_cron
+//! ```
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use vyuh::{Site, bundles, callables::Payload};
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+struct DailyTick {
+    project: String,
+}
+
+#[bundles::cron(expr = "0 0 0 * * *")]
+async fn publish_daily(site: Site) -> Payload<DailyTick> {
+    DailyTick {
+        project: site.project_dir().display().to_string(),
+    }
+    .into()
+}
+
+#[bundles::signal]
+async fn record_daily(payload: Payload<DailyTick>) {
+    println!("daily tick for {}", payload.project);
+}
+
+fn main() {
+    let bundle = bundles::bundle! {
+        publish_daily,
+        record_daily,
+    };
+
+    assert_eq!(bundle.iter_operations().count(), 2);
+    println!("cron emitter registered");
+}

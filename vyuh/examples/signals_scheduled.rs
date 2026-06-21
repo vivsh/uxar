@@ -1,0 +1,41 @@
+//! Scheduled in-process signal submission.
+//!
+//! Run:
+//!
+//! ```sh
+//! cargo run --example signals_scheduled
+//! ```
+
+use std::time::Duration;
+
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use vyuh::{
+    bundles,
+    callables::Payload,
+    signals::{SignalClient, SignalError},
+};
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+struct NoteChanged {
+    id: i64,
+}
+
+#[bundles::signal]
+async fn refresh_note_projection(payload: Payload<NoteChanged>) {
+    println!("refresh note {}", payload.id);
+}
+
+fn schedule_refresh(signals: SignalClient) -> Result<(), SignalError> {
+    signals.schedule(NoteChanged { id: 3 }, Duration::from_secs(5))
+}
+
+fn main() {
+    let bundle = bundles::bundle! {
+        refresh_note_projection,
+    };
+
+    assert_eq!(bundle.iter_operations().count(), 1);
+    let _scheduler: fn(SignalClient) -> Result<(), SignalError> = schedule_refresh;
+    println!("scheduled signal handler registered");
+}

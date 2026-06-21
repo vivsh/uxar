@@ -1,0 +1,364 @@
+mod assets;
+mod bindable;
+mod bitrole;
+mod bundle;
+mod bundlepart;
+mod cron;
+mod openapi;
+mod periodic;
+mod pgnotify;
+mod route;
+mod scannable;
+mod schemable;
+mod service;
+mod signal;
+mod task;
+mod validate;
+
+use proc_macro::TokenStream;
+extern crate proc_macro;
+
+/// Derives the Validate trait for data validation.
+///
+/// Generates validation logic based on `#[validate(...)]` attributes.
+///
+/// # Attributes
+///
+/// ## `#[validate(...)]`
+/// - `delegate` - Delegate validation to the field's type (must implement `Validate`)
+/// - `custom = "path"` - Call a custom validation function: `fn(&T) -> Result<(), ValidationReport>`
+/// - String: `min_length`, `max_length`, `exact_length`, `pattern`
+/// - String formats: `email`, `url`, `uuid`, `phone_e164`, `ipv4`, `ipv6`
+/// - Numeric: `min`, `max`, `exclusive_min`, `exclusive_max`, `multiple_of`
+/// - Array: `min_items`, `max_items`, `unique_items`
+#[proc_macro_derive(Validate, attributes(validate))]
+pub fn derive_validate(input: TokenStream) -> TokenStream {
+    validate::derive_validate_impl(input)
+}
+
+/// Defines a route handler with metadata for routing and OpenAPI documentation.
+///
+/// This macro is sugar over `vyuh::bundles::route(handler, RouteConf)`.
+/// Use the direct API when routes are generated conditionally or when macro
+/// syntax is not convenient.
+///
+/// # Required Attributes
+///
+/// - `path` - Axum path pattern with optional parameters in braces: `"/users/{id}"`
+///
+/// # Optional Attributes
+///
+/// - `method` - HTTP method. Defaults to `"GET"` and can be repeated for
+///   multi-method routes.
+/// - `name` - Route name for reverse routing (defaults to function name)
+/// - `description` - Detailed description for OpenAPI. Defaults to doc comments.
+/// - `arg(...)` - Override OpenAPI argument metadata by position/name.
+/// - `returns(...)` - Override or append OpenAPI response metadata.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Free function
+/// #[route(path = "/users/{id}")]
+/// async fn get_user(Path(id): Path<i32>) -> Json<User> {
+///     // ...
+/// }
+///
+/// // Multi-method route
+/// #[route(path = "/users", method = "GET", method = "HEAD")]
+/// async fn users() -> Json<Vec<User>> {
+///     // ...
+/// }
+///
+/// // OpenAPI metadata overrides
+/// #[route(
+///     path = "/users",
+///     method = "POST",
+///     returns(status = 201, description = "Created user")
+/// )]
+/// async fn create_user(Json(input): Json<CreateUser>) -> Json<User> {
+///     // ...
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream {
+    route::parse_route(attr, item)
+}
+
+/// Collects bundle parts (routes, tasks, signals) into a Bundle for composition and registration.
+///
+/// Bundles are the primary unit for organizing and composing application components.
+/// Each handler must be annotated with appropriate macros (`#[route]`, `#[cron]`, `#[periodic]`, etc.).
+///
+/// # Syntax
+///
+/// ```ignore
+/// bundle! {
+///     handler1,
+///     handler2,
+///     ...,
+///     tags = ["tag1", "tag2"]  // optional, applies only to routes
+/// }
+/// ```
+///
+/// # Options
+///
+/// - `tags` - Optional array of tags to apply to all routes in the bundle.
+///            These tags extend (not replace) any tags defined on individual routes.
+///            Note: tags only apply to route parts, not other bundle parts.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Bundle without tags
+/// let user_bundle = bundle! {
+///     get_user,        // #[route]
+///     create_user,     // #[route]
+///     sync_users,      // #[cron]
+/// };
+///
+/// // Bundle with tags - extends individual route tags
+/// let api_bundle = bundle! {
+///     tags = ["api", "v1"],
+///     get_user,
+///     create_user,
+/// };
+///
+/// // Compose bundles
+/// let all_bundles = bundle! {
+///     user_bundle,
+///     api_bundle,
+/// };
+/// ```
+///
+/// # Notes
+///
+/// - Handlers must be annotated with `#[route]`, `#[cron]`, `#[periodic]`, `#[pgnotify]`, or `#[signal]`
+/// - Handlers can be free functions or references to IntoBundle types
+/// - Tags are additive and only apply to route parts
+/// - Returns a `Bundle` that implements `IntoBundle`
+#[proc_macro]
+pub fn bundle(input: TokenStream) -> TokenStream {
+    bundle::parse_bundle(input)
+}
+
+#[proc_macro_derive(Bindable, attributes(field, column))]
+pub fn derive_bindable(input: TokenStream) -> TokenStream {
+    bindable::derive_bindable(input)
+}
+
+#[proc_macro_derive(Scannable, attributes(field, column))]
+pub fn derive_scannable(input: TokenStream) -> TokenStream {
+    scannable::derive_scannable(input)
+}
+
+/// Derives the BitRole trait for role-based access control.
+///
+/// Automatically implements BitRole for enums with unit variants only.
+/// Each variant is assigned a bit position (0, 1, 2, ...) for role masking.
+///
+/// # Requirements
+/// - Only unit variants allowed (no tuple or struct variants)
+/// - Explicit discriminants identify bit positions and must be < 64
+///
+/// # Example
+/// ```ignore
+/// #[derive(BitRole)]
+/// enum UserRole {
+///     Viewer = 0,
+///     Editor = 1,
+///     Manager = 2,
+/// }
+/// ```
+#[proc_macro_derive(BitRole, attributes(bitrole))]
+pub fn derive_bitrole(input: TokenStream) -> TokenStream {
+    bitrole::derive_bitrole(input)
+}
+
+/// Registers a cron emitter.
+///
+/// This macro is sugar over `vyuh::bundles::cron(handler, CronConf)`.
+/// The handler returns `Payload<T>` and the emitted payload is submitted to
+/// signals by default.
+///
+/// # Attributes
+///
+/// - `expr` - Cron expression (required): `"0 0 * * * *"` (every minute)
+/// - `target` - Optional target. For v0, use `"signal"` or omit it.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Free function
+/// #[cron(expr = "0 0 * * * *")]
+/// async fn publish_daily(site: Site) -> Payload<DailyTick> {
+///     DailyTick.into()
+/// }
+///
+/// // Method in impl block
+/// impl SyncTasks {
+///     #[cron(expr = "0 */5 * * * *")]
+///     async fn publish_frequent(site: Site) -> Payload<SyncTick> {
+///         SyncTick.into()
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn cron(attr: TokenStream, item: TokenStream) -> TokenStream {
+    cron::parse_cron(attr, item)
+}
+
+/// Registers a fixed-interval emitter.
+///
+/// This macro is sugar over `vyuh::bundles::periodic(handler, PeriodicConf)`.
+/// The handler returns `Payload<T>` and the emitted payload is submitted to
+/// signals by default.
+///
+/// # Attributes
+///
+/// - `secs` - Interval in seconds (optional)
+/// - `millis` - Interval in milliseconds (optional)
+/// - `target` - Optional target. For v0, use `"signal"` or omit it.
+///
+/// At least one of `secs` or `millis` must be specified. Both can be used together.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Free function - runs every 30 seconds
+/// #[periodic(secs = 30)]
+/// async fn publish_health(site: Site) -> Payload<HealthTick> {
+///     HealthTick.into()
+/// }
+///
+/// // Method - runs every 500ms
+/// impl Monitor {
+///     #[periodic(millis = 500)]
+///     async fn publish_metrics(site: Site) -> Payload<MetricsTick> {
+///         MetricsTick.into()
+///     }
+/// }
+///
+/// // Combined - runs every 1.5 seconds
+/// #[periodic(secs = 1, millis = 500)]
+/// async fn publish_queue_tick(site: Site) -> Payload<QueueTick> {
+///     QueueTick.into()
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
+    periodic::parse_periodic(attr, item)
+}
+
+/// Registers a PostgreSQL LISTEN/NOTIFY emitter.
+///
+/// This macro is sugar over `vyuh::bundles::pgnotify(handler, PgNotifyConf)`.
+/// The handler receives the raw notification payload with `Payload<String>` and
+/// returns `Payload<T>` for signal dispatch.
+///
+/// # Attributes
+///
+/// - `channel` - PostgreSQL channel name (required): `"user_updates"`
+/// - `target` - Optional target. For v0, use `"signal"` or omit it.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Free function
+/// #[pgnotify(channel = "user_updates")]
+/// async fn publish_user_update(payload: Payload<String>) -> Payload<UserUpdate> {
+///     serde_json::from_str::<UserUpdate>(&payload).unwrap().into()
+/// }
+///
+/// // Method in impl block
+/// impl UserHandlers {
+///     #[pgnotify(channel = "notifications")]
+///     async fn publish_notification(payload: Payload<String>) -> Payload<Notification> {
+///         serde_json::from_str::<Notification>(&payload).unwrap().into()
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn pgnotify(attr: TokenStream, item: TokenStream) -> TokenStream {
+    pgnotify::parse_pgnotify(attr, item)
+}
+
+/// Registers a function as a typed signal handler.
+///
+/// This macro is sugar over `vyuh::bundles::signal(handler, SignalConf)`.
+/// Annotated functions are registered for the payload type extracted with
+/// `Payload<T>`. Signals are fire-and-forget in-process notifications; they do
+/// not guarantee delivery, ordering, retries, durability, or handler completion.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Free function
+/// #[signal]
+/// async fn index_note_change(payload: Payload<NoteChanged>) {
+///     // handle typed signal
+/// }
+///
+/// // Site can be extracted before the payload.
+/// #[signal]
+/// async fn audit_note_change(site: Site, payload: Payload<NoteChanged>) {
+///     // use site plus typed payload
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn signal(attr: TokenStream, item: TokenStream) -> TokenStream {
+    signal::parse_signal(attr, item)
+}
+
+/// Registers a function as a durable task handler.
+///
+/// This macro is sugar over `vyuh::bundles::task(handler, TaskHandlerConf)`.
+/// Task handlers accept `TaskInput<T>` as their payload argument and return
+/// `TaskOutcome`.
+///
+/// # Attributes
+///
+/// - `name` - Optional task name (defaults to function name)
+///
+/// # Examples
+///
+/// ```ignore
+/// // Free function with default name
+/// #[task]
+/// async fn send_email(input: TaskInput<EmailData>) -> TaskOutcome {
+///     TaskOutcome::complete(&"sent").unwrap()
+/// }
+///
+/// // Method with custom name
+/// impl TaskHandlers {
+///     #[task(name = "custom_task_name")]
+///     async fn process_order(site: Site, input: TaskInput<Order>) -> TaskOutcome {
+///         // process order
+///         TaskOutcome::complete(&"done").unwrap()
+///     }
+/// }
+/// ```
+#[proc_macro_attribute]
+pub fn task(attr: TokenStream, item: TokenStream) -> TokenStream {
+    task::parse_task(attr, item)
+}
+
+// #[proc_macro_attribute]
+// pub fn fnspec(attr: TokenStream, item: TokenStream) -> TokenStream {
+//     fnspec::parse_fnspec_input(attr, item, "fnspec")
+// }
+
+#[proc_macro_attribute]
+pub fn openapi(attr: TokenStream, item: TokenStream) -> TokenStream {
+    openapi::parse_openapi(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
+    service::parse_service(attr, item)
+}
+
+#[proc_macro_attribute]
+pub fn asset_dir(attr: TokenStream, item: TokenStream) -> TokenStream {
+    assets::parse_asset_dir(attr, item)
+}
