@@ -164,7 +164,7 @@ shutdown.
 
 ## Examples
 
-- [`services_basic.rs`](../vyuh/examples/services_basic.rs): concrete service
+- [`services_concrete.rs`](../vyuh/examples/services_concrete.rs): concrete service
   registration and route extraction.
 - [`services_direct.rs`](../vyuh/examples/services_direct.rs): equivalent
   direct registration through `bundles::service`.

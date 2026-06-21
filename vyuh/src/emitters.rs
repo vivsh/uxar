@@ -104,6 +104,9 @@ pub enum EmitterError {
     #[error("Invalid emitter target: {0}")]
     InvalidTarget(String),
 
+    #[error("Invalid debounce configuration: {0}")]
+    InvalidDebounce(String),
+
     #[error("Other error: {0}")]
     OtherError(#[from] Box<dyn std::error::Error + Send + Sync>),
 
@@ -134,10 +137,18 @@ impl Emitter {
                 callables::OperationKind::Periodic,
                 Some(serde_json::json!({ "interval_secs": interval.as_secs() })),
             ),
-            EmitterSource::PgNotify { channel, .. } => (
-                callables::OperationKind::PgNotify,
-                Some(serde_json::json!({ "channel": channel })),
-            ),
+            EmitterSource::PgNotify {
+                channel, debounce, ..
+            } => {
+                let mut config = serde_json::json!({ "channel": channel });
+                if let Some(debounce) = debounce {
+                    config["debounce"] = serde_json::json!({
+                        "mode": debounce.mode.as_str(),
+                        "window_ms": debounce.window.as_millis(),
+                    });
+                }
+                (callables::OperationKind::PgNotify, Some(config))
+            }
         };
         callables::Operation::from_specs(kind, specs).with_conf(&config)
     }
@@ -156,6 +167,7 @@ enum EmitterSource {
     PgNotify {
         channel: String,
         handler: EmitterHandler,
+        debounce: Option<DebounceConf>,
     },
 }
 
@@ -203,10 +215,63 @@ pub struct PeriodicConf {
     pub target: EmitTarget,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+pub enum DebounceMode {
+    Leading,
+    Trailing,
+    LeadingAndTrailing,
+}
+
+impl DebounceMode {
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            DebounceMode::Leading => "leading",
+            DebounceMode::Trailing => "trailing",
+            DebounceMode::LeadingAndTrailing => "leading_trailing",
+        }
+    }
+}
+
+impl std::str::FromStr for DebounceMode {
+    type Err = EmitterError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.to_ascii_lowercase().as_str() {
+            "leading" => Ok(Self::Leading),
+            "trailing" => Ok(Self::Trailing),
+            "leading_trailing" | "leading-and-trailing" | "leading+trailing" => {
+                Ok(Self::LeadingAndTrailing)
+            }
+            other => Err(EmitterError::InvalidDebounce(format!(
+                "unsupported debounce mode '{}'",
+                other
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct DebounceConf {
+    pub window: tokio::time::Duration,
+    pub mode: DebounceMode,
+}
+
+impl DebounceConf {
+    fn validate(&self) -> Result<(), EmitterError> {
+        if self.window.is_zero() {
+            return Err(EmitterError::InvalidDebounce(
+                "window must be greater than zero".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct PgNotifyConf {
     pub channel: String,
     pub target: EmitTarget,
+    pub debounce: Option<DebounceConf>,
 }
 
 #[doc(hidden)]
@@ -262,6 +327,9 @@ where
         callables::IntoOutput<Error> + callables::IntoReturnPart + EmitsData<O> + Send + 'static,
     Args: callables::FromContext<EmitterContext> + callables::IntoArgSpecs,
 {
+    if let Some(debounce) = &options.debounce {
+        debounce.validate()?;
+    }
     let wrapper = Callable::new(handler);
     Ok(Emitter {
         type_id: TypeId::of::<O>(),
@@ -269,6 +337,7 @@ where
         source: EmitterSource::PgNotify {
             channel: options.channel,
             handler: wrapper,
+            debounce: options.debounce,
         },
     })
 }
@@ -329,8 +398,10 @@ impl EmitterEngine {
 
     pub async fn run(self, site: Site) -> Result<(), EmitterError> {
         let mut timer_tasks = TimerQueue::new();
+        let mut debounce_tasks = DebounceQueue::new();
         let shutdown = site.shutdown_notifier();
-        let mut notify_tasks: HashMap<String, Vec<NotifyWork>> = HashMap::new();
+        let mut notify_tasks: HashMap<String, Vec<usize>> = HashMap::new();
+        let mut notify_works: Vec<NotifyWork> = Vec::new();
 
         for ((type_id, _), emitter) in &self.sources {
             match &emitter.source {
@@ -355,15 +426,23 @@ impl EmitterEngine {
                     );
                     timer_tasks.push(work);
                 }
-                EmitterSource::PgNotify { channel, handler } => {
+                EmitterSource::PgNotify {
+                    channel,
+                    handler,
+                    debounce,
+                } => {
+                    let work_id = notify_works.len();
+                    notify_works.push(NotifyWork::new(
+                        work_id,
+                        type_id.clone(),
+                        handler.clone(),
+                        emitter.target,
+                        debounce.clone(),
+                    ));
                     notify_tasks
                         .entry(channel.clone())
                         .or_default()
-                        .push(NotifyWork::new(
-                            type_id.clone(),
-                            handler.clone(),
-                            emitter.target,
-                        ));
+                        .push(work_id);
                 }
             }
         }
@@ -398,31 +477,31 @@ impl EmitterEngine {
                     tracing::info!("SignalEngine shutting down");
                     break;
                 }
+                Some(deadline) = debounce_tasks.pop() => {
+                    let call = notify_works
+                        .get_mut(deadline.work_id)
+                        .and_then(|work| work.on_debounce_deadline(deadline));
+                    if let Some(call) = call {
+                        self.run_notify_call(&site, &mut notify_works, call).await;
+                    }
+                }
                 Some(notif) = async {
                     match &mut receiver {
                         Some(receiver) => receiver.recv().await,
                         None => std::future::pending().await,
                     }
                 } => {
-                    if let Some(signal_names) = notify_tasks.get_mut(notif.channel.as_str()){
-                        for notify_work in signal_names {
-                            let result = notify_work.handler.call(EmitterContext{
-                                site: site.clone(),
-                                payload: DataBox::new(notif.payload.clone()),
-                                iter_count: notify_work.iter_count,
-                                last_time: notify_work.last_time,
-                            }).await;
-                            timer_tasks.touch(notify_work.type_id);
-                            let target = notify_work.target.clone();
-                            match result {
-                                Ok(payload)=> {
-                                    self.dispatch(&site, payload, target).await;
-                                },
-                                Err(err)=>{
-                                    tracing::error!("Error parsing pgnotify payload for channel '{}': {}", notif.channel, err);
-                                }
+                    if let Some(work_ids) = notify_tasks.get(notif.channel.as_str()){
+                        for work_id in work_ids {
+                            let call = if let Some(work) = notify_works.get_mut(*work_id) {
+                                timer_tasks.touch(work.type_id);
+                                work.on_notify(notif.payload.clone(), &mut debounce_tasks)
+                            } else {
+                                None
+                            };
+                            if let Some(call) = call {
+                                self.run_notify_call(&site, &mut notify_works, call).await;
                             }
-                            notify_work.update();
                         }
                     }
                 }
@@ -430,30 +509,277 @@ impl EmitterEngine {
         }
         Ok(())
     }
+
+    async fn run_notify_call(
+        &self,
+        site: &Site,
+        notify_works: &mut [NotifyWork],
+        call: NotifyCall,
+    ) {
+        let result = call.handler.call(EmitterContext {
+            site: site.clone(),
+            payload: DataBox::new(call.payload),
+            iter_count: call.iter_count,
+            last_time: call.last_time,
+        });
+        let target = call.target;
+        match result.await {
+            Ok(payload) => {
+                self.dispatch(site, payload, target).await;
+            }
+            Err(err) => {
+                tracing::error!("Error parsing pgnotify payload: {}", err);
+            }
+        }
+        if let Some(work) = notify_works.get_mut(call.work_id) {
+            work.update();
+        }
+    }
 }
 
 struct NotifyWork {
+    id: usize,
     type_id: TypeId,
     handler: EmitterHandler,
     target: EmitTarget,
     iter_count: usize,
     last_time: Option<tokio::time::Instant>,
+    debounce: Option<DebounceState>,
 }
 
 impl NotifyWork {
-    fn new(type_id: TypeId, handler: EmitterHandler, target: EmitTarget) -> Self {
+    fn new(
+        id: usize,
+        type_id: TypeId,
+        handler: EmitterHandler,
+        target: EmitTarget,
+        debounce: Option<DebounceConf>,
+    ) -> Self {
         Self {
+            id,
             type_id,
             handler,
             target,
             iter_count: 0,
             last_time: None,
+            debounce: debounce.map(DebounceState::new),
         }
+    }
+
+    fn call(&self, payload: String) -> NotifyCall {
+        NotifyCall {
+            work_id: self.id,
+            handler: self.handler.clone(),
+            target: self.target,
+            iter_count: self.iter_count,
+            last_time: self.last_time,
+            payload,
+        }
+    }
+
+    fn on_notify(&mut self, payload: String, queue: &mut DebounceQueue) -> Option<NotifyCall> {
+        let Some(mut debounce) = self.debounce.take() else {
+            return Some(self.call(payload));
+        };
+        let call = debounce.on_notify(self, payload, queue);
+        self.debounce = Some(debounce);
+        call
+    }
+
+    fn on_debounce_deadline(&mut self, deadline: DebounceDeadline) -> Option<NotifyCall> {
+        let mut debounce = self.debounce.take()?;
+        let call = debounce.on_deadline(self, deadline);
+        self.debounce = Some(debounce);
+        call
     }
 
     fn update(&mut self) {
         self.iter_count = self.iter_count.wrapping_add(1);
         self.last_time = Some(tokio::time::Instant::now());
+    }
+}
+
+struct NotifyCall {
+    work_id: usize,
+    handler: EmitterHandler,
+    target: EmitTarget,
+    iter_count: usize,
+    last_time: Option<tokio::time::Instant>,
+    payload: String,
+}
+
+struct DebounceState {
+    conf: DebounceConf,
+    active: bool,
+    generation: u64,
+    pending_payload: Option<String>,
+    saw_extra: bool,
+}
+
+impl DebounceState {
+    fn new(conf: DebounceConf) -> Self {
+        Self {
+            conf,
+            active: false,
+            generation: 0,
+            pending_payload: None,
+            saw_extra: false,
+        }
+    }
+
+    fn on_notify(
+        &mut self,
+        work: &NotifyWork,
+        payload: String,
+        queue: &mut DebounceQueue,
+    ) -> Option<NotifyCall> {
+        match self.conf.mode {
+            DebounceMode::Leading => {
+                if self.active {
+                    return None;
+                }
+                self.start_window(work.id, queue);
+                Some(work.call(payload))
+            }
+            DebounceMode::Trailing => {
+                self.active = true;
+                self.pending_payload = Some(payload);
+                self.push_deadline(work.id, queue);
+                None
+            }
+            DebounceMode::LeadingAndTrailing => {
+                if self.active {
+                    self.saw_extra = true;
+                    self.pending_payload = Some(payload);
+                    self.push_deadline(work.id, queue);
+                    None
+                } else {
+                    self.start_window(work.id, queue);
+                    Some(work.call(payload))
+                }
+            }
+        }
+    }
+
+    fn on_deadline(&mut self, work: &NotifyWork, deadline: DebounceDeadline) -> Option<NotifyCall> {
+        if deadline.generation != self.generation {
+            return None;
+        }
+
+        match self.conf.mode {
+            DebounceMode::Leading => {
+                self.reset();
+                None
+            }
+            DebounceMode::Trailing => {
+                self.active = false;
+                self.pending_payload
+                    .take()
+                    .map(|payload| work.call(payload))
+            }
+            DebounceMode::LeadingAndTrailing => {
+                let should_emit = self.saw_extra;
+                self.active = false;
+                self.saw_extra = false;
+                if should_emit {
+                    self.pending_payload
+                        .take()
+                        .map(|payload| work.call(payload))
+                } else {
+                    self.pending_payload = None;
+                    None
+                }
+            }
+        }
+    }
+
+    fn start_window(&mut self, work_id: usize, queue: &mut DebounceQueue) {
+        self.active = true;
+        self.pending_payload = None;
+        self.saw_extra = false;
+        self.push_deadline(work_id, queue);
+    }
+
+    fn push_deadline(&mut self, work_id: usize, queue: &mut DebounceQueue) {
+        self.generation = self.generation.wrapping_add(1);
+        queue.push(DebounceDeadline {
+            work_id,
+            generation: self.generation,
+            deadline: tokio::time::Instant::now() + self.conf.window,
+        });
+    }
+
+    fn reset(&mut self) {
+        self.active = false;
+        self.pending_payload = None;
+        self.saw_extra = false;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct DebounceDeadline {
+    work_id: usize,
+    generation: u64,
+    deadline: tokio::time::Instant,
+}
+
+impl Eq for DebounceDeadline {}
+
+impl PartialEq for DebounceDeadline {
+    fn eq(&self, other: &Self) -> bool {
+        self.deadline == other.deadline
+            && self.work_id == other.work_id
+            && self.generation == other.generation
+    }
+}
+
+impl Ord for DebounceDeadline {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.deadline.cmp(&self.deadline)
+    }
+}
+
+impl PartialOrd for DebounceDeadline {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+struct DebounceQueue {
+    heap: BinaryHeap<DebounceDeadline>,
+    notifier: tokio::sync::Notify,
+}
+
+impl DebounceQueue {
+    fn new() -> Self {
+        Self {
+            heap: BinaryHeap::new(),
+            notifier: tokio::sync::Notify::new(),
+        }
+    }
+
+    fn push(&mut self, deadline: DebounceDeadline) {
+        self.heap.push(deadline);
+        self.notifier.notify_one();
+    }
+
+    async fn pop(&mut self) -> Option<DebounceDeadline> {
+        loop {
+            if let Some(deadline) = self.heap.peek() {
+                let now = tokio::time::Instant::now();
+                if deadline.deadline <= now {
+                    return self.heap.pop();
+                }
+
+                let wait = deadline.deadline - now;
+                tokio::select! {
+                    _ = tokio::time::sleep(wait) => {},
+                    _ = self.notifier.notified() => {},
+                }
+            } else {
+                self.notifier.notified().await;
+            }
+        }
     }
 }
 
@@ -677,5 +1003,147 @@ mod tests {
             registry.register(second),
             Err(EmitterError::AlreadyExists)
         ));
+    }
+
+    fn debounce_work(mode: DebounceMode) -> (NotifyWork, DebounceQueue) {
+        (
+            NotifyWork::new(
+                0,
+                TypeId::of::<TestEvent>(),
+                Callable::new(publish_event),
+                EmitTarget::Signal,
+                Some(DebounceConf {
+                    window: tokio::time::Duration::from_millis(10),
+                    mode,
+                }),
+            ),
+            DebounceQueue::new(),
+        )
+    }
+
+    #[test]
+    fn leading_debounce_emits_first_only_inside_window() {
+        let (mut work, mut queue) = debounce_work(DebounceMode::Leading);
+
+        assert_eq!(
+            work.on_notify("first".to_string(), &mut queue)
+                .map(|call| call.payload),
+            Some("first".to_string())
+        );
+        assert!(work.on_notify("second".to_string(), &mut queue).is_none());
+
+        let generation = work.debounce.as_ref().unwrap().generation;
+        assert!(
+            work.on_debounce_deadline(DebounceDeadline {
+                work_id: 0,
+                generation,
+                deadline: tokio::time::Instant::now(),
+            })
+            .is_none()
+        );
+
+        assert_eq!(
+            work.on_notify("third".to_string(), &mut queue)
+                .map(|call| call.payload),
+            Some("third".to_string())
+        );
+    }
+
+    #[test]
+    fn trailing_debounce_emits_latest_payload_on_matching_deadline() {
+        let (mut work, mut queue) = debounce_work(DebounceMode::Trailing);
+
+        assert!(work.on_notify("first".to_string(), &mut queue).is_none());
+        let stale_generation = work.debounce.as_ref().unwrap().generation;
+        assert!(work.on_notify("last".to_string(), &mut queue).is_none());
+
+        assert!(
+            work.on_debounce_deadline(DebounceDeadline {
+                work_id: 0,
+                generation: stale_generation,
+                deadline: tokio::time::Instant::now(),
+            })
+            .is_none()
+        );
+
+        let generation = work.debounce.as_ref().unwrap().generation;
+        assert_eq!(
+            work.on_debounce_deadline(DebounceDeadline {
+                work_id: 0,
+                generation,
+                deadline: tokio::time::Instant::now(),
+            })
+            .map(|call| call.payload),
+            Some("last".to_string())
+        );
+    }
+
+    #[test]
+    fn leading_and_trailing_emits_trailing_only_after_extra_payload() {
+        let (mut single, mut queue) = debounce_work(DebounceMode::LeadingAndTrailing);
+        assert_eq!(
+            single
+                .on_notify("only".to_string(), &mut queue)
+                .map(|call| call.payload),
+            Some("only".to_string())
+        );
+        let generation = single.debounce.as_ref().unwrap().generation;
+        assert!(
+            single
+                .on_debounce_deadline(DebounceDeadline {
+                    work_id: 0,
+                    generation,
+                    deadline: tokio::time::Instant::now(),
+                })
+                .is_none()
+        );
+
+        let (mut burst, mut queue) = debounce_work(DebounceMode::LeadingAndTrailing);
+        assert_eq!(
+            burst
+                .on_notify("first".to_string(), &mut queue)
+                .map(|call| call.payload),
+            Some("first".to_string())
+        );
+        assert!(burst.on_notify("middle".to_string(), &mut queue).is_none());
+        assert!(burst.on_notify("last".to_string(), &mut queue).is_none());
+
+        let generation = burst.debounce.as_ref().unwrap().generation;
+        assert_eq!(
+            burst
+                .on_debounce_deadline(DebounceDeadline {
+                    work_id: 0,
+                    generation,
+                    deadline: tokio::time::Instant::now(),
+                })
+                .map(|call| call.payload),
+            Some("last".to_string())
+        );
+    }
+
+    #[test]
+    fn pgnotify_operation_includes_debounce_metadata() {
+        let emitter = pgnotify::<_, _, TestEvent>(
+            |payload: Data<String>| async move {
+                Data::new(TestEvent {
+                    count: payload.len(),
+                })
+            },
+            PgNotifyConf {
+                channel: "events".to_string(),
+                target: EmitTarget::Signal,
+                debounce: Some(DebounceConf {
+                    window: tokio::time::Duration::from_millis(250),
+                    mode: DebounceMode::LeadingAndTrailing,
+                }),
+            },
+        )
+        .unwrap();
+
+        let op = emitter.operation();
+        let config = op.conf.as_ref().unwrap();
+        assert_eq!(config["channel"], "events");
+        assert_eq!(config["debounce"]["mode"], "leading_trailing");
+        assert_eq!(config["debounce"]["window_ms"], 250);
     }
 }

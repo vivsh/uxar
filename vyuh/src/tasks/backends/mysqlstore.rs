@@ -114,6 +114,27 @@ impl MySqlTaskStore {
 
         Ok(())
     }
+
+    async fn add_column_if_missing(&self, name: &str, sql: &str) -> Result<(), TaskError> {
+        let exists: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*)
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = 'vyuh_tasks'
+              AND column_name = ?
+            "#,
+        )
+        .bind(name)
+        .fetch_one(&self.pool)
+        .await?;
+
+        if exists == 0 {
+            sqlx::query(sql).execute(&self.pool).await?;
+        }
+
+        Ok(())
+    }
 }
 
 impl AbstractTaskStore for MySqlTaskStore {
@@ -135,6 +156,7 @@ impl AbstractTaskStore for MySqlTaskStore {
                 AND leased_until <= ?
             )
             ORDER BY
+                priority DESC,
                 CASE
                     WHEN status = ? THEN leased_until
                     ELSE COALESCE(ready_at, ?)
@@ -199,7 +221,7 @@ impl AbstractTaskStore for MySqlTaskStore {
                     r#"
                     SELECT
                         id, name, input, state, resume_topic, resume_input, output, result,
-                        status, attempts, max_attempts, retry_delay_ms, lease_duration_ms,
+                        status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                         last_error, identity, locked_by, leased_until, ready_at, created_at,
                         updated_at, completed_at
                     FROM vyuh_tasks
@@ -218,6 +240,7 @@ impl AbstractTaskStore for MySqlTaskStore {
         }
 
         tx.commit().await?;
+        crate::tasks::sort_claimed_tasks(&mut tasks);
         Ok(tasks)
     }
 
@@ -378,12 +401,12 @@ impl AbstractTaskStore for MySqlTaskStore {
             r#"
             INSERT INTO vyuh_tasks (
                 id, name, input, state, resume_topic, resume_input, output, result,
-                status, attempts, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
                 locked_by, leased_until, ready_at, created_at, updated_at, completed_at
             )
             VALUES (
                 ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?
             )
             "#,
@@ -398,6 +421,7 @@ impl AbstractTaskStore for MySqlTaskStore {
         .bind(&record.result)
         .bind(record.status)
         .bind(record.attempts)
+        .bind(record.priority)
         .bind(record.max_attempts)
         .bind(record.retry_delay_ms)
         .bind(record.lease_duration_ms)
@@ -455,6 +479,7 @@ impl AbstractTaskStore for MySqlTaskStore {
                 result TEXT,
                 status SMALLINT NOT NULL,
                 attempts INT NOT NULL DEFAULT 0,
+                priority INT NOT NULL DEFAULT 0,
                 max_attempts INT,
                 retry_delay_ms BIGINT,
                 lease_duration_ms BIGINT,
@@ -481,11 +506,17 @@ impl AbstractTaskStore for MySqlTaskStore {
         .execute(&self.pool)
         .await?;
 
+        self.add_column_if_missing(
+            "priority",
+            "ALTER TABLE vyuh_tasks ADD COLUMN priority INT NOT NULL DEFAULT 0 AFTER attempts",
+        )
+        .await?;
+
         self.create_index_if_missing(
-            "idx_vyuh_tasks_pending_claim",
+            "idx_vyuh_tasks_pending_priority_claim",
             r#"
-            CREATE INDEX idx_vyuh_tasks_pending_claim
-            ON vyuh_tasks(status, ready_at, created_at)
+            CREATE INDEX idx_vyuh_tasks_pending_priority_claim
+            ON vyuh_tasks(status, priority DESC, ready_at, created_at)
             "#,
         )
         .await?;

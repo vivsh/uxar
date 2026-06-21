@@ -101,7 +101,7 @@ impl AbstractTaskStore for SqliteTaskStore {
     async fn claim_tasks(&self, runner_id: &str) -> Result<Vec<TaskRecord>, TaskError> {
         let now = chrono::Utc::now();
         let default_lease_ms = self.lease_duration.num_milliseconds();
-        let tasks = sqlx::query_as::<_, TaskRecord>(
+        let mut tasks = sqlx::query_as::<_, TaskRecord>(
             r#"
             UPDATE vyuh_tasks
             SET status = ?1,
@@ -124,6 +124,7 @@ impl AbstractTaskStore for SqliteTaskStore {
                     AND leased_until <= ?3
                 )
                 ORDER BY
+                    priority DESC,
                     CASE
                         WHEN status = ?1 THEN leased_until
                         ELSE COALESCE(ready_at, ?3)
@@ -133,7 +134,7 @@ impl AbstractTaskStore for SqliteTaskStore {
             )
             RETURNING
                 id, name, input, state, resume_topic, resume_input, output, result,
-                status, attempts, max_attempts, retry_delay_ms, lease_duration_ms,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
             "#,
@@ -146,6 +147,7 @@ impl AbstractTaskStore for SqliteTaskStore {
         .bind(self.batch_size as i64)
         .fetch_all(&self.pool)
         .await?;
+        crate::tasks::sort_claimed_tasks(&mut tasks);
         Ok(tasks)
     }
 
@@ -305,13 +307,13 @@ impl AbstractTaskStore for SqliteTaskStore {
             r#"
             INSERT INTO vyuh_tasks (
                 id, name, input, state, resume_topic, resume_input, output, result,
-                status, attempts, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
                 locked_by, leased_until, ready_at, created_at, updated_at, completed_at
             )
             VALUES (
                 ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                ?16, ?17, ?18, ?19, ?20, ?21
+                ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                ?17, ?18, ?19, ?20, ?21, ?22
             )
             "#,
         )
@@ -325,6 +327,7 @@ impl AbstractTaskStore for SqliteTaskStore {
         .bind(&record.result)
         .bind(record.status)
         .bind(record.attempts)
+        .bind(record.priority)
         .bind(record.max_attempts)
         .bind(record.retry_delay_ms)
         .bind(record.lease_duration_ms)
@@ -381,6 +384,7 @@ impl AbstractTaskStore for SqliteTaskStore {
                 result TEXT,
                 status INTEGER NOT NULL,
                 attempts INTEGER NOT NULL DEFAULT 0,
+                priority INTEGER NOT NULL DEFAULT 0,
                 max_attempts INTEGER,
                 retry_delay_ms INTEGER,
                 lease_duration_ms INTEGER,
@@ -398,10 +402,26 @@ impl AbstractTaskStore for SqliteTaskStore {
         .execute(&self.pool)
         .await?;
 
+        let has_priority: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*)
+            FROM pragma_table_info('vyuh_tasks')
+            WHERE name = 'priority'
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        if has_priority == 0 {
+            sqlx::query("ALTER TABLE vyuh_tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+                .execute(&self.pool)
+                .await?;
+        }
+
         sqlx::query(
             r#"
-            CREATE INDEX IF NOT EXISTS idx_vyuh_tasks_pending_claim
-            ON vyuh_tasks(status, ready_at, created_at)
+            CREATE INDEX IF NOT EXISTS idx_vyuh_tasks_pending_priority_claim
+            ON vyuh_tasks(status, priority DESC, ready_at, created_at)
             WHERE status = 0
             "#,
         )

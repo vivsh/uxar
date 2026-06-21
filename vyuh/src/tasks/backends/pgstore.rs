@@ -99,7 +99,7 @@ impl PgTaskStore {
 impl AbstractTaskStore for PgTaskStore {
     async fn claim_tasks(&self, runner_id: &str) -> Result<Vec<TaskRecord>, TaskError> {
         let default_lease_ms = self.lease_duration.num_milliseconds();
-        let tasks = sqlx::query_as::<_, TaskRecord>(
+        let mut tasks = sqlx::query_as::<_, TaskRecord>(
             r#"
             UPDATE vyuh.tasks
             SET status = $1,
@@ -117,6 +117,7 @@ impl AbstractTaskStore for PgTaskStore {
                     AND leased_until <= NOW()
                 )
                 ORDER BY
+                    priority DESC,
                     CASE
                         WHEN status = $1 THEN leased_until
                         ELSE COALESCE(ready_at, NOW())
@@ -127,7 +128,7 @@ impl AbstractTaskStore for PgTaskStore {
             )
             RETURNING
                 id, name, input, state, resume_topic, resume_input, output, result,
-                status, attempts, max_attempts, retry_delay_ms, lease_duration_ms,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
             "#,
@@ -140,6 +141,7 @@ impl AbstractTaskStore for PgTaskStore {
         .fetch_all(&self.pool)
         .await?;
 
+        crate::tasks::sort_claimed_tasks(&mut tasks);
         Ok(tasks)
     }
 
@@ -283,13 +285,13 @@ impl AbstractTaskStore for PgTaskStore {
             r#"
             INSERT INTO vyuh.tasks (
                 id, name, input, state, resume_topic, resume_input, output, result,
-                status, attempts, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
                 locked_by, leased_until, ready_at, created_at, updated_at, completed_at
             )
             VALUES (
                 $1, $2, $3, $4, $5, $6, $7, $8,
-                $9, $10, $11, $12, $13, $14, $15,
-                $16, $17, $18, $19, $20, $21
+                $9, $10, $11, $12, $13, $14, $15, $16,
+                $17, $18, $19, $20, $21, $22
             )
             "#,
         )
@@ -303,6 +305,7 @@ impl AbstractTaskStore for PgTaskStore {
         .bind(&record.result)
         .bind(record.status)
         .bind(record.attempts)
+        .bind(record.priority)
         .bind(record.max_attempts)
         .bind(record.retry_delay_ms)
         .bind(record.lease_duration_ms)
@@ -361,6 +364,7 @@ impl AbstractTaskStore for PgTaskStore {
                 result TEXT,
                 status SMALLINT NOT NULL,
                 attempts INTEGER NOT NULL DEFAULT 0,
+                priority INTEGER NOT NULL DEFAULT 0,
                 max_attempts INTEGER,
                 retry_delay_ms BIGINT,
                 lease_duration_ms BIGINT,
@@ -380,8 +384,17 @@ impl AbstractTaskStore for PgTaskStore {
 
         sqlx::query(
             r#"
-            CREATE INDEX IF NOT EXISTS idx_tasks_pending_claim
-            ON vyuh.tasks(status, ready_at, created_at)
+            ALTER TABLE vyuh.tasks
+            ADD COLUMN IF NOT EXISTS priority INTEGER NOT NULL DEFAULT 0
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE INDEX IF NOT EXISTS idx_tasks_pending_priority_claim
+            ON vyuh.tasks(status, priority DESC, ready_at, created_at)
             WHERE status = 0
             "#,
         )

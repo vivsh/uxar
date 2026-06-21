@@ -124,6 +124,7 @@ pub struct TaskOptions {
     pub identity: Option<String>,
     pub max_attempts: Option<i32>,
     pub state: Option<String>,
+    pub priority: i32,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -138,6 +139,7 @@ pub struct TaskRecord {
     pub result: Option<String>,
     pub status: TaskStatus,
     pub attempts: i32,
+    pub priority: i32,
     pub max_attempts: Option<i32>,
     pub retry_delay_ms: Option<i64>,
     pub lease_duration_ms: Option<i64>,
@@ -184,6 +186,16 @@ impl TaskRecord {
             .transpose()
             .map_err(TaskError::from)
     }
+}
+
+pub(crate) fn sort_claimed_tasks(tasks: &mut [TaskRecord]) {
+    tasks.sort_by_key(|task| {
+        (
+            std::cmp::Reverse(task.priority),
+            task.ready_at.unwrap_or(task.created_at),
+            task.created_at,
+        )
+    });
 }
 
 #[derive(Debug, Clone)]
@@ -587,6 +599,7 @@ impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskDisp
             result: None,
             status: TaskStatus::Pending,
             attempts: 0,
+            priority: conf.priority,
             max_attempts: conf.max_attempts,
             retry_delay_ms,
             lease_duration_ms,

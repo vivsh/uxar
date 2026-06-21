@@ -2,6 +2,7 @@
 
 use sqlx::PgPool;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::time::Duration;
 use vyuh::Data;
@@ -68,6 +69,134 @@ async fn test_periodic(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[sqlx::test]
+async fn test_pgnotify_trailing_debounce_uses_last_payload(
+    pool: PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
+    struct NotifyData {
+        raw: String,
+    }
+
+    let counter = Arc::new(AtomicUsize::new(0));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+    let counter_clone = counter.clone();
+    let payloads_clone = payloads.clone();
+
+    let site = create_site(pool.clone()).await;
+    let emitter = emitters::pgnotify(
+        move |payload: Data<String>| {
+            let cnt = counter_clone.clone();
+            let seen = payloads_clone.clone();
+            async move {
+                cnt.fetch_add(1, Ordering::SeqCst);
+                seen.lock().unwrap().push(payload.to_string());
+                Data::new(NotifyData {
+                    raw: payload.to_string(),
+                })
+            }
+        },
+        emitters::PgNotifyConf {
+            channel: "test_trailing_debounce".to_string(),
+            target: emitters::EmitTarget::Signal,
+            debounce: Some(emitters::DebounceConf {
+                window: Duration::from_millis(100),
+                mode: emitters::DebounceMode::Trailing,
+            }),
+        },
+    )?;
+
+    let mut registry = EmitterRegistry::new();
+    registry.register(emitter)?;
+
+    let task_site = site.clone();
+    let engine = registry.create_engine();
+    let run_handle = tokio::spawn(async move { engine.run(task_site).await });
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    site.db()
+        .send_pgnotify("test_trailing_debounce", "first")
+        .await?;
+    site.db()
+        .send_pgnotify("test_trailing_debounce", "middle")
+        .await?;
+    site.db()
+        .send_pgnotify("test_trailing_debounce", "last")
+        .await?;
+    tokio::time::sleep(Duration::from_millis(250)).await;
+
+    assert_eq!(counter.load(Ordering::SeqCst), 1);
+    assert_eq!(payloads.lock().unwrap().as_slice(), ["last"]);
+
+    site.shutdown_and_wait().await;
+    let _ = tokio::time::timeout(Duration::from_millis(100), run_handle).await;
+    Ok(())
+}
+
+#[sqlx::test]
+async fn test_pgnotify_leading_trailing_debounce_emits_first_and_last(
+    pool: PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
+    struct NotifyData {
+        raw: String,
+    }
+
+    let counter = Arc::new(AtomicUsize::new(0));
+    let payloads = Arc::new(Mutex::new(Vec::new()));
+    let counter_clone = counter.clone();
+    let payloads_clone = payloads.clone();
+
+    let site = create_site(pool.clone()).await;
+    let emitter = emitters::pgnotify(
+        move |payload: Data<String>| {
+            let cnt = counter_clone.clone();
+            let seen = payloads_clone.clone();
+            async move {
+                cnt.fetch_add(1, Ordering::SeqCst);
+                seen.lock().unwrap().push(payload.to_string());
+                Data::new(NotifyData {
+                    raw: payload.to_string(),
+                })
+            }
+        },
+        emitters::PgNotifyConf {
+            channel: "test_leading_trailing_debounce".to_string(),
+            target: emitters::EmitTarget::Signal,
+            debounce: Some(emitters::DebounceConf {
+                window: Duration::from_millis(100),
+                mode: emitters::DebounceMode::LeadingAndTrailing,
+            }),
+        },
+    )?;
+
+    let mut registry = EmitterRegistry::new();
+    registry.register(emitter)?;
+
+    let task_site = site.clone();
+    let engine = registry.create_engine();
+    let run_handle = tokio::spawn(async move { engine.run(task_site).await });
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    site.db()
+        .send_pgnotify("test_leading_trailing_debounce", "first")
+        .await?;
+    site.db()
+        .send_pgnotify("test_leading_trailing_debounce", "middle")
+        .await?;
+    site.db()
+        .send_pgnotify("test_leading_trailing_debounce", "last")
+        .await?;
+    tokio::time::sleep(Duration::from_millis(250)).await;
+
+    assert_eq!(counter.load(Ordering::SeqCst), 2);
+    assert_eq!(payloads.lock().unwrap().as_slice(), ["first", "last"]);
+
+    site.shutdown_and_wait().await;
+    let _ = tokio::time::timeout(Duration::from_millis(100), run_handle).await;
+    Ok(())
+}
+
+#[sqlx::test]
 async fn test_cron(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
     struct CronData;
@@ -111,6 +240,105 @@ async fn test_cron(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+async fn wait_for_count(counter: &AtomicUsize, expected: usize, timeout: Duration) -> bool {
+    let start = tokio::time::Instant::now();
+    while start.elapsed() < timeout {
+        if counter.load(Ordering::SeqCst) >= expected {
+            return true;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    counter.load(Ordering::SeqCst) >= expected
+}
+
+#[sqlx::test]
+async fn test_pgnotify_debounce_still_postpones_periodic_fallback(
+    pool: PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
+    struct NotifyData;
+
+    let periodic_counter = Arc::new(AtomicUsize::new(0));
+    let pgnotify_counter = Arc::new(AtomicUsize::new(0));
+    let periodic_counter_clone = periodic_counter.clone();
+    let pgnotify_counter_clone = pgnotify_counter.clone();
+
+    let site = create_site(pool.clone()).await;
+    let periodic = emitters::periodic(
+        move || {
+            let cnt = periodic_counter_clone.clone();
+            async move {
+                cnt.fetch_add(1, Ordering::SeqCst);
+                Data::new(NotifyData)
+            }
+        },
+        emitters::PeriodicConf {
+            interval: Duration::from_millis(200),
+            target: emitters::EmitTarget::Signal,
+        },
+    )?;
+    let pgnotify = emitters::pgnotify(
+        move |_payload: Data<String>| {
+            let cnt = pgnotify_counter_clone.clone();
+            async move {
+                cnt.fetch_add(1, Ordering::SeqCst);
+                Data::new(NotifyData)
+            }
+        },
+        emitters::PgNotifyConf {
+            channel: "test_debounce_periodic_fallback".to_string(),
+            target: emitters::EmitTarget::Signal,
+            debounce: Some(emitters::DebounceConf {
+                window: Duration::from_millis(100),
+                mode: emitters::DebounceMode::Trailing,
+            }),
+        },
+    )?;
+
+    let mut registry = EmitterRegistry::new();
+    registry.register(periodic)?;
+    registry.register(pgnotify)?;
+
+    let task_site = site.clone();
+    let engine = registry.create_engine();
+    let run_handle = tokio::spawn(async move { engine.run(task_site).await });
+
+    assert!(wait_for_count(&periodic_counter, 1, Duration::from_millis(250)).await);
+    let initial_periodic_count = periodic_counter.load(Ordering::SeqCst);
+
+    site.db()
+        .send_pgnotify("test_debounce_periodic_fallback", "first")
+        .await?;
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    site.db()
+        .send_pgnotify("test_debounce_periodic_fallback", "middle")
+        .await?;
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    site.db()
+        .send_pgnotify("test_debounce_periodic_fallback", "last")
+        .await?;
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(
+        periodic_counter.load(Ordering::SeqCst),
+        initial_periodic_count,
+        "periodic fallback fired during an active pgnotify burst"
+    );
+    assert!(wait_for_count(&pgnotify_counter, 1, Duration::from_millis(250)).await);
+    assert!(
+        wait_for_count(
+            &periodic_counter,
+            initial_periodic_count + 1,
+            Duration::from_millis(350),
+        )
+        .await
+    );
+
+    site.shutdown_and_wait().await;
+    let _ = tokio::time::timeout(Duration::from_millis(100), run_handle).await;
+    Ok(())
+}
+
 #[sqlx::test]
 async fn test_pgnotify(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
@@ -131,6 +359,7 @@ async fn test_pgnotify(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
         emitters::PgNotifyConf {
             channel: "test_channel".to_string(),
             target: emitters::EmitTarget::Signal,
+            debounce: None,
         },
     )?;
 

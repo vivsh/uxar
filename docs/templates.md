@@ -217,7 +217,7 @@ prevents one bundle from silently replacing another bundle's template.
 
 ## Examples
 
-- [`templates_basic.rs`](../vyuh/examples/templates_basic.rs): project template
+- [`templates_project.rs`](../vyuh/examples/templates_project.rs): project template
   directory configuration.
 - [`templates_assets.rs`](../vyuh/examples/templates_assets.rs): templates
   shipped through `#[bundles::asset_dir]`.

@@ -61,16 +61,22 @@ impl AbstractTaskStore for MemoryTaskStore {
                 } else {
                     task.ready_at.unwrap_or(now)
                 };
-                (i, ready_at, task.created_at)
+                (
+                    i,
+                    std::cmp::Reverse(task.priority),
+                    ready_at,
+                    task.created_at,
+                )
             })
             .collect();
 
-        ready_indices.sort_by_key(|(_, ready_at, created_at)| (*ready_at, *created_at));
+        ready_indices
+            .sort_by_key(|(_, priority, ready_at, created_at)| (*priority, *ready_at, *created_at));
 
         let claimed = ready_indices
             .iter()
             .take(self.batch_size)
-            .map(|(i, _, _)| {
+            .map(|(i, _, _, _)| {
                 let task = &mut tasks[*i];
                 task.status = TaskStatus::Running;
                 task.locked_by = Some(runner_id.to_string());

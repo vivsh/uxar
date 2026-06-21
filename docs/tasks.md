@@ -254,8 +254,8 @@ site.tasks().submit(EmailJob {
 }).await?;
 ```
 
-Use `submit_with` when the caller needs an initial delay, identity, retry
-policy, lease duration, max attempts, or initial state:
+Use `submit_with` when the caller needs priority, an initial delay, identity,
+retry policy, lease duration, max attempts, or initial state:
 
 ```rust
 use std::time::Duration;
@@ -265,6 +265,7 @@ site.tasks()
     .submit_with(
         EmailJob { to: "user@example.com".into() },
         TaskOptions {
+            priority: 10,
             initial_delay: Some(Duration::from_secs(300)),
             retry_delay: Some(Duration::from_secs(60)),
             lease_duration: Some(Duration::from_secs(900)),
@@ -282,6 +283,10 @@ allows only one active task with that identity. Active means `pending`,
 identity. This prevents duplicate active submissions, but it does not provide
 exactly-once execution or make handler side effects idempotent.
 
+`TaskOptions::priority` defaults to `0`. Higher values are claimed first. For
+tasks with the same priority, Vyuh keeps the existing ordering by eligibility
+time and creation time.
+
 Submit does not provide a separate scheduling API. Initial delayed execution is
 `TaskOptions::initial_delay`, timed continuation belongs in
 `TaskOutcome::sleep`, and recurring creation belongs in emitters.
@@ -291,7 +296,7 @@ Submit does not provide a separate scheduling API. Initial delayed execution is
 `TaskConf.concurrency` is the maximum number of tasks a runner executes in
 parallel. `TaskConf.batch_size` controls how many tasks a runner claims at a
 time. `TaskConf.lease_duration_ms` controls the default lease duration for running
-tasks.
+tasks. Within each claim batch, eligible tasks are ordered by priority first.
 
 ```rust
 use vyuh::{SiteConf, tasks::TaskConf};
@@ -336,9 +341,9 @@ SQLite notes:
 
 ## Examples
 
-- [`tasks_basic.rs`](../vyuh/examples/tasks_basic.rs): macro task registration
+- [`tasks_macro.rs`](../vyuh/examples/tasks_macro.rs): macro task registration
   and typed submit shape.
-- [`tasks_direct.rs`](../vyuh/examples/tasks_direct.rs): equivalent direct task
+- [`tasks_macroless.rs`](../vyuh/examples/tasks_macroless.rs): equivalent direct task
   registration through `bundles::task`.
 - [`tasks_sleep.rs`](../vyuh/examples/tasks_sleep.rs): continuation state with a
   timed wake.

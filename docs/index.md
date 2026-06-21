@@ -40,7 +40,8 @@ that part of the framework.
 - [Signals](signals.md): typed in-process events and signal handlers.
 - [Channels](channels.md): live client-facing pub/sub over SSE, WebSocket, and
   long polling with bounded replay.
-- [Emitters](emitters.md): scheduled and notification-driven event sources.
+- [Emitters](emitters.md): scheduled, debounced, and notification-driven event
+  sources.
 - [Database](db.md): SQLx-backed database access, query builders, derives,
   placeholders, and sessions.
 - [Tasks](tasks.md): durable background tasks, continuation state, topic

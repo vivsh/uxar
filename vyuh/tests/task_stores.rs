@@ -15,6 +15,7 @@ fn task_record(name: &str) -> TaskRecord {
         result: None,
         status: TaskStatus::Pending,
         attempts: 0,
+        priority: 0,
         max_attempts: Some(3),
         retry_delay_ms: None,
         lease_duration_ms: None,
@@ -33,6 +34,31 @@ fn task_record_with_identity(name: &str, identity: &str) -> TaskRecord {
     let mut record = task_record(name);
     record.identity = Some(identity.to_string());
     record
+}
+
+async fn claims_higher_priority_first<S>(store: &S) -> Result<(), vyuh::tasks::TaskError>
+where
+    S: AbstractTaskStore + Send + Sync,
+{
+    store.run_migrations().await?;
+    let mut low = task_record("low_priority");
+    let low_id = low.id;
+    low.priority = -10;
+    let mut normal = task_record("normal_priority");
+    let normal_id = normal.id;
+    normal.priority = 0;
+    let mut high = task_record("high_priority");
+    let high_id = high.id;
+    high.priority = 20;
+
+    store.store_task(low).await?;
+    store.store_task(normal).await?;
+    store.store_task(high).await?;
+
+    let claimed = store.claim_tasks("runner-a").await?;
+    let claimed_ids = claimed.iter().map(|task| task.id).collect::<Vec<_>>();
+    assert_eq!(claimed_ids, vec![high_id, normal_id, low_id]);
+    Ok(())
 }
 
 async fn stores_and_claims_pending_tasks<S>(store: &S) -> Result<(), vyuh::tasks::TaskError>
@@ -425,6 +451,7 @@ where
     S: AbstractTaskStore + Clone + Send + Sync + 'static,
 {
     stores_and_claims_pending_tasks(&store).await?;
+    claims_higher_priority_first(&store).await?;
     suspends_and_resumes_by_topic(&store).await?;
     stale_runner_cannot_commit(&store).await?;
     stale_runner_cannot_retry(&store).await?;

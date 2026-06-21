@@ -144,7 +144,7 @@ initialization strategy or disable site logging.
 
 ## Example
 
-- [`logging_basic.rs`](../vyuh/examples/logging_basic.rs): configure stdout and
+- [`logging_setup.rs`](../vyuh/examples/logging_setup.rs): configure stdout and
   rotating file logging with environment override names.
 
 ## Failure Modes

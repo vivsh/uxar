@@ -272,6 +272,10 @@ pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// - `channel` - PostgreSQL channel name (required): `"user_updates"`
 /// - `target` - Optional target. For v0, use `"signal"` or omit it.
+/// - `debounce_millis` / `debounce_secs` - Optional debounce window.
+/// - `debounce` - Optional mode: `"leading"`, `"trailing"`, or
+///   `"leading_trailing"`. Defaults to `"trailing"` when a debounce window is
+///   configured.
 ///
 /// # Examples
 ///
@@ -279,6 +283,17 @@ pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// // Free function
 /// #[pgnotify(channel = "user_updates")]
 /// async fn publish_user_update(Data(raw): Data<String>) -> Data<UserUpdate> {
+///     serde_json::from_str::<UserUpdate>(&raw).unwrap().into()
+/// }
+///
+/// // Debounced notifications. Runs immediately, then once more with the last
+/// // payload if more notifications arrive within 250ms.
+/// #[pgnotify(
+///     channel = "user_updates",
+///     debounce_millis = 250,
+///     debounce = "leading_trailing"
+/// )]
+/// async fn publish_debounced_user_update(Data(raw): Data<String>) -> Data<UserUpdate> {
 ///     serde_json::from_str::<UserUpdate>(&raw).unwrap().into()
 /// }
 ///

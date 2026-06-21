@@ -261,7 +261,7 @@ handler signatures:
 
 ## Examples
 
-- [`commands_basic.rs`](../vyuh/examples/commands_basic.rs): typed command args
+- [`commands_macro.rs`](../vyuh/examples/commands_macro.rs): typed command args
   and direct registration.
 - [`commands_site.rs`](../vyuh/examples/commands_site.rs): a command that
   extracts `Site` and reads site configuration.

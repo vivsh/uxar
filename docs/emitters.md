@@ -148,12 +148,50 @@ let part = bundles::pgnotify::<NoteNotification, _, _>(
     emitters::PgNotifyConf {
         channel: "notes_changed".to_string(),
         target: emitters::EmitTarget::Signal,
+        debounce: None,
     },
 );
 ```
 
 PgNotify is Postgres-only. MySQL and SQLite builds can use cron and periodic
 emitters, but `pgnotify` requires Postgres `LISTEN`/`NOTIFY`.
+
+### PgNotify Debounce
+
+PgNotify emitters can debounce bursty notifications before running the handler:
+
+```rust
+#[bundles::pgnotify(
+    channel = "notes_changed",
+    debounce_millis = 250,
+    debounce = "leading_trailing"
+)]
+async fn publish_note_notification(payload: Data<String>) -> Data<NoteNotification> {
+    Data::new(NoteNotification {
+        raw: payload.to_string(),
+    })
+}
+```
+
+Supported modes are:
+
+| Mode | Behavior |
+| --- | --- |
+| `leading` | run immediately for the first notification and suppress the rest of the window |
+| `trailing` | run once after a quiet window with the last payload |
+| `leading_trailing` | run immediately, then run once more with the last payload only when more notifications arrived |
+
+If `debounce_millis` or `debounce_secs` is set without `debounce`, the mode
+defaults to `trailing`. Debounce is scoped to one PgNotify emitter
+registration, not shared globally by channel name.
+
+When a PgNotify emitter produces the same `Data<T>` as a cron or periodic
+emitter, every raw notification still postpones that timer fallback. This means
+periodic or cron fallback runs when no notifications arrive, but is pushed back
+while notifications are active, even if debounce suppresses immediate handler
+execution.
+
+Pending trailing emissions are not flushed on shutdown.
 
 ## Bundles
 
@@ -177,12 +215,15 @@ cargo run --example emitters_periodic
 cargo run --example emitters_direct
 cargo run --example emitters_cron
 cargo run --example emitters_pgnotify
+cargo run --example emitters_pgnotify_debounce
 ```
 
 - `emitters_periodic`: macro-based periodic emitter and signal handler.
 - `emitters_direct`: equivalent direct periodic registration.
 - `emitters_cron`: cron emitter using `Site` extraction.
 - `emitters_pgnotify`: Postgres notification emitter registration.
+- `emitters_pgnotify_debounce`: PgNotify emitter with leading and trailing
+  debounce.
 
 ## Failure Modes
 

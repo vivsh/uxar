@@ -36,6 +36,7 @@ async fn main() {
     //             subject: "Welcome".into(),
     //         },
     //         vyuh::tasks::TaskOptions {
+    //             priority: 10,
     //             initial_delay: Some(std::time::Duration::from_secs(300)),
     //             retry_delay: Some(std::time::Duration::from_secs(60)),
     //             lease_duration: Some(std::time::Duration::from_secs(900)),

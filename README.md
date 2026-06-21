@@ -33,6 +33,9 @@ Vyuh tries to make the common application path cohesive:
 - Bundles are the composition unit for features.
 - Handler signatures drive extraction, auth, validation, OpenAPI, and subsystem
   access.
+- Macros are convenience syntax. The same routes, commands, tasks, signals,
+  emitters, services, assets, and OpenAPI wiring can be registered with the
+  direct API.
 
 The goal is not to hide the framework. The goal is to keep each framework
 concept small, explicit, and in the same place as the code that needs it.
@@ -42,46 +45,75 @@ concept small, explicit, and in the same place as the code that needs it.
 ```rust
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{Data, Site, SiteConf, Valid, Validate, bundles};
+use vyuh::{Data, Error, Site, SiteConf, Valid, Validate, bundles};
 
-#[derive(Debug, Deserialize, JsonSchema, Validate)]
-struct CreateUser {
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Validate)]
+struct Signup {
     #[validate(email)]
     email: String,
 
-    #[validate(min_length = 3)]
+    #[validate(min_length = 3, max_length = 80)]
     name: String,
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
-struct UserOut {
-    id: u64,
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+struct UserCreated {
+    id: i64,
     email: String,
     name: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+struct SystemPulse {
+    project: String,
+}
+
 #[bundles::route(path = "/users", method = "POST")]
-async fn create_user(Valid(Data(input)): Valid<Data<CreateUser>>) -> Data<UserOut> {
-    Data::new(UserOut {
+async fn signup(Valid(Data(input)): Valid<Data<Signup>>) -> Result<Data<UserCreated>, Error> {
+    Ok(Data::new(UserCreated {
         id: 1,
         email: input.email.clone(),
         name: input.name.clone(),
+    }))
+}
+
+#[bundles::cron(expr = "0 */5 * * * *")]
+async fn heartbeat(site: Site) -> Data<SystemPulse> {
+    Data::new(SystemPulse {
+        project: site.project_dir().display().to_string(),
     })
+}
+
+#[bundles::signal]
+async fn record_heartbeat(Data(pulse): Data<SystemPulse>) {
+    println!("heartbeat for {}", pulse.project);
 }
 
 #[tokio::main]
 async fn main() -> Result<(), vyuh::SiteError> {
     let app = bundles::bundle! {
-        create_user,
-    };
+        signup,
+        heartbeat,
+        record_heartbeat,
+    }
+    .with_openapi(
+        bundles::OpenApiConf::default()
+            .title("Vyuh Example")
+            .version("0.1.0")
+            .description("Routes, typed data, emitters, signals, and OpenAPI.")
+            .spec("/openapi.json"),
+    )
+    .with_prefix("/api");
 
     Site::run(SiteConf::from_env_with_files()?, app).await
 }
 ```
 
-This route parses a JSON body, validates it, returns JSON, and contributes
-request, response, and validation metadata to OpenAPI from the handler
-signature. Without `Valid`, `Data<CreateUser>` would parse only.
+This bundle registers a validated JSON route, a cron emitter, a signal handler,
+and an OpenAPI spec endpoint. The route parses and validates `Data<Signup>`,
+returns `Data<UserCreated>` as JSON, and contributes request, response, and
+validation metadata to OpenAPI from the handler signature. Without `Valid`,
+`Data<Signup>` would parse only.
 
 `Site::run` is the normal application entrypoint. It builds the site, runs the
 requested command, and defaults to serving HTTP when no command is supplied. Use
@@ -164,7 +196,8 @@ same thing.
 - [Signals](docs/signals.md): typed in-process event handling.
 - [Channels](docs/channels.md): live client-facing pub/sub over SSE,
   WebSocket, and long polling.
-- [Emitters](docs/emitters.md): cron, periodic, and notification sources.
+- [Emitters](docs/emitters.md): cron, periodic, debounced, and notification
+  sources.
 - [Logging](docs/logging.md): tracing setup, sinks, and runtime logging.
 
 See [docs/index.md](docs/index.md) for the full documentation index.
