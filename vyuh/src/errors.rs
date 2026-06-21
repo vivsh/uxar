@@ -1,6 +1,7 @@
 use crate::auth::AuthError;
+use crate::callables::CallError;
 use crate::db::DbError;
-use crate::validation::{ValidationError, ValidationReport};
+use crate::validation::{PathSeg, ValidationError, ValidationReport};
 use axum::{
     Json,
     http::{HeaderMap, Method, StatusCode, Uri},
@@ -44,28 +45,99 @@ pub struct ErrorReport {
 }
 
 #[derive(Debug, Clone)]
-pub struct ErrorContext {
+pub struct ErrorRequestContext {
     pub method: Method,
     pub uri: Uri,
     pub path: String,
     pub headers: HeaderMap,
 }
 
-pub type ErrorHandler = Arc<
-    dyn Fn(ErrorContext, ErrorReport) -> Pin<Box<dyn Future<Output = Response> + Send>>
+pub type ErrorContext = ErrorRequestContext;
+
+#[derive(Debug, Clone)]
+pub struct ErrorCommandContext {
+    pub command: String,
+    pub args: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorRenderTarget {
+    Json,
+    Html,
+    Command,
+}
+
+#[derive(Debug, Clone)]
+pub struct ErrorRenderContext {
+    pub target: ErrorRenderTarget,
+    pub request: Option<ErrorRequestContext>,
+    pub command: Option<ErrorCommandContext>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HttpErrorRenderMode {
+    Json,
+    Html,
+    Auto,
+}
+
+impl Default for HttpErrorRenderMode {
+    fn default() -> Self {
+        Self::Auto
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ErrorView {
+    pub status: StatusCode,
+    pub source: ErrorSourceKind,
+    pub kind: ErrorKind,
+    pub code: Cow<'static, str>,
+    pub message: Cow<'static, str>,
+    pub errors: Option<serde_json::Value>,
+    pub validation: Option<ValidationReport>,
+}
+
+type ErrorHandler = Arc<
+    dyn Fn(ErrorRequestContext, ErrorReport) -> Pin<Box<dyn Future<Output = Response> + Send>>
         + Send
         + Sync,
 >;
 
+type HttpErrorViewHandler = Arc<
+    dyn Fn(ErrorRequestContext, ErrorView) -> Pin<Box<dyn Future<Output = Response> + Send>>
+        + Send
+        + Sync,
+>;
+
+type CommandErrorRenderer = Arc<dyn Fn(ErrorCommandContext, ErrorView) -> String + Send + Sync>;
+
 #[derive(Clone, Default)]
 pub struct ErrorConf {
     handler: Option<ErrorHandler>,
+    json_handler: Option<HttpErrorViewHandler>,
+    html_handler: Option<HttpErrorViewHandler>,
+    command_renderer: Option<CommandErrorRenderer>,
+    http_mode: HttpErrorRenderMode,
 }
 
 impl std::fmt::Debug for ErrorConf {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ErrorConf")
             .field("handler", &self.handler.as_ref().map(|_| "<custom>"))
+            .field(
+                "json_handler",
+                &self.json_handler.as_ref().map(|_| "<custom>"),
+            )
+            .field(
+                "html_handler",
+                &self.html_handler.as_ref().map(|_| "<custom>"),
+            )
+            .field(
+                "command_renderer",
+                &self.command_renderer.as_ref().map(|_| "<custom>"),
+            )
+            .field("http_mode", &self.http_mode)
             .finish()
     }
 }
@@ -73,18 +145,90 @@ impl std::fmt::Debug for ErrorConf {
 impl ErrorConf {
     pub fn handler<F, Fut>(mut self, handler: F) -> Self
     where
-        F: Fn(ErrorContext, ErrorReport) -> Fut + Send + Sync + 'static,
+        F: Fn(ErrorRequestContext, ErrorReport) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Response> + Send + 'static,
     {
         self.handler = Some(Arc::new(move |ctx, report| Box::pin(handler(ctx, report))));
         self
     }
 
-    pub(crate) async fn render(&self, ctx: ErrorContext, report: ErrorReport) -> Response {
+    pub fn json<F, Fut>(mut self, handler: F) -> Self
+    where
+        F: Fn(ErrorRequestContext, ErrorView) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Response> + Send + 'static,
+    {
+        self.json_handler = Some(Arc::new(move |ctx, view| Box::pin(handler(ctx, view))));
+        self
+    }
+
+    pub fn html<F, Fut>(mut self, handler: F) -> Self
+    where
+        F: Fn(ErrorRequestContext, ErrorView) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Response> + Send + 'static,
+    {
+        self.html_handler = Some(Arc::new(move |ctx, view| Box::pin(handler(ctx, view))));
+        self
+    }
+
+    pub fn command<F>(mut self, renderer: F) -> Self
+    where
+        F: Fn(ErrorCommandContext, ErrorView) -> String + Send + Sync + 'static,
+    {
+        self.command_renderer = Some(Arc::new(renderer));
+        self
+    }
+
+    pub fn http_mode(mut self, mode: HttpErrorRenderMode) -> Self {
+        self.http_mode = mode;
+        self
+    }
+
+    pub(crate) async fn render(&self, ctx: ErrorRequestContext, report: ErrorReport) -> Response {
         if let Some(handler) = &self.handler {
             return handler(ctx, report).await;
         }
+        let target = self.http_target(&ctx);
+        let view = ErrorView::from_report(report.clone());
+        match target {
+            ErrorRenderTarget::Html => {
+                if let Some(handler) = &self.html_handler {
+                    return handler(ctx, view).await;
+                }
+            }
+            ErrorRenderTarget::Json => {
+                if let Some(handler) = &self.json_handler {
+                    return handler(ctx, view).await;
+                }
+            }
+            ErrorRenderTarget::Command => {}
+        }
         report.into_response()
+    }
+
+    pub(crate) fn render_command(&self, ctx: ErrorCommandContext, view: ErrorView) -> String {
+        if let Some(renderer) = &self.command_renderer {
+            return renderer(ctx, view);
+        }
+        default_command_error(ctx, view)
+    }
+
+    fn http_target(&self, ctx: &ErrorRequestContext) -> ErrorRenderTarget {
+        match self.http_mode {
+            HttpErrorRenderMode::Json => ErrorRenderTarget::Json,
+            HttpErrorRenderMode::Html => ErrorRenderTarget::Html,
+            HttpErrorRenderMode::Auto => {
+                if ctx
+                    .headers
+                    .get(axum::http::header::ACCEPT)
+                    .and_then(|value| value.to_str().ok())
+                    .is_some_and(|value| value.contains("text/html"))
+                {
+                    ErrorRenderTarget::Html
+                } else {
+                    ErrorRenderTarget::Json
+                }
+            }
+        }
     }
 }
 
@@ -119,7 +263,7 @@ impl ErrorReport {
             source: ErrorSourceKind::Validation,
             code: Cow::Borrowed("validation_error"),
             detail: Cow::Borrowed("Validation failed."),
-            errors: Some(report.to_nested_map()),
+            errors: Some(report.to_nested_errors()),
         }
     }
 
@@ -136,6 +280,129 @@ impl IntoResponse for ErrorReport {
         response.extensions_mut().insert(self);
         response
     }
+}
+
+impl ErrorView {
+    pub fn from_report(report: ErrorReport) -> Self {
+        let kind = kind_from_status(report.status);
+        Self {
+            status: report.status,
+            source: report.source,
+            kind,
+            code: report.code,
+            message: report.detail,
+            errors: report.errors,
+            validation: None,
+        }
+    }
+
+    pub fn from_validation(report: ValidationReport) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            source: ErrorSourceKind::Validation,
+            kind: ErrorKind::Invalid,
+            code: Cow::Borrowed("validation_error"),
+            message: Cow::Borrowed("Validation failed."),
+            errors: Some(report.to_nested_errors()),
+            validation: Some(report),
+        }
+    }
+
+    pub fn from_error(error: &Error) -> Self {
+        if let Some(ErrorSource::Validation(report)) = &error.source {
+            return Self::from_validation(report.clone());
+        }
+
+        let source = match &error.source {
+            Some(ErrorSource::Database(_)) | Some(ErrorSource::Sqlx(_)) => {
+                ErrorSourceKind::Database
+            }
+            Some(ErrorSource::Auth(_)) => ErrorSourceKind::Auth,
+            Some(ErrorSource::Other(_)) | None => ErrorSourceKind::Application,
+            Some(ErrorSource::Validation(_)) => ErrorSourceKind::Validation,
+        };
+
+        Self {
+            status: error.kind.status_code(),
+            source,
+            kind: error.kind,
+            code: Cow::Borrowed(error.kind.error_code()),
+            message: Cow::Owned(error.display_compact()),
+            errors: None,
+            validation: None,
+        }
+    }
+
+    pub fn to_report(&self) -> ErrorReport {
+        if let Some(report) = &self.validation {
+            return ErrorReport::validation(report.clone());
+        }
+        let mut report = ErrorReport::new(
+            self.status,
+            self.source,
+            self.code.to_ascii_lowercase(),
+            self.message.to_string(),
+        );
+        if let Some(errors) = &self.errors {
+            report.errors = Some(errors.clone());
+        }
+        report
+    }
+}
+
+fn kind_from_status(status: StatusCode) -> ErrorKind {
+    match status {
+        StatusCode::BAD_REQUEST => ErrorKind::BadRequest,
+        StatusCode::UNAUTHORIZED => ErrorKind::Unauthorized,
+        StatusCode::FORBIDDEN => ErrorKind::Forbidden,
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::CONFLICT => ErrorKind::Conflict,
+        StatusCode::UNPROCESSABLE_ENTITY => ErrorKind::Invalid,
+        StatusCode::TOO_MANY_REQUESTS => ErrorKind::RateLimited,
+        StatusCode::SERVICE_UNAVAILABLE | StatusCode::GATEWAY_TIMEOUT => ErrorKind::Unavailable,
+        _ if status.is_client_error() => ErrorKind::BadRequest,
+        _ => ErrorKind::Other,
+    }
+}
+
+fn default_command_error(ctx: ErrorCommandContext, view: ErrorView) -> String {
+    if let Some(report) = &view.validation {
+        return render_command_validation(&ctx.command, report);
+    }
+    match view.source {
+        ErrorSourceKind::Validation => format!(
+            "Validation failed for command '{}'.\n\nUse '{} --help' for usage.",
+            ctx.command, ctx.command
+        ),
+        _ => format!("Error: {}", view.message),
+    }
+}
+
+fn render_command_validation(command: &str, report: &ValidationReport) -> String {
+    let mut output = format!("Validation failed for command '{command}':\n\n");
+
+    for issue in &report.issues {
+        let field = if issue.path.is_root() {
+            "non_field_errors".to_string()
+        } else {
+            issue
+                .path
+                .segments()
+                .iter()
+                .map(|segment| match segment {
+                    PathSeg::Field(field) => field.to_string(),
+                    PathSeg::Index(index) => index.to_string(),
+                    PathSeg::Key(key) => key.to_string(),
+                })
+                .collect::<Vec<_>>()
+                .join(".")
+        };
+        output.push_str(&format!("  --{field}\n"));
+        output.push_str(&format!("    {}\n\n", issue.invalid.message));
+    }
+
+    output.push_str(&format!("Use '{command} --help' for usage."));
+    output
 }
 
 /// Source of an error, avoiding boxing for common error types.
@@ -252,6 +519,26 @@ impl Error {
         }
     }
 
+    pub fn bad_request(message: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::BadRequest).with_context(message)
+    }
+
+    pub fn not_found(message: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::NotFound).with_context(message)
+    }
+
+    pub fn invalid(message: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Invalid).with_context(message)
+    }
+
+    pub fn conflict(message: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Conflict).with_context(message)
+    }
+
+    pub fn unavailable(message: impl Into<Cow<'static, str>>) -> Self {
+        Self::new(ErrorKind::Unavailable).with_context(message)
+    }
+
     /// Wrap an external error as ErrorKind::Other (most common case)
     pub fn other<E>(err: E) -> Self
     where
@@ -280,11 +567,6 @@ impl Error {
     pub fn with_context(mut self, ctx: impl Into<Cow<'static, str>>) -> Self {
         self.context.push(ctx.into());
         self
-    }
-
-    /// Get user-facing message
-    fn user_message(&self) -> &str {
-        self.kind.default_message()
     }
 
     /// Pretty format for CLI/command output with full error chain
@@ -379,32 +661,18 @@ impl IntoResponse for Error {
 
 impl From<Error> for ErrorReport {
     fn from(err: Error) -> Self {
-        if let Some(ErrorSource::Validation(report)) = err.source {
-            return ErrorReport::validation(report);
-        }
-
-        let source = match &err.source {
-            Some(ErrorSource::Database(_)) | Some(ErrorSource::Sqlx(_)) => {
-                ErrorSourceKind::Database
-            }
-            Some(ErrorSource::Auth(_)) => ErrorSourceKind::Auth,
-            Some(ErrorSource::Other(_)) | None => ErrorSourceKind::Application,
-            Some(ErrorSource::Validation(_)) => ErrorSourceKind::Validation,
-        };
-
-        let mut report = ErrorReport::new(
-            err.kind.status_code(),
-            source,
-            err.kind.error_code().to_ascii_lowercase(),
-            err.user_message().to_string(),
-        );
-
-        if cfg!(debug_assertions) && !err.context.is_empty() {
+        let include_context = cfg!(debug_assertions) && !err.context.is_empty();
+        let context = err
+            .context
+            .iter()
+            .map(|c| c.to_string())
+            .collect::<Vec<_>>();
+        let mut report = ErrorView::from_error(&err).to_report();
+        if include_context {
             report.errors = Some(serde_json::json!({
-                "context": err.context.iter().map(|c| c.to_string()).collect::<Vec<_>>()
+                "context": context
             }));
         }
-
         report
     }
 }
@@ -487,5 +755,26 @@ impl From<serde_json::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
         Self::other(err).with_context("I/O operation failed")
+    }
+}
+
+impl From<CallError> for Error {
+    fn from(err: CallError) -> Self {
+        match err {
+            CallError::Validation(report) => Self::from(report),
+            CallError::DeserializeFailed => Self::bad_request("failed to deserialize handler data"),
+            CallError::SerializeFailed => Self::other(err),
+            CallError::TypeMismatch => Self::bad_request("handler data type mismatch"),
+            CallError::ExtractionFailed(msg) => Self::bad_request(msg),
+            CallError::MissingField(field) => Self::bad_request(format!("missing field: {field}")),
+            CallError::InvalidArgument(msg) => Self::bad_request(msg),
+            CallError::Unauthorized => Self::new(ErrorKind::Unauthorized),
+            CallError::NotFound(msg) => Self::not_found(msg),
+            CallError::Other(err) => Self {
+                kind: ErrorKind::Other,
+                source: Some(ErrorSource::Other(err)),
+                context: SmallVec::new(),
+            },
+        }
     }
 }

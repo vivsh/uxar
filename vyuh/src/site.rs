@@ -1,6 +1,7 @@
 use crate::auth::Authenticator;
 use crate::bundles::{Bundle, IntoBundle};
-use crate::callables::{self, PayloadData};
+use crate::callables::{self, DataBox};
+use crate::channels::{ChannelRef, LocalChannelBackend};
 use crate::commands::CommandRegistry;
 use crate::conf::{self, SiteConf};
 use crate::db::{DbError, DbPool, Notify, Pool};
@@ -13,7 +14,7 @@ use crate::tasks::store::AbstractTaskStore as _;
 #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 use crate::tasks::{TaskClient, TaskDispatcher, TaskError, TaskRunner, TaskStore};
 use crate::templates::{TemplateEngine, TemplateError, Templates};
-use crate::{beacon, services, watch};
+use crate::{services, watch};
 use axum::ServiceExt;
 use axum::extract::{Request, State};
 use axum::middleware::Next;
@@ -297,7 +298,7 @@ impl SiteBuilder {
             template_engine,
             slash_router,
             joinset: Arc::new(parking_lot::Mutex::new(tokio::task::JoinSet::new())),
-            beacon: beacon::Beacon::new(128, false),
+            channels: LocalChannelBackend::new(self.conf.channels.clone()),
             bundle,
             signal_engine,
             emitter_engine,
@@ -318,7 +319,7 @@ struct SiteInner {
     conf: SiteConf,
     authenticator: Authenticator,
     pool: DbPool,
-    beacon: beacon::Beacon,
+    channels: LocalChannelBackend,
     template_engine: TemplateEngine,
     slash_router: Arc<crate::middlewares::SlashRouter>,
     timezone: Tz,
@@ -352,6 +353,41 @@ pub struct Site {
     inner: Arc<SiteInner>,
 }
 
+#[derive(Debug, Clone)]
+pub struct SiteConfig(SiteConf);
+
+impl SiteConfig {
+    pub fn into_inner(self) -> SiteConf {
+        self.0
+    }
+}
+
+impl std::ops::Deref for SiteConfig {
+    type Target = SiteConf;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<SiteConf> for SiteConfig {
+    fn as_ref(&self) -> &SiteConf {
+        &self.0
+    }
+}
+
+impl callables::FromSite for SiteConfig {
+    fn from_site(site: &Site) -> Result<Self, callables::CallError> {
+        Ok(Self(site.conf().clone()))
+    }
+}
+
+impl callables::IntoArgPart for SiteConfig {
+    fn into_arg_part() -> callables::ArgPart {
+        callables::ArgPart::Ignore
+    }
+}
+
 impl std::fmt::Debug for Site {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Site")
@@ -362,6 +398,78 @@ impl std::fmt::Debug for Site {
 }
 
 impl Site {
+    pub async fn build(conf: SiteConf, bundle: impl IntoBundle) -> Result<Self, SiteError> {
+        let builder = SiteBuilder::new(conf);
+        let site = builder.build(None, bundle).await?;
+        let site = Self {
+            inner: Arc::new(site),
+        };
+        #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
+        if site.inner.task_engine.has_tasks() {
+            site.inner.task_engine.store().run_migrations().await?;
+        }
+        SiteBuilder::start_engines(&site).await?;
+        Ok(site)
+    }
+
+    pub async fn run(conf: SiteConf, bundle: impl IntoBundle) -> Result<(), SiteError> {
+        Self::run_with_args(conf, bundle, std::env::args().skip(1)).await
+    }
+
+    pub async fn serve(conf: SiteConf, bundle: impl IntoBundle) -> Result<(), SiteError> {
+        let site = Self::build(conf, bundle).await?;
+        site.start().await
+    }
+
+    pub async fn test(
+        conf: SiteConf,
+        bundle: impl IntoBundle,
+        pool: Pool,
+    ) -> Result<Self, SiteError> {
+        let builder = SiteBuilder::new(conf);
+        let site = builder.build(Some(pool), bundle).await?;
+        let site = Self {
+            inner: Arc::new(site),
+        };
+        SiteBuilder::start_engines(&site).await?;
+        Ok(site)
+    }
+
+    pub async fn start(self) -> Result<(), SiteError> {
+        SiteBuilder::start_server(self).await
+    }
+
+    pub(crate) async fn run_with_args(
+        conf: SiteConf,
+        bundle: impl IntoBundle,
+        args: impl IntoIterator<Item = String>,
+    ) -> Result<(), SiteError> {
+        let args: Vec<String> = args.into_iter().collect();
+        let (command_name, command_args) = Self::command_from_args(&args);
+        let site = Self::build(conf, bundle).await?;
+        let command_arg_refs: Vec<&str> = command_args.iter().map(String::as_str).collect();
+        if let Err(err) = site.execute_command(&command_name, &command_arg_refs).await {
+            let output = site.inner.conf.errors.render_command(
+                crate::errors::ErrorCommandContext {
+                    command: command_name,
+                    args: command_args,
+                },
+                err.to_view(),
+            );
+            eprintln!("{output}");
+            std::process::exit(1);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn command_from_args(args: &[String]) -> (String, Vec<String>) {
+        match args.first().map(String::as_str) {
+            None => ("serve".to_string(), Vec::new()),
+            Some("help" | "--help" | "-h") => ("help".to_string(), Vec::new()),
+            Some(name) => (name.to_string(), args[1..].to_vec()),
+        }
+    }
+
     pub fn uptime(&self) -> std::time::Duration {
         self.inner.start_time.elapsed()
     }
@@ -392,14 +500,14 @@ impl Site {
 
     pub(crate) async fn dispatch_payload(
         &self,
-        payload: PayloadData,
+        payload: DataBox,
         target: EmitTarget,
     ) -> Result<(), SiteError> {
         match target {
             EmitTarget::Signal => {
                 self.inner
                     .signal_engine
-                    .dispatch_payload_fire_and_forget(self.clone(), payload)
+                    .dispatch_data_fire_and_forget(self.clone(), payload)
                     .await;
             }
             EmitTarget::Task => {
@@ -443,16 +551,27 @@ impl Site {
         &self.inner.template_engine
     }
 
-    pub fn authenticator(&self) -> &Authenticator {
+    pub fn auth(&self) -> &Authenticator {
         &self.inner.authenticator
     }
 
-    pub fn tz(&self) -> Tz {
+    pub fn timezone(&self) -> Tz {
         self.inner.timezone
     }
 
     pub fn db(&self) -> DbPool {
         self.inner.pool.clone()
+    }
+
+    pub fn channels(&self) -> ChannelRef {
+        ChannelRef::new(self.inner.channels.clone())
+    }
+
+    pub fn file_storage(&self) -> crate::file_storage::LocalStorage {
+        crate::file_storage::LocalStorage::from_conf(
+            &self.inner.project_dir,
+            &self.inner.conf.uploads,
+        )
     }
 
     pub fn service<T: ?Sized + 'static>(&self) -> Result<Arc<T>, services::ServiceError> {
@@ -525,10 +644,6 @@ impl Site {
         router.with_state(self.clone())
     }
 
-    pub fn beacon(&self) -> beacon::Beacon {
-        self.inner.beacon.clone()
-    }
-
     #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
     pub fn tasks(&self) -> TaskClient<TaskStore> {
         TaskClient::new(self.inner.task_engine.clone())
@@ -555,61 +670,50 @@ impl axum::extract::FromRequestParts<Site> for Site {
         Ok(state.clone())
     }
 }
-impl axum::extract::FromRef<Site> for beacon::Beacon {
-    fn from_ref(site: &Site) -> Self {
-        site.beacon()
+
+impl axum::extract::FromRequestParts<Site> for SiteConfig {
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(
+        _parts: &mut axum::http::request::Parts,
+        state: &Site,
+    ) -> Result<Self, Self::Rejection> {
+        Ok(Self(state.conf().clone()))
     }
 }
 
-pub async fn build_site(conf: SiteConf, bundle: impl IntoBundle) -> Result<Site, SiteError> {
-    let builder = SiteBuilder::new(conf);
-    let site = builder.build(None, bundle).await?;
-    let site = Site {
-        inner: Arc::new(site),
-    };
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
-    if site.inner.task_engine.has_tasks() {
-        site.inner.task_engine.store().run_migrations().await?;
+#[cfg(test)]
+mod tests {
+    use super::Site;
+
+    fn strings(args: &[&str]) -> Vec<String> {
+        args.iter().map(|arg| (*arg).to_string()).collect()
     }
-    SiteBuilder::start_engines(&site).await?;
-    Ok(site)
-}
 
-pub async fn serve_site(conf: SiteConf, bundle: impl IntoBundle) -> Result<(), SiteError> {
-    let site = build_site(conf, bundle).await?;
-    SiteBuilder::start_server(site).await
-}
+    #[test]
+    fn command_from_empty_args_defaults_to_serve() {
+        let (command, args) = Site::command_from_args(&[]);
 
-pub async fn run_command(conf: SiteConf, bundle: impl IntoBundle) -> Result<(), SiteError> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let command_name = match args.first().map(String::as_str) {
-        None | Some("--help") | Some("-h") => "help",
-        Some(name) => name,
-    };
-    let site = build_site(conf, bundle).await?;
-    let command_args: Vec<&str> = if args.is_empty() || command_name == "help" {
-        Vec::new()
-    } else {
-        args[1..].iter().map(|s| s.as_str()).collect()
-    };
-    site.execute_command(command_name, &command_args).await?;
-    Ok(())
-}
+        assert_eq!(command, "serve");
+        assert!(args.is_empty());
+    }
 
-pub async fn start_site_server(site: Site) -> Result<(), SiteError> {
-    SiteBuilder::start_server(site).await
-}
+    #[test]
+    fn command_from_help_args_selects_help() {
+        for input in [strings(&["help"]), strings(&["--help"]), strings(&["-h"])] {
+            let (command, args) = Site::command_from_args(&input);
 
-pub async fn test_site(
-    conf: SiteConf,
-    bundle: impl IntoBundle,
-    pool: Pool,
-) -> Result<Site, SiteError> {
-    let builder = SiteBuilder::new(conf);
-    let site = builder.build(Some(pool), bundle).await?;
-    let site = Site {
-        inner: Arc::new(site),
-    };
-    SiteBuilder::start_engines(&site).await?;
-    Ok(site)
+            assert_eq!(command, "help");
+            assert!(args.is_empty());
+        }
+    }
+
+    #[test]
+    fn command_from_named_args_preserves_command_args() {
+        let input = strings(&["greet", "--name", "Vyuh"]);
+        let (command, args) = Site::command_from_args(&input);
+
+        assert_eq!(command, "greet");
+        assert_eq!(args, strings(&["--name", "Vyuh"]));
+    }
 }

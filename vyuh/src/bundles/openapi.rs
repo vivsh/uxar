@@ -181,7 +181,7 @@ impl DocEngine {
                             use axum::response::IntoResponse;
                             if let Some(pred) = auth_pred {
                                 let (parts, _) = req.into_parts();
-                                match site.authenticator().extract_user(&parts, &[], false) {
+                                match site.auth().extract_user(&parts, &[], false) {
                                     Err(e) => return e.into_response(),
                                     Ok(user) if !pred(&user) => {
                                         return StatusCode::FORBIDDEN.into_response();
@@ -223,7 +223,7 @@ impl DocEngine {
                                 use axum::response::IntoResponse;
                                 if let Some(pred) = auth_pred {
                                     let (parts, _) = req.into_parts();
-                                    match site.authenticator().extract_user(&parts, &[], false) {
+                                    match site.auth().extract_user(&parts, &[], false) {
                                         Err(e) => return e.into_response(),
                                         Ok(user) if !pred(&user) => {
                                             return StatusCode::FORBIDDEN.into_response();

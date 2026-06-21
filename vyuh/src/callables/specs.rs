@@ -5,6 +5,8 @@ use std::any::TypeId;
 use std::borrow::Cow;
 use std::future::Future;
 
+use crate::validation::ValidationReport;
+
 // Custom tuple types to represent handler arguments internally.
 // These prevent users from accidentally using std tuples as argument types.
 pub struct Tuple1<T1>(pub(crate) T1);
@@ -27,13 +29,13 @@ pub struct Tuple6<T1, T2, T3, T4, T5, T6>(
     pub(crate) T6,
 );
 
-/// Handler payload type constraint: serde + JSON schema + thread-safe.
+/// Handler data type constraint: serde + JSON schema + thread-safe.
 ///
 /// Automatically implemented for all types satisfying the bounds.
-/// Payloadable ensures that Arc wrapped value is always Send
-pub trait Payloadable: JsonSchema + Serialize + DeserializeOwned + Send + Sync + 'static {}
+/// DataValue ensures that Arc wrapped value is always Send
+pub trait DataValue: JsonSchema + Serialize + DeserializeOwned + Send + Sync + 'static {}
 
-impl<T> Payloadable for T where T: JsonSchema + Serialize + DeserializeOwned + Send + Sync + 'static {}
+impl<T> DataValue for T where T: JsonSchema + Serialize + DeserializeOwned + Send + Sync + 'static {}
 /// Errors that can occur during handler execution, extraction, and deserialization.
 #[non_exhaustive]
 #[derive(Debug, thiserror::Error)]
@@ -45,8 +47,8 @@ pub enum CallError {
     #[error("Failed to serialize payload")]
     SerializeFailed,
 
-    /// Payload type mismatch during extraction
-    #[error("Payload type mismatch")]
+    /// Data type mismatch during extraction
+    #[error("Data type mismatch")]
     TypeMismatch,
 
     /// Context extraction failed
@@ -60,6 +62,10 @@ pub enum CallError {
     /// Invalid argument provided
     #[error("Invalid argument: {0}")]
     InvalidArgument(Cow<'static, str>),
+
+    /// Input parsed successfully but failed validation.
+    #[error("Validation failed")]
+    Validation(ValidationReport),
 
     /// Unauthorized access
     #[error("Unauthorized")]
@@ -197,7 +203,6 @@ fn strip_validation_keywords(value: &mut serde_json::Value) {
                 "minLength",
                 "maxLength",
                 "pattern",
-                "format",
                 "minimum",
                 "maximum",
                 "exclusiveMinimum",
@@ -208,6 +213,9 @@ fn strip_validation_keywords(value: &mut serde_json::Value) {
                 "uniqueItems",
             ] {
                 map.remove(key);
+            }
+            if map.get("format").and_then(|value| value.as_str()) != Some("binary") {
+                map.remove("format");
             }
 
             for nested in map.values_mut() {
@@ -283,8 +291,8 @@ pub trait IntoReturnPart: Send {
     fn into_return_part() -> ReturnPart;
 }
 
-/// Marker trait indicating handler arguments contain `Payload<T>`.
-pub trait HasPayload<T: Payloadable> {}
+/// Marker trait indicating handler arguments contain `Data<T>`.
+pub trait HasData<T: DataValue> {}
 
 /// Provides argument specifications for handler signature introspection.
 pub trait IntoArgSpecs {
@@ -559,67 +567,49 @@ impl_handler!([T1, T2, T3], T4, Tuple4);
 impl_handler!([T1, T2, T3, T4], T5, Tuple5);
 impl_handler!([T1, T2, T3, T4, T5], T6, Tuple6);
 
-// HasPayload implementations for custom tuples containing Payload<T>
-impl<T: crate::callables::Payloadable> HasPayload<T> for Tuple1<crate::callables::Payload<T>> {}
-impl<T: crate::callables::Payloadable> HasPayload<T> for Tuple1<crate::commands::CommandArgs<T>> {}
-impl<T: crate::callables::Payloadable> HasPayload<T> for Tuple1<crate::tasks::TaskInput<T>> {}
-impl<T: crate::callables::Payloadable, A1> HasPayload<T>
-    for Tuple2<A1, crate::callables::Payload<T>>
+// HasData implementations for custom tuples containing Data<T>
+impl<T: crate::callables::DataValue> HasData<T> for Tuple1<crate::callables::Data<T>> {}
+impl<T: crate::callables::DataValue, A1> HasData<T> for Tuple2<A1, crate::callables::Data<T>> {}
+impl<T: crate::callables::DataValue, A1, A2> HasData<T>
+    for Tuple3<A1, A2, crate::callables::Data<T>>
 {
 }
-impl<T: crate::callables::Payloadable, A1> HasPayload<T>
-    for Tuple2<A1, crate::commands::CommandArgs<T>>
+impl<T: crate::callables::DataValue, A1, A2, A3> HasData<T>
+    for Tuple4<A1, A2, A3, crate::callables::Data<T>>
 {
 }
-impl<T: crate::callables::Payloadable, A1> HasPayload<T>
-    for Tuple2<A1, crate::tasks::TaskInput<T>>
+impl<T: crate::callables::DataValue, A1, A2, A3, A4> HasData<T>
+    for Tuple5<A1, A2, A3, A4, crate::callables::Data<T>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2> HasPayload<T>
-    for Tuple3<A1, A2, crate::callables::Payload<T>>
+impl<T: crate::callables::DataValue, A1, A2, A3, A4, A5> HasData<T>
+    for Tuple6<A1, A2, A3, A4, A5, crate::callables::Data<T>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2> HasPayload<T>
-    for Tuple3<A1, A2, crate::commands::CommandArgs<T>>
+
+// Valid<Data<T>> is the validated form of handler data and still counts as
+// the handler's data payload.
+impl<T: crate::callables::DataValue + crate::validation::Validate> HasData<T>
+    for Tuple1<crate::validation::Valid<crate::callables::Data<T>>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2> HasPayload<T>
-    for Tuple3<A1, A2, crate::tasks::TaskInput<T>>
+impl<T: crate::callables::DataValue + crate::validation::Validate, A1> HasData<T>
+    for Tuple2<A1, crate::validation::Valid<crate::callables::Data<T>>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2, A3> HasPayload<T>
-    for Tuple4<A1, A2, A3, crate::callables::Payload<T>>
+impl<T: crate::callables::DataValue + crate::validation::Validate, A1, A2> HasData<T>
+    for Tuple3<A1, A2, crate::validation::Valid<crate::callables::Data<T>>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2, A3> HasPayload<T>
-    for Tuple4<A1, A2, A3, crate::commands::CommandArgs<T>>
+impl<T: crate::callables::DataValue + crate::validation::Validate, A1, A2, A3> HasData<T>
+    for Tuple4<A1, A2, A3, crate::validation::Valid<crate::callables::Data<T>>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2, A3> HasPayload<T>
-    for Tuple4<A1, A2, A3, crate::tasks::TaskInput<T>>
+impl<T: crate::callables::DataValue + crate::validation::Validate, A1, A2, A3, A4> HasData<T>
+    for Tuple5<A1, A2, A3, A4, crate::validation::Valid<crate::callables::Data<T>>>
 {
 }
-impl<T: crate::callables::Payloadable, A1, A2, A3, A4> HasPayload<T>
-    for Tuple5<A1, A2, A3, A4, crate::callables::Payload<T>>
-{
-}
-impl<T: crate::callables::Payloadable, A1, A2, A3, A4> HasPayload<T>
-    for Tuple5<A1, A2, A3, A4, crate::commands::CommandArgs<T>>
-{
-}
-impl<T: crate::callables::Payloadable, A1, A2, A3, A4> HasPayload<T>
-    for Tuple5<A1, A2, A3, A4, crate::tasks::TaskInput<T>>
-{
-}
-impl<T: crate::callables::Payloadable, A1, A2, A3, A4, A5> HasPayload<T>
-    for Tuple6<A1, A2, A3, A4, A5, crate::callables::Payload<T>>
-{
-}
-impl<T: crate::callables::Payloadable, A1, A2, A3, A4, A5> HasPayload<T>
-    for Tuple6<A1, A2, A3, A4, A5, crate::commands::CommandArgs<T>>
-{
-}
-impl<T: crate::callables::Payloadable, A1, A2, A3, A4, A5> HasPayload<T>
-    for Tuple6<A1, A2, A3, A4, A5, crate::tasks::TaskInput<T>>
+impl<T: crate::callables::DataValue + crate::validation::Validate, A1, A2, A3, A4, A5> HasData<T>
+    for Tuple6<A1, A2, A3, A4, A5, crate::validation::Valid<crate::callables::Data<T>>>
 {
 }

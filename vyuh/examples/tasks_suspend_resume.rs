@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    tasks::{TaskInput, TaskOutcome, TaskResume, TaskState},
+    Data, bundles,
+    tasks::{TaskOutcome, TaskResume, TaskState},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -24,7 +24,7 @@ struct ApprovalReply {
 async fn wait_for_approval(
     state: TaskState<ApprovalState>,
     resume: TaskResume<ApprovalReply>,
-    input: TaskInput<ApprovalJob>,
+    input: Data<ApprovalJob>,
 ) -> TaskOutcome {
     if let Some(reply) = resume.0 {
         return TaskOutcome::complete(&format!(

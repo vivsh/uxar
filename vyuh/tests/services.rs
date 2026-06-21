@@ -57,7 +57,7 @@ async fn count(counter: ServiceRef<CounterService>) -> Html<String> {
 
 #[tokio::test]
 async fn services_can_be_retrieved_from_site() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle! {
             macro_counter_service,
@@ -73,7 +73,7 @@ async fn services_can_be_retrieved_from_site() {
 
 #[tokio::test]
 async fn services_ref_works_in_routes() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle! {
             macro_counter_service,
@@ -101,7 +101,7 @@ async fn services_ref_works_in_routes() {
 
 #[tokio::test]
 async fn services_direct_registration_matches_macro_registration() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle([bundles::service(direct_counter_service)]),
     )
@@ -123,7 +123,7 @@ async fn services_duplicate_concrete_services_fail_site_build() {
         CounterService::default().into()
     }
 
-    let err = vyuh::build_site(
+    let err = vyuh::Site::build(
         test_conf(),
         bundles::bundle([bundles::service(one), bundles::service(two)]),
     )
@@ -158,7 +158,7 @@ async fn greeting_service() -> ServiceInstance<GreetingService> {
 
 #[tokio::test]
 async fn services_trait_facade_exposure_returns_trait_object() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle! {
             greeting_service,
@@ -192,7 +192,7 @@ async fn services_duplicate_trait_facades_fail_site_build() {
         OtherGreetingService.into()
     }
 
-    let err = vyuh::build_site(
+    let err = vyuh::Site::build(
         test_conf(),
         bundles::bundle([
             bundles::service(greeting_service),
@@ -227,7 +227,7 @@ async fn context_built_service(ctx: ServiceBuildContext) -> ServiceInstance<Cont
 
 #[tokio::test]
 async fn services_build_handlers_can_extract_db_pool() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle([bundles::service(db_backed_service)]),
     )
@@ -240,7 +240,7 @@ async fn services_build_handlers_can_extract_db_pool() {
 
 #[tokio::test]
 async fn services_build_handlers_can_extract_build_context() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle([bundles::service(context_built_service)]),
     )
@@ -278,7 +278,7 @@ async fn worker_probe_service() -> ServiceInstance<WorkerProbe> {
 
 #[tokio::test]
 async fn services_worker_starts_and_can_extract_site() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle([bundles::service(worker_probe_service)]),
     )
@@ -317,7 +317,7 @@ async fn failing_worker_probe_service() -> ServiceInstance<FailingWorkerProbe> {
 
 #[tokio::test]
 async fn services_worker_error_stops_worker_without_crashing_site() {
-    let site = vyuh::build_site(
+    let site = vyuh::Site::build(
         test_conf(),
         bundles::bundle([bundles::service(failing_worker_probe_service)]),
     )

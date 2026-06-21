@@ -3,11 +3,7 @@ use schemars::JsonSchema;
 #[cfg(feature = "mysql")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "mysql")]
-use vyuh::{
-    SiteConf, bundles,
-    db::DbConf,
-    tasks::{TaskInput, TaskOutcome},
-};
+use vyuh::{Data, SiteConf, bundles, db::DbConf, tasks::TaskOutcome};
 
 #[cfg(feature = "mysql")]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -17,7 +13,7 @@ struct MysqlJob {
 
 #[cfg(feature = "mysql")]
 #[bundles::task(name = "mysql_job")]
-async fn mysql_job(input: TaskInput<MysqlJob>) -> TaskOutcome {
+async fn mysql_job(input: Data<MysqlJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("processed {}", input.id)).unwrap()
 }
 

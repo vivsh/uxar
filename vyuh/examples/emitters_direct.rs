@@ -11,8 +11,7 @@ use std::time::Duration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    callables::Payload,
+    Data, bundles,
     emitters::{self, IterCount},
 };
 
@@ -21,12 +20,12 @@ struct Heartbeat {
     count: usize,
 }
 
-async fn publish_heartbeat(IterCount(count): IterCount) -> Payload<Heartbeat> {
-    Heartbeat { count }.into()
+async fn publish_heartbeat(IterCount(count): IterCount) -> Data<Heartbeat> {
+    Data::new(Heartbeat { count })
 }
 
 #[bundles::signal]
-async fn record_heartbeat(payload: Payload<Heartbeat>) {
+async fn record_heartbeat(payload: Data<Heartbeat>) {
     println!("heartbeat {}", payload.count);
 }
 

@@ -6,12 +6,11 @@
 //! cargo run --example commands_site inspect --project
 //! ```
 
+#![allow(clippy::result_large_err)]
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{
-    Site, SiteConf, bundles,
-    commands::{CommandArgs, CommandConf, CommandError},
-};
+use vyuh::{Data, Error, Site, SiteConf, bundles, commands::CommandConf};
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 struct InspectArgs {
@@ -21,8 +20,8 @@ struct InspectArgs {
 }
 
 /// Inspect the built site.
-async fn inspect(site: Site, args: CommandArgs<InspectArgs>) -> Result<(), CommandError> {
-    println!("timezone: {}", site.tz());
+async fn inspect(site: Site, Data(args): Data<InspectArgs>) -> Result<(), Error> {
+    println!("timezone: {}", site.timezone());
     if args.project {
         println!("project_dir: {}", site.project_dir().display());
     }
@@ -35,5 +34,5 @@ async fn main() -> Result<(), vyuh::SiteError> {
         inspect,
         CommandConf::new("inspect").description("Inspect site runtime state."),
     )]);
-    vyuh::run_command(SiteConf::from_env_with_files()?, bundle).await
+    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
 }

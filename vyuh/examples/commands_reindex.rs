@@ -6,12 +6,14 @@
 //! cargo run --example commands_reindex search:reindex --full
 //! ```
 
+#![allow(clippy::result_large_err)]
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use vyuh::{
-    Site, SiteConf, bundles,
-    commands::{CommandArgs, CommandConf, CommandError},
+    Data, Error, Site, SiteConf, bundles,
+    commands::CommandConf,
     services::{Service, ServiceInstance},
 };
 
@@ -45,10 +47,8 @@ struct ReindexArgs {
 }
 
 /// Rebuild the search index.
-async fn reindex(site: Site, args: CommandArgs<ReindexArgs>) -> Result<(), CommandError> {
-    let index = site
-        .service::<SearchIndex>()
-        .map_err(|err| CommandError::Other(Box::new(err)))?;
+async fn reindex(site: Site, Data(args): Data<ReindexArgs>) -> Result<(), Error> {
+    let index = site.service::<SearchIndex>().map_err(Error::other)?;
     index.rebuild(args.full);
     Ok(())
 }
@@ -62,5 +62,5 @@ async fn main() -> Result<(), vyuh::SiteError> {
             CommandConf::new("search:reindex").description("Rebuild the search index."),
         ),
     ]);
-    vyuh::run_command(SiteConf::from_env_with_files()?, bundle).await
+    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
 }

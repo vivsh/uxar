@@ -1,4 +1,4 @@
-//! Multiple signal handlers for one payload type.
+//! Multiple signal handlers for one data type.
 //!
 //! Run:
 //!
@@ -8,7 +8,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{bundles, callables::Payload};
+use vyuh::{Data, bundles};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 struct NoteChanged {
@@ -16,12 +16,12 @@ struct NoteChanged {
 }
 
 #[bundles::signal]
-async fn index_note_change(payload: Payload<NoteChanged>) {
+async fn index_note_change(payload: Data<NoteChanged>) {
     println!("index note {}", payload.id);
 }
 
 #[bundles::signal]
-async fn audit_note_change(payload: Payload<NoteChanged>) {
+async fn audit_note_change(payload: Data<NoteChanged>) {
     println!("audit note {}", payload.id);
 }
 

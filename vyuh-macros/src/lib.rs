@@ -4,6 +4,7 @@ mod bitrole;
 mod bundle;
 mod bundlepart;
 mod cron;
+mod multipart;
 mod openapi;
 mod periodic;
 mod pgnotify;
@@ -26,14 +27,25 @@ extern crate proc_macro;
 ///
 /// ## `#[validate(...)]`
 /// - `delegate` - Delegate validation to the field's type (must implement `Validate`)
-/// - `custom = "path"` - Call a custom validation function: `fn(&T) -> Result<(), ValidationReport>`
+/// - `custom = "path"` - Call a custom validation function: `fn(&T) -> Result<(), ValidationError>`
+/// - `custom_schema = "name"` - Emit `x-vyuh-validators: ["name"]` for custom validation
 /// - String: `min_length`, `max_length`, `exact_length`, `pattern`
-/// - String formats: `email`, `url`, `uuid`, `phone_e164`, `ipv4`, `ipv6`
+/// - String formats: `email`, `url`, `uuid`, `phone_e164`, `ipv4`, `ipv6`, `date`, `datetime`
 /// - Numeric: `min`, `max`, `exclusive_min`, `exclusive_max`, `multiple_of`
 /// - Array: `min_items`, `max_items`, `unique_items`
 #[proc_macro_derive(Validate, attributes(validate))]
 pub fn derive_validate(input: TokenStream) -> TokenStream {
     validate::derive_validate_impl(input)
+}
+
+/// Derives multipart form parsing for named structs.
+///
+/// Supports `String` text fields and `UploadedFile` file fields. File fields
+/// can use `#[upload(...)]` for content type, extension, sniffing, and size
+/// rules.
+#[proc_macro_derive(MultipartData, attributes(upload))]
+pub fn derive_multipart_data(input: TokenStream) -> TokenStream {
+    multipart::derive_multipart_data(input)
 }
 
 /// Defines a route handler with metadata for routing and OpenAPI documentation.
@@ -104,8 +116,8 @@ pub fn route(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// # Options
 ///
 /// - `tags` - Optional array of tags to apply to all routes in the bundle.
-///            These tags extend (not replace) any tags defined on individual routes.
-///            Note: tags only apply to route parts, not other bundle parts.
+///   These tags extend (not replace) any tags defined on individual routes.
+///   Note: tags only apply to route parts, not other bundle parts.
 ///
 /// # Examples
 ///
@@ -178,8 +190,8 @@ pub fn derive_bitrole(input: TokenStream) -> TokenStream {
 /// Registers a cron emitter.
 ///
 /// This macro is sugar over `vyuh::bundles::cron(handler, CronConf)`.
-/// The handler returns `Payload<T>` and the emitted payload is submitted to
-/// signals by default.
+/// The handler returns `Data<T>` and the emitted data is submitted to signals by
+/// default.
 ///
 /// # Attributes
 ///
@@ -191,14 +203,14 @@ pub fn derive_bitrole(input: TokenStream) -> TokenStream {
 /// ```ignore
 /// // Free function
 /// #[cron(expr = "0 0 * * * *")]
-/// async fn publish_daily(site: Site) -> Payload<DailyTick> {
+/// async fn publish_daily(site: Site) -> Data<DailyTick> {
 ///     DailyTick.into()
 /// }
 ///
 /// // Method in impl block
 /// impl SyncTasks {
 ///     #[cron(expr = "0 */5 * * * *")]
-///     async fn publish_frequent(site: Site) -> Payload<SyncTick> {
+///     async fn publish_frequent(site: Site) -> Data<SyncTick> {
 ///         SyncTick.into()
 ///     }
 /// }
@@ -211,8 +223,8 @@ pub fn cron(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Registers a fixed-interval emitter.
 ///
 /// This macro is sugar over `vyuh::bundles::periodic(handler, PeriodicConf)`.
-/// The handler returns `Payload<T>` and the emitted payload is submitted to
-/// signals by default.
+/// The handler returns `Data<T>` and the emitted data is submitted to signals by
+/// default.
 ///
 /// # Attributes
 ///
@@ -227,21 +239,21 @@ pub fn cron(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```ignore
 /// // Free function - runs every 30 seconds
 /// #[periodic(secs = 30)]
-/// async fn publish_health(site: Site) -> Payload<HealthTick> {
+/// async fn publish_health(site: Site) -> Data<HealthTick> {
 ///     HealthTick.into()
 /// }
 ///
 /// // Method - runs every 500ms
 /// impl Monitor {
 ///     #[periodic(millis = 500)]
-///     async fn publish_metrics(site: Site) -> Payload<MetricsTick> {
+///     async fn publish_metrics(site: Site) -> Data<MetricsTick> {
 ///         MetricsTick.into()
 ///     }
 /// }
 ///
 /// // Combined - runs every 1.5 seconds
 /// #[periodic(secs = 1, millis = 500)]
-/// async fn publish_queue_tick(site: Site) -> Payload<QueueTick> {
+/// async fn publish_queue_tick(site: Site) -> Data<QueueTick> {
 ///     QueueTick.into()
 /// }
 /// ```
@@ -253,8 +265,8 @@ pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Registers a PostgreSQL LISTEN/NOTIFY emitter.
 ///
 /// This macro is sugar over `vyuh::bundles::pgnotify(handler, PgNotifyConf)`.
-/// The handler receives the raw notification payload with `Payload<String>` and
-/// returns `Payload<T>` for signal dispatch.
+/// The handler receives raw notification data with `Data<String>` and returns
+/// `Data<T>` for signal dispatch.
 ///
 /// # Attributes
 ///
@@ -266,15 +278,15 @@ pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```ignore
 /// // Free function
 /// #[pgnotify(channel = "user_updates")]
-/// async fn publish_user_update(payload: Payload<String>) -> Payload<UserUpdate> {
-///     serde_json::from_str::<UserUpdate>(&payload).unwrap().into()
+/// async fn publish_user_update(Data(raw): Data<String>) -> Data<UserUpdate> {
+///     serde_json::from_str::<UserUpdate>(&raw).unwrap().into()
 /// }
 ///
 /// // Method in impl block
 /// impl UserHandlers {
 ///     #[pgnotify(channel = "notifications")]
-///     async fn publish_notification(payload: Payload<String>) -> Payload<Notification> {
-///         serde_json::from_str::<Notification>(&payload).unwrap().into()
+///     async fn publish_notification(Data(raw): Data<String>) -> Data<Notification> {
+///         serde_json::from_str::<Notification>(&raw).unwrap().into()
 ///     }
 /// }
 /// ```
@@ -286,8 +298,8 @@ pub fn pgnotify(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Registers a function as a typed signal handler.
 ///
 /// This macro is sugar over `vyuh::bundles::signal(handler, SignalConf)`.
-/// Annotated functions are registered for the payload type extracted with
-/// `Payload<T>`. Signals are fire-and-forget in-process notifications; they do
+/// Annotated functions are registered for the data type extracted with
+/// `Data<T>`. Signals are fire-and-forget in-process notifications; they do
 /// not guarantee delivery, ordering, retries, durability, or handler completion.
 ///
 /// # Examples
@@ -295,14 +307,14 @@ pub fn pgnotify(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```ignore
 /// // Free function
 /// #[signal]
-/// async fn index_note_change(payload: Payload<NoteChanged>) {
+/// async fn index_note_change(Data(event): Data<NoteChanged>) {
 ///     // handle typed signal
 /// }
 ///
-/// // Site can be extracted before the payload.
+/// // Site can be extracted before the data.
 /// #[signal]
-/// async fn audit_note_change(site: Site, payload: Payload<NoteChanged>) {
-///     // use site plus typed payload
+/// async fn audit_note_change(site: Site, Data(event): Data<NoteChanged>) {
+///     // use site plus typed data
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -313,7 +325,7 @@ pub fn signal(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Registers a function as a durable task handler.
 ///
 /// This macro is sugar over `vyuh::bundles::task(handler, TaskHandlerConf)`.
-/// Task handlers accept `TaskInput<T>` as their payload argument and return
+/// Task handlers accept `Data<T>` as their submitted data argument and return
 /// `TaskOutcome`.
 ///
 /// # Attributes
@@ -325,14 +337,14 @@ pub fn signal(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```ignore
 /// // Free function with default name
 /// #[task]
-/// async fn send_email(input: TaskInput<EmailData>) -> TaskOutcome {
+/// async fn send_email(Data(input): Data<EmailData>) -> TaskOutcome {
 ///     TaskOutcome::complete(&"sent").unwrap()
 /// }
 ///
 /// // Method with custom name
 /// impl TaskHandlers {
 ///     #[task(name = "custom_task_name")]
-///     async fn process_order(site: Site, input: TaskInput<Order>) -> TaskOutcome {
+///     async fn process_order(site: Site, Data(input): Data<Order>) -> TaskOutcome {
 ///         // process order
 ///         TaskOutcome::complete(&"done").unwrap()
 ///     }

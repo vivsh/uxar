@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    tasks::{TaskHandlerConf, TaskInput, TaskOutcome},
+    Data, bundles,
+    tasks::{TaskHandlerConf, TaskOutcome},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -10,7 +10,7 @@ struct ThumbnailJob {
     image_id: i64,
 }
 
-async fn build_thumbnail(input: TaskInput<ThumbnailJob>) -> TaskOutcome {
+async fn build_thumbnail(input: Data<ThumbnailJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("thumbnail:{}", input.image_id)).unwrap()
 }
 

@@ -9,8 +9,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    callables::Payload,
+    Data, bundles,
     signals::{SignalClient, SignalError},
 };
 
@@ -20,7 +19,7 @@ struct NoteChanged {
 }
 
 #[bundles::signal]
-async fn index_note_change(payload: Payload<NoteChanged>) {
+async fn index_note_change(payload: Data<NoteChanged>) {
     println!("index note {}", payload.id);
 }
 

@@ -8,7 +8,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{bundles, callables::Payload};
+use vyuh::{Data, bundles};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 struct NoteNotification {
@@ -16,15 +16,14 @@ struct NoteNotification {
 }
 
 #[bundles::pgnotify(channel = "notes_changed")]
-async fn publish_note_notification(payload: Payload<String>) -> Payload<NoteNotification> {
-    NoteNotification {
+async fn publish_note_notification(payload: Data<String>) -> Data<NoteNotification> {
+    Data::new(NoteNotification {
         raw: payload.to_string(),
-    }
-    .into()
+    })
 }
 
 #[bundles::signal]
-async fn record_note_notification(payload: Payload<NoteNotification>) {
+async fn record_note_notification(payload: Data<NoteNotification>) {
     println!("notification {}", payload.raw);
 }
 

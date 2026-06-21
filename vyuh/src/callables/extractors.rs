@@ -1,12 +1,16 @@
 //! Extractors for extracting data from context in callable handlers.
 
-use super::callables::{FromContext, FromContextParts, IntoOutput, IntoPayloadData, PayloadData};
+use super::callables::{DataBox, FromContext, FromContextParts, IntoDataBox, IntoOutput};
 use super::specs::{
-    ArgPart, CallError, IntoArgPart, IntoReturnPart, Payloadable, ReturnPart, TypeSchema,
+    ArgPart, CallError, DataValue, IntoArgPart, IntoReturnPart, ReturnPart, TypeSchema,
 };
 use crate::routes::{BodyBytes, Form, Json, JsonStr, Path, Query};
 use crate::validation::{Valid, Validate, ValidationSchema};
-use crate::{Site, auth::AuthUser, site};
+use crate::{
+    Site,
+    auth::{ApiKey, AuthUser},
+    site,
+};
 use schemars::JsonSchema;
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -28,85 +32,150 @@ impl<C: HasSite, T: FromSite> FromContextParts<C> for T {
     }
 }
 
-/// Wrapper for typed payloads extracted from context.
-/// Uses `Arc` internally for cheap cloning when broadcasting to multiple handlers.
-/// Implements `Deref` for transparent access to inner value.
-pub struct Payload<T: Payloadable> {
-    inner: Arc<T>,
-}
+/// Uniform typed application data flowing through Vyuh handlers.
+///
+/// `Data<T>` uses `Arc<T>` internally so the same value can be cheaply shared
+/// across signal fanout, commands, emitters, tasks, and route handlers.
+#[derive(Debug)]
+pub struct Data<T: DataValue>(pub Arc<T>);
 
-impl<T: Payloadable> Payload<T> {
-    pub(crate) fn new(inner: T) -> Payload<T> {
-        Payload {
-            inner: Arc::new(inner),
-        }
+impl<T: DataValue> Clone for Data<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
     }
 }
 
-impl<T: Payloadable> std::ops::Deref for Payload<T> {
+impl<T: DataValue> Data<T> {
+    pub fn new(inner: T) -> Data<T> {
+        Data(Arc::new(inner))
+    }
+
+    pub fn from_arc(inner: Arc<T>) -> Data<T> {
+        Data(inner)
+    }
+
+    pub fn into_inner(self) -> Arc<T> {
+        self.0
+    }
+}
+
+impl<T: DataValue> std::ops::Deref for Data<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.0
     }
 }
 
-impl<T: Payloadable> From<Arc<T>> for Payload<T> {
+impl<T: DataValue> AsRef<T> for Data<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: DataValue> From<Arc<T>> for Data<T> {
     fn from(value: Arc<T>) -> Self {
-        Payload { inner: value }
+        Data::from_arc(value)
     }
 }
 
-impl<T: Payloadable> From<T> for Payload<T> {
+impl<T: DataValue> From<T> for Data<T> {
     fn from(value: T) -> Self {
-        Payload::new(value)
+        Data::new(value)
     }
 }
 
-/// `Payload<T>` implements `FromContext` directly (not `FromContextParts`).
+/// `Data<T>` implements `FromContext` directly (not `FromContextParts`).
 /// This ensures it can only appear as the last argument in a handler signature,
 /// since `impl_context!` requires all but the last arg to impl `FromContextParts`.
-impl<C, T> FromContext<C> for Payload<T>
+impl<C, T> FromContext<C> for Data<T>
 where
-    C: IntoPayloadData + Send + 'static,
-    T: Payloadable,
+    C: IntoDataBox + Send + 'static,
+    T: DataValue,
 {
     fn from_context(ctx: C) -> Result<Self, CallError> {
-        // Extract type-erased payload from context and downcast to T
-        let payload_data = ctx.into_payload_data();
+        // Extract type-erased data from context and downcast to T
+        let payload_data = ctx.into_data_box();
         let value = payload_data
             .downcast_arc::<T>()
             .ok_or_else(|| CallError::TypeMismatch)?;
-        Ok(Payload::from(value))
+        Ok(Data::from(value))
     }
 
-    /// Returns a deserializer function for JSON payloads.
-    /// This is used by task queues to deserialize string payloads into typed values.
-    fn deserializer() -> Option<fn(&str) -> Result<PayloadData, CallError>> {
+    /// Returns a deserializer function for JSON data.
+    /// This is used by task queues to deserialize string data into typed values.
+    fn deserializer() -> Option<fn(&str) -> Result<DataBox, CallError>> {
         Some(|s: &str| {
             let value: T = serde_json::from_str(s).map_err(|_| CallError::DeserializeFailed)?;
-            Ok(PayloadData::new(value))
+            Ok(DataBox::new(value))
         })
     }
 }
 
-impl<T: Payloadable> IntoArgPart for Payload<T> {
+impl<T: DataValue> IntoArgPart for Data<T> {
     fn into_arg_part() -> ArgPart {
-        ArgPart::Body(TypeSchema::wrap::<T>(), "application/json".into())
+        ArgPart::Body(
+            TypeSchema::wrap_unvalidated::<T>(),
+            "application/json".into(),
+        )
     }
 }
 
-impl<T: Payloadable> IntoReturnPart for Payload<T> {
+impl<T: DataValue> IntoReturnPart for Data<T> {
     fn into_return_part() -> ReturnPart {
         ReturnPart::Body(TypeSchema::wrap::<T>(), "application/json".into())
     }
 }
 
-/// Payload<T> can be returned from handlers as an infallible output.
-impl<T: Payloadable, E> IntoOutput<E> for Payload<T> {
-    fn into_output(self) -> Result<PayloadData, E> {
-        // Already have Box<T>, just wrap in PayloadData
-        Ok(PayloadData::from_arc(self.inner))
+impl<C, E, T> FromContext<C> for Valid<E>
+where
+    E: FromContext<C> + std::ops::Deref<Target = T>,
+    T: Validate,
+{
+    fn from_context(ctx: C) -> Result<Self, CallError> {
+        let extracted = E::from_context(ctx)?;
+        extracted
+            .validate()
+            .map(|()| Valid(extracted))
+            .map_err(CallError::Validation)
+    }
+
+    fn deserializer() -> Option<fn(&str) -> Result<DataBox, CallError>> {
+        E::deserializer()
+    }
+}
+
+impl<T> super::specs::HasData<T> for Valid<Data<T>> where T: DataValue {}
+
+/// Data<T> can be returned from handlers as an infallible output.
+impl<T: DataValue, E> IntoOutput<E> for Data<T> {
+    fn into_output(self) -> Result<DataBox, E> {
+        Ok(DataBox::from_arc(self.0))
+    }
+}
+
+impl<T> axum::extract::FromRequest<crate::Site> for Data<T>
+where
+    T: DataValue,
+{
+    type Rejection = crate::errors::ErrorReport;
+
+    async fn from_request(
+        req: axum::extract::Request,
+        state: &crate::Site,
+    ) -> Result<Self, Self::Rejection> {
+        Json::<T>::from_request(req, state)
+            .await
+            .map(|Json(value)| Data::new(value))
+    }
+}
+
+impl<T> axum::response::IntoResponse for Data<T>
+where
+    T: DataValue,
+{
+    fn into_response(self) -> axum::response::Response {
+        axum::Json(self.0).into_response()
     }
 }
 
@@ -184,6 +253,18 @@ where
 impl<T> IntoArgPart for Valid<Json<T>>
 where
     T: JsonSchema + Validate + ValidationSchema + Send + 'static,
+{
+    fn into_arg_part() -> ArgPart {
+        ArgPart::Body(
+            TypeSchema::wrap_valid::<T>(),
+            Cow::Borrowed("application/json"),
+        )
+    }
+}
+
+impl<T> IntoArgPart for Valid<Data<T>>
+where
+    T: DataValue + Validate + ValidationSchema,
 {
     fn into_arg_part() -> ArgPart {
         ArgPart::Body(
@@ -294,6 +375,16 @@ impl IntoArgPart for AuthUser {
     fn into_arg_part() -> ArgPart {
         ArgPart::Security {
             scheme: "bearerAuth".into(),
+            join_all: true,
+            scopes: Vec::new(),
+        }
+    }
+}
+
+impl IntoArgPart for ApiKey {
+    fn into_arg_part() -> ArgPart {
+        ArgPart::Security {
+            scheme: "apiKeyAuth".into(),
             join_all: true,
             scopes: Vec::new(),
         }

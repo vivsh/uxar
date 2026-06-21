@@ -2,8 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use vyuh::{
-    bundles,
-    tasks::{TaskInput, TaskOutcome, TaskState},
+    Data, bundles,
+    tasks::{TaskOutcome, TaskState},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -17,7 +17,7 @@ struct ImportState {
 }
 
 #[bundles::task(name = "import_records")]
-async fn import_records(state: TaskState<ImportState>, input: TaskInput<ImportJob>) -> TaskOutcome {
+async fn import_records(state: TaskState<ImportState>, input: Data<ImportJob>) -> TaskOutcome {
     let mut state = state.0.unwrap_or(ImportState { offset: 0 });
     state.offset += 100;
 

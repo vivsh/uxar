@@ -102,9 +102,11 @@ async fn create(Valid(Json(input)): Valid<Json<CreateNote>>) {
 ```
 
 Vyuh emits only constraints that can be represented accurately in OpenAPI, such
-as string length, numeric ranges, formats, patterns, and collection sizes.
-Runtime-only validators such as `custom` remain enforcement logic only and are
-not emitted into the schema.
+as string length, numeric ranges, formats, patterns, collection sizes, enum
+values, and explicit custom validator hints. Runtime-only validators such as
+`custom` remain enforcement logic only unless they opt in with
+`custom_schema = "name"`, which emits `x-vyuh-validators` vendor metadata for
+clients.
 
 See [Validation](validation.md) for the full validation model.
 

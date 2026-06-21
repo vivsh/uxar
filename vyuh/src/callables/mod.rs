@@ -17,7 +17,9 @@ pub use specs::{
 
     // Main types
     CallSpec,
-    HasPayload,
+    // Core traits
+    DataValue,
+    HasData,
 
     IntoArgPart,
     IntoArgSpecs,
@@ -25,8 +27,6 @@ pub use specs::{
     IntoLayerParts,
     IntoReturnPart,
     LayerSpec,
-    // Core traits
-    Payloadable,
     ReceiverSpec,
     ReturnPart,
     ReturnSpec,
@@ -37,17 +37,16 @@ pub use specs::{
 pub use callables::{
     // Runtime types
     Callable,
+    DataBox,
     // Extraction traits
     FromContext,
     FromContextParts,
+    IntoDataBox,
     IntoOutput,
-
-    IntoPayloadData,
-    PayloadData,
 };
 
 pub use patch::{ArgPatch, PatchOp, ReturnPatch};
 
-pub use extractors::{FromSite, HasSite, Payload};
+pub use extractors::{Data, FromSite, HasSite};
 
 pub use operations::{Operation, OperationKind};

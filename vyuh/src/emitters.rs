@@ -6,11 +6,8 @@ use std::{
 };
 
 use crate::{
-    Site,
-    callables::{
-        self, CallError, Callable, HasSite, IntoArgPart, IntoPayloadData, Payload, PayloadData,
-        Payloadable,
-    },
+    Data, Error, Site,
+    callables::{self, CallError, Callable, DataBox, DataValue, HasSite, IntoArgPart, IntoDataBox},
 };
 
 pub struct IterCount(pub usize);
@@ -57,7 +54,7 @@ pub struct EmitterContext {
     site: Site,
     iter_count: usize,
     last_time: Option<tokio::time::Instant>,
-    payload: PayloadData,
+    payload: DataBox,
 }
 
 impl HasSite for EmitterContext {
@@ -66,10 +63,10 @@ impl HasSite for EmitterContext {
     }
 }
 
-pub type EmitterHandler = Callable<EmitterContext>;
+pub type EmitterHandler = Callable<EmitterContext, Error>;
 
-impl IntoPayloadData for EmitterContext {
-    fn into_payload_data(self) -> PayloadData {
+impl IntoDataBox for EmitterContext {
+    fn into_data_box(self) -> DataBox {
         self.payload
     }
 }
@@ -95,7 +92,7 @@ impl std::str::FromStr for EmitTarget {
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmitterError {
-    #[error("Emitter payload type mismatch")]
+    #[error("Emitter data type mismatch")]
     PgNotifyError(#[from] crate::db::DbError),
 
     #[error("Cron expression error: {0}")]
@@ -141,10 +138,6 @@ impl Emitter {
                 callables::OperationKind::PgNotify,
                 Some(serde_json::json!({ "channel": channel })),
             ),
-            EmitterSource::Beacon { channel, .. } => (
-                callables::OperationKind::Signal,
-                Some(serde_json::json!({ "channel": channel })),
-            ),
         };
         callables::Operation::from_specs(kind, specs).with_conf(&config)
     }
@@ -164,11 +157,6 @@ enum EmitterSource {
         channel: String,
         handler: EmitterHandler,
     },
-    #[allow(dead_code)]
-    Beacon {
-        channel: String,
-        handler: EmitterHandler,
-    },
 }
 
 impl EmitterSource {
@@ -177,7 +165,6 @@ impl EmitterSource {
             EmitterSource::Cron { .. } => 0,
             EmitterSource::Periodic { .. } => 1,
             EmitterSource::PgNotify { .. } => 2,
-            EmitterSource::Beacon { .. } => 3,
         }
     }
 
@@ -186,7 +173,6 @@ impl EmitterSource {
             EmitterSource::Cron { handler, .. } => handler.inspect(),
             EmitterSource::Periodic { handler, .. } => handler.inspect(),
             EmitterSource::PgNotify { handler, .. } => handler.inspect(),
-            EmitterSource::Beacon { handler, .. } => handler.inspect(),
         }
     }
 }
@@ -200,9 +186,6 @@ impl std::fmt::Debug for EmitterSource {
             }
             EmitterSource::PgNotify { channel, .. } => {
                 f.debug_tuple("PgNotify").field(channel).finish()
-            }
-            EmitterSource::Beacon { channel, .. } => {
-                f.debug_tuple("Beacon").field(channel).finish()
             }
         }
     }
@@ -226,34 +209,19 @@ pub struct PgNotifyConf {
     pub target: EmitTarget,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct BeaconConf {
-    pub channel: String,
-    pub target: EmitTarget,
-}
+#[doc(hidden)]
+pub trait EmitsData<O: DataValue> {}
 
-#[allow(dead_code)]
-pub(crate) fn beacon<H, Args, O>(handler: H, options: BeaconConf) -> Result<Emitter, EmitterError>
-where
-    O: Payloadable,
-    H: callables::Specable<Args, Output = Payload<O>> + Send + Sync + 'static,
-    Args: callables::FromContext<EmitterContext> + callables::IntoArgSpecs,
-{
-    let wrapper = Callable::new(handler);
-    Ok(Emitter {
-        type_id: TypeId::of::<O>(),
-        target: options.target,
-        source: EmitterSource::Beacon {
-            channel: options.channel,
-            handler: wrapper,
-        },
-    })
-}
+impl<O: DataValue> EmitsData<O> for Data<O> {}
+
+impl<O, E> EmitsData<O> for Result<Data<O>, E> where O: DataValue {}
 
 pub fn cron<H, Args, O>(handler: H, options: CronConf) -> Result<Emitter, EmitterError>
 where
-    O: Payloadable,
-    H: callables::Specable<Args, Output = Payload<O>> + Send + Sync + 'static,
+    O: DataValue,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output:
+        callables::IntoOutput<Error> + callables::IntoReturnPart + EmitsData<O> + Send + 'static,
     Args: callables::FromContext<EmitterContext> + callables::IntoArgSpecs,
 {
     let wrapper = Callable::new(handler);
@@ -269,8 +237,10 @@ where
 
 pub fn periodic<H, Args, O>(handler: H, options: PeriodicConf) -> Result<Emitter, EmitterError>
 where
-    O: Payloadable,
-    H: callables::Specable<Args, Output = Payload<O>> + Send + Sync + 'static,
+    O: DataValue,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output:
+        callables::IntoOutput<Error> + callables::IntoReturnPart + EmitsData<O> + Send + 'static,
     Args: callables::FromContext<EmitterContext> + callables::IntoArgSpecs,
 {
     let wrapper = Callable::new(handler);
@@ -286,8 +256,10 @@ where
 
 pub fn pgnotify<H, Args, O>(handler: H, options: PgNotifyConf) -> Result<Emitter, EmitterError>
 where
-    O: Payloadable,
-    H: callables::Specable<Args, Output = Payload<O>> + Send + Sync + 'static,
+    O: DataValue,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output:
+        callables::IntoOutput<Error> + callables::IntoReturnPart + EmitsData<O> + Send + 'static,
     Args: callables::FromContext<EmitterContext> + callables::IntoArgSpecs,
 {
     let wrapper = Callable::new(handler);
@@ -349,7 +321,7 @@ pub struct EmitterEngine {
 }
 
 impl EmitterEngine {
-    async fn dispatch(&self, site: &Site, payload: PayloadData, target: EmitTarget) {
+    async fn dispatch(&self, site: &Site, payload: DataBox, target: EmitTarget) {
         if let Err(err) = site.dispatch_payload(payload, target).await {
             tracing::error!("Error dispatching emitter payload: {}", err);
         }
@@ -393,9 +365,6 @@ impl EmitterEngine {
                             emitter.target,
                         ));
                 }
-                EmitterSource::Beacon { .. } => {
-                    unimplemented!()
-                }
             }
         }
         let topics = notify_tasks.keys().cloned().collect::<Vec<_>>();
@@ -404,7 +373,7 @@ impl EmitterEngine {
         } else {
             Some(site.consume_notify(&topics).await?)
         };
-        let dummy_data = PayloadData::new(String::new());
+        let dummy_data = DataBox::new(String::new());
         loop {
             tokio::select! {
                 Some(work) = timer_tasks.pop() => {
@@ -439,7 +408,7 @@ impl EmitterEngine {
                         for notify_work in signal_names {
                             let result = notify_work.handler.call(EmitterContext{
                                 site: site.clone(),
-                                payload: PayloadData::new(notif.payload.clone()),
+                                payload: DataBox::new(notif.payload.clone()),
                                 iter_count: notify_work.iter_count,
                                 last_time: notify_work.last_time,
                             }).await;
@@ -642,7 +611,7 @@ impl TimerQueue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::callables::Payload;
+    use crate::callables::Data;
     use schemars::JsonSchema;
 
     #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -650,8 +619,8 @@ mod tests {
         count: usize,
     }
 
-    async fn publish_event(IterCount(count): IterCount) -> Payload<TestEvent> {
-        TestEvent { count }.into()
+    async fn publish_event(IterCount(count): IterCount) -> Data<TestEvent> {
+        Data::new(TestEvent { count })
     }
 
     #[test]
@@ -684,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_source_for_payload_type_is_rejected() {
+    fn duplicate_source_for_data_type_is_rejected() {
         let first = periodic::<_, _, TestEvent>(
             publish_event,
             PeriodicConf {

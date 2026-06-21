@@ -1,9 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{
-    bundles,
-    tasks::{TaskInput, TaskOutcome},
-};
+use vyuh::{Data, bundles, tasks::TaskOutcome};
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 struct EmailJob {
@@ -12,7 +9,7 @@ struct EmailJob {
 }
 
 #[bundles::task(name = "send_email")]
-async fn send_email(input: TaskInput<EmailJob>) -> TaskOutcome {
+async fn send_email(input: Data<EmailJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("sent {} to {}", input.subject, input.to)).unwrap()
 }
 

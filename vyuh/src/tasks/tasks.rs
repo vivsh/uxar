@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{any::TypeId, borrow::Cow, collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
-    Site,
+    Error, Site,
     callables::{self, Callable},
 };
 
@@ -30,12 +30,12 @@ impl Default for TaskConf {
 #[derive(Clone)]
 pub struct TaskContext {
     site: Site,
-    payload: callables::PayloadData,
+    payload: callables::DataBox,
     record: Arc<TaskRecord>,
 }
 
-impl callables::IntoPayloadData for TaskContext {
-    fn into_payload_data(self) -> callables::PayloadData {
+impl callables::IntoDataBox for TaskContext {
+    fn into_data_box(self) -> callables::DataBox {
         self.payload
     }
 }
@@ -46,7 +46,7 @@ impl callables::HasSite for TaskContext {
     }
 }
 
-type TaskHandler = Callable<TaskContext, TaskError>;
+type TaskHandler = Callable<TaskContext, Error>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TaskError {
@@ -247,66 +247,25 @@ impl TaskOutcome {
             error: error.into(),
         }
     }
+
+    pub fn retry_error(delay: Option<Duration>, error: &Error) -> Self {
+        Self::retry(delay, error.display_compact())
+    }
+
+    pub fn fail_error(error: &Error) -> Self {
+        Self::fail(error.display_compact())
+    }
 }
 
-impl callables::IntoOutput<TaskError> for TaskOutcome {
-    fn into_output(self) -> Result<callables::PayloadData, TaskError> {
-        Ok(callables::PayloadData::new(self))
+impl<E> callables::IntoOutput<E> for TaskOutcome {
+    fn into_output(self) -> Result<callables::DataBox, E> {
+        Ok(callables::DataBox::new(self))
     }
 }
 
 impl callables::IntoReturnPart for TaskOutcome {
     fn into_return_part() -> callables::ReturnPart {
         callables::ReturnPart::Empty
-    }
-}
-
-pub struct TaskInput<T: callables::Payloadable> {
-    inner: Arc<T>,
-}
-
-impl<T: callables::Payloadable> std::ops::Deref for TaskInput<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T: callables::Payloadable> From<Arc<T>> for TaskInput<T> {
-    fn from(value: Arc<T>) -> Self {
-        Self { inner: value }
-    }
-}
-
-impl<C, T> callables::FromContext<C> for TaskInput<T>
-where
-    C: callables::IntoPayloadData + Send + 'static,
-    T: callables::Payloadable,
-{
-    fn from_context(ctx: C) -> Result<Self, callables::CallError> {
-        let payload_data = ctx.into_payload_data();
-        let value = payload_data
-            .downcast_arc::<T>()
-            .ok_or(callables::CallError::TypeMismatch)?;
-        Ok(TaskInput::from(value))
-    }
-
-    fn deserializer() -> Option<fn(&str) -> Result<callables::PayloadData, callables::CallError>> {
-        Some(|s: &str| {
-            let value: T =
-                serde_json::from_str(s).map_err(|_| callables::CallError::DeserializeFailed)?;
-            Ok(callables::PayloadData::new(value))
-        })
-    }
-}
-
-impl<T: callables::Payloadable> callables::IntoArgPart for TaskInput<T> {
-    fn into_arg_part() -> callables::ArgPart {
-        callables::ArgPart::Body(
-            callables::TypeSchema::wrap::<T>(),
-            "application/json".into(),
-        )
     }
 }
 
@@ -406,7 +365,7 @@ impl TaskService {
 
         let data = match self.handler.call(ctx).await {
             Ok(data) => data,
-            Err(e) => return TaskOutcome::fail(format!("Task execution error: {}", e)),
+            Err(e) => return TaskOutcome::fail_error(&e),
         };
 
         match data.downcast_ref::<TaskOutcome>() {
@@ -417,15 +376,16 @@ impl TaskService {
 
     pub fn new<T, H, Args>(name: &str, handler: H) -> Self
     where
-        T: callables::Payloadable,
-        H: callables::Specable<Args, Output = TaskOutcome> + Send + Sync + 'static,
+        T: callables::DataValue,
+        H: callables::Specable<Args> + Send + Sync + 'static,
+        H::Output: callables::IntoOutput<Error> + callables::IntoReturnPart + Send + 'static,
         Args: callables::FromContext<TaskContext>
             + callables::IntoArgSpecs
-            + callables::HasPayload<T>
+            + callables::HasData<T>
             + Send
             + 'static,
     {
-        let callable: callables::Callable<TaskContext, TaskError> = Callable::new(handler);
+        let callable: callables::Callable<TaskContext, Error> = Callable::new(handler);
         let coerce = |data: &str| -> Result<(), TaskError> {
             let _: T = serde_json::from_str(data)?;
             Ok(())
@@ -671,14 +631,17 @@ mod tests {
     use serde::{Deserialize, Serialize};
 
     use super::*;
-    use crate::tasks::{MemoryTaskStore, store::AbstractTaskStore};
+    use crate::{
+        Data,
+        tasks::{MemoryTaskStore, store::AbstractTaskStore},
+    };
 
     #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
     struct DirectJob {
         id: i64,
     }
 
-    async fn direct_job(input: TaskInput<DirectJob>) -> TaskOutcome {
+    async fn direct_job(input: Data<DirectJob>) -> TaskOutcome {
         TaskOutcome::complete(&format!("direct:{}", input.id)).unwrap()
     }
 

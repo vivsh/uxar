@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use crate::{
-    Site,
+    Error, Site,
     callables::{self},
     commands::{self},
     embed, emitters,
     services::{Service, ServiceBuildContext, ServiceHandler, ServiceInstance},
     signals::{self, SignalConf},
-    tasks::{TaskHandlerConf, TaskOutcome},
+    tasks::TaskHandlerConf,
 };
 
 use super::{Bundle, BundleError};
@@ -149,12 +149,17 @@ where
 /// Creates a cron-scheduled emitter part.
 pub fn cron<O, H, Args>(handler: H, options: emitters::CronConf) -> BundlePart
 where
-    O: callables::Payloadable,
+    O: callables::DataValue,
     Args:
         callables::FromContext<emitters::EmitterContext> + callables::IntoArgSpecs + Send + 'static,
-    H: callables::Specable<Args, Output = callables::Payload<O>> + Send + Sync + 'static,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output: callables::IntoOutput<Error>
+        + callables::IntoReturnPart
+        + emitters::EmitsData<O>
+        + Send
+        + 'static,
 {
-    match emitters::cron(handler, options) {
+    match emitters::cron::<H, Args, O>(handler, options) {
         Ok(em) => BundlePart {
             operation: Some(em.operation()),
             part: BundlePartInner::Emitter(em),
@@ -169,12 +174,17 @@ where
 /// Creates a time-interval emitter part.
 pub fn periodic<O, H, Args>(handler: H, options: emitters::PeriodicConf) -> BundlePart
 where
-    O: callables::Payloadable,
+    O: callables::DataValue,
     Args:
         callables::FromContext<emitters::EmitterContext> + callables::IntoArgSpecs + Send + 'static,
-    H: callables::Specable<Args, Output = callables::Payload<O>> + Send + Sync + 'static,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output: callables::IntoOutput<Error>
+        + callables::IntoReturnPart
+        + emitters::EmitsData<O>
+        + Send
+        + 'static,
 {
-    match emitters::periodic(handler, options) {
+    match emitters::periodic::<H, Args, O>(handler, options) {
         Ok(em) => BundlePart {
             operation: Some(em.operation()),
             part: BundlePartInner::Emitter(em),
@@ -189,12 +199,17 @@ where
 /// Creates a Postgres NOTIFY listener emitter part.
 pub fn pgnotify<O, H, Args>(handler: H, options: emitters::PgNotifyConf) -> BundlePart
 where
-    O: callables::Payloadable,
+    O: callables::DataValue,
     Args:
         callables::FromContext<emitters::EmitterContext> + callables::IntoArgSpecs + Send + 'static,
-    H: callables::Specable<Args, Output = callables::Payload<O>> + Send + Sync + 'static,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output: callables::IntoOutput<Error>
+        + callables::IntoReturnPart
+        + emitters::EmitsData<O>
+        + Send
+        + 'static,
 {
-    match emitters::pgnotify(handler, options) {
+    match emitters::pgnotify::<H, Args, O>(handler, options) {
         Ok(em) => BundlePart {
             operation: Some(em.operation()),
             part: BundlePartInner::Emitter(em),
@@ -209,11 +224,12 @@ where
 /// Creates a signal handler part.
 pub fn signal<T, H, Args>(handler: H, options: SignalConf) -> BundlePart
 where
-    T: callables::Payloadable,
-    H: callables::Specable<Args, Output = ()> + Send + Sync + 'static,
+    T: callables::DataValue,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output: callables::IntoOutput<Error> + callables::IntoReturnPart + Send + 'static,
     Args: callables::FromContext<signals::SignalContext>
         + callables::IntoArgSpecs
-        + callables::HasPayload<T>
+        + callables::HasData<T>
         + Send
         + 'static,
 {
@@ -228,11 +244,12 @@ where
 /// Creates a durable task part.
 pub fn task<T, H, Args>(handler: H, options: TaskHandlerConf) -> BundlePart
 where
-    T: callables::Payloadable,
-    H: callables::Specable<Args, Output = TaskOutcome> + Send + Sync + 'static,
+    T: callables::DataValue,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output: callables::IntoOutput<Error> + callables::IntoReturnPart + Send + 'static,
     Args: callables::FromContext<crate::tasks::TaskContext>
         + callables::IntoArgSpecs
-        + callables::HasPayload<T>
+        + callables::HasData<T>
         + Send
         + 'static,
 {
@@ -261,14 +278,11 @@ where
 /// Creates a CLI command part.
 pub fn command<T, H, Args>(handler: H, conf: commands::CommandConf) -> BundlePart
 where
-    T: callables::Payloadable,
-    H: callables::Specable<Args, Output = Result<(), commands::CommandError>>
-        + Send
-        + Sync
-        + 'static,
+    T: callables::DataValue,
+    H: callables::Specable<Args, Output = Result<(), Error>> + Send + Sync + 'static,
     Args: callables::FromContext<commands::CommandContext>
         + callables::IntoArgSpecs
-        + callables::HasPayload<T>
+        + callables::HasData<T>
         + Send
         + 'static,
 {

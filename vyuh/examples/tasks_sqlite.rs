@@ -3,11 +3,7 @@ use schemars::JsonSchema;
 #[cfg(feature = "sqlite")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "sqlite")]
-use vyuh::{
-    SiteConf, bundles,
-    db::DbConf,
-    tasks::{TaskInput, TaskOutcome},
-};
+use vyuh::{Data, SiteConf, bundles, db::DbConf, tasks::TaskOutcome};
 
 #[cfg(feature = "sqlite")]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -17,7 +13,7 @@ struct LocalJob {
 
 #[cfg(feature = "sqlite")]
 #[bundles::task(name = "local_job")]
-async fn local_job(input: TaskInput<LocalJob>) -> TaskOutcome {
+async fn local_job(input: Data<LocalJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("processed {}", input.id)).unwrap()
 }
 

@@ -242,7 +242,7 @@ impl IntoTemplateDateTime for chrono::DateTime<chrono::Utc> {
         self,
         site: &Site,
     ) -> Result<chrono::DateTime<chrono_tz::Tz>, TemplateFormatError> {
-        Ok(self.with_timezone(&site.tz()))
+        Ok(self.with_timezone(&site.timezone()))
     }
 }
 
@@ -252,7 +252,7 @@ impl IntoTemplateDateTime for &str {
         site: &Site,
     ) -> Result<chrono::DateTime<chrono_tz::Tz>, TemplateFormatError> {
         chrono::DateTime::parse_from_rfc3339(self)
-            .map(|dt| dt.with_timezone(&site.tz()))
+            .map(|dt| dt.with_timezone(&site.timezone()))
             .map_err(|err| TemplateFormatError::InvalidValue(err.to_string()))
     }
 }

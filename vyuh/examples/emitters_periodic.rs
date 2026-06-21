@@ -9,8 +9,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    callables::Payload,
+    Data, bundles,
     emitters::{IterCount, IterInstant},
 };
 
@@ -20,12 +19,12 @@ struct Heartbeat {
 }
 
 #[bundles::periodic(secs = 30)]
-async fn publish_heartbeat(IterCount(count): IterCount, _last: IterInstant) -> Payload<Heartbeat> {
-    Heartbeat { count }.into()
+async fn publish_heartbeat(IterCount(count): IterCount, _last: IterInstant) -> Data<Heartbeat> {
+    Data::new(Heartbeat { count })
 }
 
 #[bundles::signal]
-async fn record_heartbeat(payload: Payload<Heartbeat>) {
+async fn record_heartbeat(payload: Data<Heartbeat>) {
     println!("heartbeat {}", payload.count);
 }
 

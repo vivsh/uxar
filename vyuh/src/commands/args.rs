@@ -39,6 +39,7 @@ pub(crate) struct CommandArg {
     pub(super) arg_type: CommandArgType,
     pub(super) required: bool,
     pub(super) description: Option<String>,
+    pub(super) hints: Vec<String>,
 }
 
 // ── schema parsing ────────────────────────────────────────────────────────────
@@ -48,7 +49,7 @@ pub(super) fn parse_schema_to_args(
 ) -> Result<Vec<CommandArg>, CommandError> {
     let root_obj = schema
         .as_object()
-        .ok_or_else(|| CommandError::Other("Schema is not an object".into()))?;
+        .ok_or_else(|| CommandError::UnsupportedSchema("schema is not an object".into()))?;
     let schema_obj = resolve_root_schema_object(root_obj)?;
 
     let Some(properties) = schema_obj.get("properties").and_then(|p| p.as_object()) else {
@@ -59,7 +60,7 @@ pub(super) fn parse_schema_to_args(
         {
             return Ok(Vec::new());
         }
-        return Err(CommandError::Other(
+        return Err(CommandError::UnsupportedSchema(
             "Command argument schema must be an object with named fields".into(),
         ));
     };
@@ -75,9 +76,9 @@ pub(super) fn parse_schema_to_args(
 
     let mut args = Vec::with_capacity(properties.len());
     for (prop, prop_schema) in properties {
-        let prop_obj = prop_schema
-            .as_object()
-            .ok_or_else(|| CommandError::Other("Property schema is not an object".into()))?;
+        let prop_obj = prop_schema.as_object().ok_or_else(|| {
+            CommandError::UnsupportedSchema("property schema is not an object".into())
+        })?;
 
         let arg_type = parse_arg_type(prop_obj)?;
         let required = required_fields.contains(prop);
@@ -85,15 +86,96 @@ pub(super) fn parse_schema_to_args(
             .get("description")
             .and_then(|d| d.as_str())
             .map(|s| s.to_string());
+        let hints = collect_hints(prop_obj);
 
         args.push(CommandArg {
             name: prop.to_string(),
             arg_type,
             required,
             description,
+            hints,
         });
     }
     Ok(args)
+}
+
+fn collect_hints(prop_obj: &Map<String, Value>) -> Vec<String> {
+    let mut hints = Vec::new();
+
+    if let Some(min) = prop_obj.get("minLength").and_then(Value::as_u64) {
+        hints.push(format!("min length: {min}"));
+    }
+    if let Some(max) = prop_obj.get("maxLength").and_then(Value::as_u64) {
+        hints.push(format!("max length: {max}"));
+    }
+    if let Some(format) = prop_obj.get("format").and_then(Value::as_str) {
+        hints.push(format!("format: {format}"));
+    }
+    if let Some(min) = prop_obj.get("minimum") {
+        let prefix = if prop_obj
+            .get("exclusiveMinimum")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            ">"
+        } else {
+            ">="
+        };
+        hints.push(format!("value: {prefix} {min}"));
+    }
+    if let Some(max) = prop_obj.get("maximum") {
+        let prefix = if prop_obj
+            .get("exclusiveMaximum")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            "<"
+        } else {
+            "<="
+        };
+        hints.push(format!("value: {prefix} {max}"));
+    }
+    if let Some(multiple) = prop_obj.get("multipleOf") {
+        hints.push(format!("multiple of: {multiple}"));
+    }
+    if let Some(min) = prop_obj.get("minItems").and_then(Value::as_u64) {
+        hints.push(format!("min items: {min}"));
+    }
+    if let Some(max) = prop_obj.get("maxItems").and_then(Value::as_u64) {
+        hints.push(format!("max items: {max}"));
+    }
+    if prop_obj
+        .get("uniqueItems")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
+        hints.push("unique items".to_string());
+    }
+    if let Some(values) = prop_obj.get("enum").and_then(Value::as_array) {
+        let choices = values
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| value.to_string())
+            })
+            .collect::<Vec<_>>();
+        if !choices.is_empty() {
+            hints.push(format!("choices: {}", choices.join(", ")));
+        }
+    }
+    if let Some(validators) = prop_obj.get("x-vyuh-validators").and_then(Value::as_array) {
+        let names = validators
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+        if !names.is_empty() {
+            hints.push(format!("validators: {}", names.join(", ")));
+        }
+    }
+
+    hints
 }
 
 fn resolve_root_schema_object(
@@ -103,7 +185,7 @@ fn resolve_root_schema_object(
         return Ok(root_obj.clone());
     };
     let path = reference.strip_prefix("#/").ok_or_else(|| {
-        CommandError::Other(format!("Unsupported schema reference: {reference}").into())
+        CommandError::UnsupportedSchema(format!("unsupported schema reference: {reference}"))
     })?;
     let mut value = Value::Object(root_obj.clone());
     for segment in path.split('/') {
@@ -113,11 +195,11 @@ fn resolve_root_schema_object(
             .and_then(|obj| obj.get(&decoded))
             .cloned()
             .ok_or_else(|| {
-                CommandError::Other(format!("Schema reference not found: {reference}").into())
+                CommandError::UnsupportedSchema(format!("schema reference not found: {reference}"))
             })?;
     }
     value.as_object().cloned().ok_or_else(|| {
-        CommandError::Other(format!("Schema reference is not an object: {reference}").into())
+        CommandError::UnsupportedSchema(format!("schema reference is not an object: {reference}"))
     })
 }
 
@@ -134,7 +216,9 @@ fn extract_type_from_schema(schema_obj: &Map<String, Value>) -> Result<&str, Com
                         .filter(|&s| s != "null")
                 })
             })
-            .ok_or_else(|| CommandError::Other("anyOf schema type not found or unsupported".into()))
+            .ok_or_else(|| {
+                CommandError::UnsupportedSchema("anyOf schema type not found or unsupported".into())
+            })
     } else if let Some(type_val) = schema_obj.get("type") {
         match type_val {
             // "type": "string"  — scalar, most common case
@@ -143,22 +227,28 @@ fn extract_type_from_schema(schema_obj: &Map<String, Value>) -> Result<&str, Com
             Value::Array(arr) => arr
                 .iter()
                 .find_map(|v| v.as_str().filter(|&s| s != "null"))
-                .ok_or_else(|| CommandError::Other("type array has no non-null entry".into())),
-            _ => Err(CommandError::Other(
+                .ok_or_else(|| {
+                    CommandError::UnsupportedSchema("type array has no non-null entry".into())
+                }),
+            _ => Err(CommandError::UnsupportedSchema(
                 "Property type is not a string or array".into(),
             )),
         }
     } else {
-        Err(CommandError::Other("Property type missing".into()))
+        Err(CommandError::UnsupportedSchema(
+            "Property type missing".into(),
+        ))
     }
 }
 
 fn parse_array_type(prop_obj: &Map<String, Value>) -> Result<CommandArgType, CommandError> {
     let items_obj = prop_obj
         .get("items")
-        .ok_or_else(|| CommandError::Other("Array items schema missing".into()))?
+        .ok_or_else(|| CommandError::UnsupportedSchema("Array items schema missing".into()))?
         .as_object()
-        .ok_or_else(|| CommandError::Other("Array item schema is not an object".into()))?;
+        .ok_or_else(|| {
+            CommandError::UnsupportedSchema("Array item schema is not an object".into())
+        })?;
     let item_type_str = extract_type_from_schema(items_obj)?;
     let item_arg_type = match item_type_str {
         "string" => CommandArgType::String,
@@ -217,7 +307,7 @@ pub(super) fn parse_args<T: DeserializeOwned + 'static>(
     }
 
     serde_json::from_value(Value::Object(obj))
-        .map_err(|e| CommandError::Other(format!("Failed to deserialize arguments: {}", e).into()))
+        .map_err(|e| CommandError::DeserializeError(e.to_string()))
 }
 
 fn parse_flag_args(
@@ -241,9 +331,10 @@ fn parse_flag_args(
                 .push(arg.to_string());
             i += 1;
         } else {
-            return Err(CommandError::Other(
-                format!("Unexpected argument: {}", arg).into(),
-            ));
+            return Err(CommandError::UnexpectedArgument {
+                command: command_name.to_string(),
+                argument: arg.to_string(),
+            });
         }
     }
     Ok(store)
@@ -320,28 +411,30 @@ fn validate_arg_values(
     match arg_type {
         CommandArgType::Array(_) => {
             if values.is_empty() {
-                return Err(CommandError::Other(
-                    format!("--{} expects at least one value", key).into(),
-                ));
+                return Err(CommandError::MissingValue {
+                    flag: key.to_string(),
+                });
             }
         }
         CommandArgType::Boolean => {
             if values.len() != 1 {
-                return Err(CommandError::Other(
-                    format!("--{} expects exactly one value", key).into(),
-                ));
+                return Err(CommandError::TooManyValues {
+                    flag: key.to_string(),
+                    count: values.len(),
+                });
             }
         }
         _ => {
             if values.is_empty() {
-                return Err(CommandError::Other(
-                    format!("--{} expects exactly one value", key).into(),
-                ));
+                return Err(CommandError::MissingValue {
+                    flag: key.to_string(),
+                });
             }
             if values.len() > 1 {
-                return Err(CommandError::Other(
-                    format!("--{} expects exactly one value, got {}", key, values.len()).into(),
-                ));
+                return Err(CommandError::TooManyValues {
+                    flag: key.to_string(),
+                    count: values.len(),
+                });
             }
         }
     }
@@ -358,9 +451,9 @@ fn check_required_args(
             continue;
         }
         if arg_def.required && !obj.contains_key(&arg_def.name) {
-            return Err(CommandError::Other(
-                format!("Missing required argument: --{}", arg_def.name).into(),
-            ));
+            return Err(CommandError::MissingRequired {
+                flag: arg_def.name.clone(),
+            });
         }
     }
     Ok(())
@@ -380,9 +473,9 @@ fn convert_value(
             Ok(Value::Array(arr))
         }
         _ => {
-            let val = values
-                .first()
-                .ok_or_else(|| CommandError::Other("No value provided".into()))?;
+            let val = values.first().ok_or_else(|| CommandError::MissingValue {
+                flag: key.to_string(),
+            })?;
             convert_single_value(key, val, arg_type)
         }
     }
@@ -438,8 +531,8 @@ fn convert_single_value(
                     })?;
             Ok(Value::Bool(b))
         }
-        CommandArgType::Array(_) => Err(CommandError::Other(
-            "Cannot convert single value to array".into(),
+        CommandArgType::Array(_) => Err(CommandError::UnsupportedSchema(
+            "cannot convert single value to array".into(),
         )),
     }
 }

@@ -1,5 +1,9 @@
 use regex::Regex;
 use std::borrow::Cow;
+use std::collections::HashSet;
+use std::hash::Hash;
+use std::net::Ipv6Addr;
+use std::str::FromStr;
 
 use super::validation::ValidationError;
 
@@ -8,6 +12,16 @@ use super::validation::ValidationError;
 #[inline]
 fn err(code: &'static str, msg: impl Into<Cow<'static, str>>) -> ValidationError {
     ValidationError::new(code, msg)
+}
+
+#[inline]
+fn err_param(
+    code: &'static str,
+    msg: impl Into<Cow<'static, str>>,
+    key: &'static str,
+    value: impl ToString,
+) -> ValidationError {
+    ValidationError::new(code, msg).with_param(key, value)
 }
 
 /// ---------- presence / option ----------
@@ -33,14 +47,15 @@ pub fn non_empty(s: &str) -> Result<(), ValidationError> {
     }
 }
 
-/// Validates minimum byte length (not character count).
-/// For Unicode-aware validation, use `min_chars`.
+/// Validates minimum Unicode character count.
 pub fn min_len(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
     move |s| {
-        if s.len() < n {
-            Err(err(
+        if s.chars().count() < n {
+            Err(err_param(
                 "min_length",
                 format!("Ensure this field has at least {n} characters."),
+                "min",
+                n,
             ))
         } else {
             Ok(())
@@ -48,14 +63,15 @@ pub fn min_len(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
     }
 }
 
-/// Validates maximum byte length (not character count).
-/// For Unicode-aware validation, use `max_chars`.
+/// Validates maximum Unicode character count.
 pub fn max_len(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
     move |s| {
-        if s.len() > n {
-            Err(err(
+        if s.chars().count() > n {
+            Err(err_param(
                 "max_length",
                 format!("Ensure this field has at most {n} characters."),
+                "max",
+                n,
             ))
         } else {
             Ok(())
@@ -65,10 +81,60 @@ pub fn max_len(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
 
 pub fn exact_len(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
     move |s| {
-        if s.len() != n {
-            Err(err(
+        if s.chars().count() != n {
+            Err(err_param(
                 "exact_length",
                 format!("Ensure this field has exactly {n} characters."),
+                "exact",
+                n,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Validates minimum byte length.
+pub fn min_bytes(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
+    move |s| {
+        if s.len() < n {
+            Err(err_param(
+                "min_bytes",
+                format!("Ensure this field has at least {n} bytes."),
+                "min",
+                n,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Validates maximum byte length.
+pub fn max_bytes(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
+    move |s| {
+        if s.len() > n {
+            Err(err_param(
+                "max_bytes",
+                format!("Ensure this field has at most {n} bytes."),
+                "max",
+                n,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Validates exact byte length.
+pub fn exact_bytes(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
+    move |s| {
+        if s.len() != n {
+            Err(err_param(
+                "exact_bytes",
+                format!("Ensure this field has exactly {n} bytes."),
+                "exact",
+                n,
             ))
         } else {
             Ok(())
@@ -81,9 +147,11 @@ pub fn min_chars(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
     move |s| {
         let count = s.chars().count();
         if count < n {
-            Err(err(
+            Err(err_param(
                 "min_chars",
                 format!("Ensure this field has at least {n} characters."),
+                "min",
+                n,
             ))
         } else {
             Ok(())
@@ -96,9 +164,11 @@ pub fn max_chars(n: usize) -> impl Fn(&str) -> Result<(), ValidationError> {
     move |s| {
         let count = s.chars().count();
         if count > n {
-            Err(err(
+            Err(err_param(
                 "max_chars",
                 format!("Ensure this field has at most {n} characters."),
+                "max",
+                n,
             ))
         } else {
             Ok(())
@@ -126,7 +196,7 @@ pub fn regex(re: &'static Regex) -> impl Fn(&str) -> Result<(), ValidationError>
         if re.is_match(s) {
             Ok(())
         } else {
-            Err(err("invalid", "Invalid format."))
+            Err(err("pattern", "Invalid format."))
         }
     }
 }
@@ -140,7 +210,7 @@ pub fn regex_with_msg(
         if re.is_match(s) {
             Ok(())
         } else {
-            Err(err("invalid", msg))
+            Err(err("pattern", msg))
         }
     }
 }
@@ -218,6 +288,45 @@ pub fn ipv4(s: &str) -> Result<(), ValidationError> {
     }
 }
 
+/// Validates IP address (v6).
+pub fn ipv6(s: &str) -> Result<(), ValidationError> {
+    if Ipv6Addr::from_str(s).is_ok() {
+        Ok(())
+    } else {
+        Err(err("ipv6", "Enter a valid IPv6 address."))
+    }
+}
+
+/// Validates E.164 phone number format.
+pub fn phone_e164(s: &str) -> Result<(), ValidationError> {
+    static PHONE_RE: once_cell::sync::Lazy<Regex> =
+        once_cell::sync::Lazy::new(|| Regex::new(r"^\+[1-9]\d{1,14}$").expect("valid phone regex"));
+
+    if PHONE_RE.is_match(s) {
+        Ok(())
+    } else {
+        Err(err("phone_e164", "Enter a valid E.164 phone number."))
+    }
+}
+
+/// Validates ISO calendar date format: YYYY-MM-DD.
+pub fn date(s: &str) -> Result<(), ValidationError> {
+    if chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok() {
+        Ok(())
+    } else {
+        Err(err("date", "Enter a valid date."))
+    }
+}
+
+/// Validates RFC3339 date-time format.
+pub fn datetime(s: &str) -> Result<(), ValidationError> {
+    if chrono::DateTime::parse_from_rfc3339(s).is_ok() {
+        Ok(())
+    } else {
+        Err(err("datetime", "Enter a valid date-time."))
+    }
+}
+
 /// ---------- numeric validators ----------
 
 pub fn min<T>(min: T) -> impl Fn(&T) -> Result<(), ValidationError>
@@ -226,9 +335,11 @@ where
 {
     move |v| {
         if *v < min {
-            Err(err(
+            Err(err_param(
                 "min_value",
                 format!("Ensure this value is greater than or equal to {min}."),
+                "min",
+                &min,
             ))
         } else {
             Ok(())
@@ -242,9 +353,11 @@ where
 {
     move |v| {
         if *v > max {
-            Err(err(
+            Err(err_param(
                 "max_value",
                 format!("Ensure this value is less than or equal to {max}."),
+                "max",
+                &max,
             ))
         } else {
             Ok(())
@@ -258,9 +371,65 @@ where
 {
     move |v| {
         if *v < min || *v > max {
-            Err(err(
+            Err(ValidationError::new(
                 "value_range",
                 format!("Ensure this value is between {min} and {max}."),
+            )
+            .with_param("min", &min)
+            .with_param("max", &max))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+pub fn min_exclusive<T>(min: T) -> impl Fn(&T) -> Result<(), ValidationError>
+where
+    T: PartialOrd + std::fmt::Display,
+{
+    move |v| {
+        if *v <= min {
+            Err(err_param(
+                "min_value",
+                format!("Ensure this value is greater than {min}."),
+                "min",
+                &min,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+pub fn max_exclusive<T>(max: T) -> impl Fn(&T) -> Result<(), ValidationError>
+where
+    T: PartialOrd + std::fmt::Display,
+{
+    move |v| {
+        if *v >= max {
+            Err(err_param(
+                "max_value",
+                format!("Ensure this value is less than {max}."),
+                "max",
+                &max,
+            ))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+pub fn multiple_of<T>(multiple: T) -> impl Fn(&T) -> Result<(), ValidationError>
+where
+    T: Copy + Default + PartialEq + std::fmt::Display + std::ops::Rem<Output = T>,
+{
+    move |v| {
+        if multiple == T::default() || *v % multiple != T::default() {
+            Err(err_param(
+                "multiple_of",
+                format!("Ensure this value is a multiple of {multiple}."),
+                "multiple_of",
+                multiple,
             ))
         } else {
             Ok(())
@@ -282,9 +451,11 @@ pub fn non_empty_vec<T>(v: &[T]) -> Result<(), ValidationError> {
 pub fn min_items<T>(n: usize) -> impl for<'a> Fn(&'a [T]) -> Result<(), ValidationError> {
     move |v: &[T]| {
         if v.len() < n {
-            Err(err(
+            Err(err_param(
                 "min_items",
                 format!("Ensure this list has at least {n} items."),
+                "min_items",
+                n,
             ))
         } else {
             Ok(())
@@ -295,13 +466,27 @@ pub fn min_items<T>(n: usize) -> impl for<'a> Fn(&'a [T]) -> Result<(), Validati
 pub fn max_items<T>(n: usize) -> impl for<'a> Fn(&'a [T]) -> Result<(), ValidationError> {
     move |v: &[T]| {
         if v.len() > n {
-            Err(err(
+            Err(err_param(
                 "max_items",
                 format!("Ensure this list has at most {n} items."),
+                "max_items",
+                n,
             ))
         } else {
             Ok(())
         }
+    }
+}
+
+pub fn unique_items<T>(v: &[T]) -> Result<(), ValidationError>
+where
+    T: Eq + Hash,
+{
+    let mut seen = HashSet::with_capacity(v.len());
+    if v.iter().all(|item| seen.insert(item)) {
+        Ok(())
+    } else {
+        Err(err("unique_items", "This list must contain unique items."))
     }
 }
 
@@ -325,9 +510,11 @@ pub fn one_of<T: PartialEq + 'static>(
         if allowed.contains(v) {
             Ok(())
         } else {
-            Err(err(
+            Err(err_param(
                 "invalid_choice",
                 "Selected value is not a valid choice.",
+                "choices",
+                allowed.len(),
             ))
         }
     }

@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Result};
+use syn::{DeriveInput, Lit, Result};
 
 use crate::schemable::ParsedStruct;
 
@@ -77,15 +77,15 @@ fn gen_field_validation(
     let mut checks = Vec::with_capacity(8);
 
     if validate.delegate {
-        checks.push(gen_delegate_check(&field_ident, &field_name));
+        checks.push(gen_delegate_check(field_ident, &field_name));
     }
 
     if let Some(path) = &validate.custom {
-        checks.push(gen_custom_check(&field_ident, &field_name, path));
+        checks.push(gen_custom_check(field_ident, &field_name, path));
     }
 
-    if !validate.delegate && validate.custom.is_none() && has_standard_validators(validate) {
-        gen_standard_validators(&mut checks, &field_ident, &field_name, validate);
+    if !validate.delegate && has_standard_validators(validate) {
+        gen_standard_validators(&mut checks, field_ident, &field_name, validate);
     }
 
     if checks.is_empty() {
@@ -137,6 +137,10 @@ fn has_standard_validators(validate: &crate::schemable::ValidateAttrs) -> bool {
         || validate.datetime
         || validate.min.is_some()
         || validate.max.is_some()
+        || validate.multiple_of.is_some()
+        || validate.min_items.is_some()
+        || validate.max_items.is_some()
+        || validate.unique_items
         || !validate.enumeration.0.is_empty()
 }
 
@@ -155,6 +159,7 @@ fn gen_standard_validators(
     gen_string_formats(checks, field_name, validate);
     gen_numeric_validators(checks, field_name, validate);
     gen_collection_validators(checks, field_name, validate);
+    gen_enum_validator(checks, field_name, validate);
 
     if let Some(pattern) = &validate.pattern {
         checks.push(gen_pattern_validator(field_name, pattern));
@@ -238,6 +243,42 @@ fn gen_string_formats(
             }
         });
     }
+    if validate.ipv6 {
+        checks.push(quote! {
+            if let Some(v) = target {
+                if let Err(e) = ::vyuh::validators::ipv6(v.as_ref()) {
+                    main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                }
+            }
+        });
+    }
+    if validate.phone_e164 {
+        checks.push(quote! {
+            if let Some(v) = target {
+                if let Err(e) = ::vyuh::validators::phone_e164(v.as_ref()) {
+                    main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                }
+            }
+        });
+    }
+    if validate.date {
+        checks.push(quote! {
+            if let Some(v) = target {
+                if let Err(e) = ::vyuh::validators::date(v.as_ref()) {
+                    main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                }
+            }
+        });
+    }
+    if validate.datetime {
+        checks.push(quote! {
+            if let Some(v) = target {
+                if let Err(e) = ::vyuh::validators::datetime(v.as_ref()) {
+                    main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                }
+            }
+        });
+    }
 }
 
 /// Generate numeric range validators.
@@ -247,18 +288,47 @@ fn gen_numeric_validators(
     validate: &crate::schemable::ValidateAttrs,
 ) {
     if let Some(min) = &validate.min {
-        checks.push(quote! {
-            if let Some(v) = target {
-                if let Err(e) = ::vyuh::validators::min(#min)(v) {
-                    main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+        if validate.exclusive_min {
+            checks.push(quote! {
+                if let Some(v) = target {
+                    if let Err(e) = ::vyuh::validators::min_exclusive(#min)(v) {
+                        main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                    }
                 }
-            }
-        });
+            });
+        } else {
+            checks.push(quote! {
+                if let Some(v) = target {
+                    if let Err(e) = ::vyuh::validators::min(#min)(v) {
+                        main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                    }
+                }
+            });
+        }
     }
     if let Some(max) = &validate.max {
+        if validate.exclusive_max {
+            checks.push(quote! {
+                if let Some(v) = target {
+                    if let Err(e) = ::vyuh::validators::max_exclusive(#max)(v) {
+                        main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                    }
+                }
+            });
+        } else {
+            checks.push(quote! {
+                if let Some(v) = target {
+                    if let Err(e) = ::vyuh::validators::max(#max)(v) {
+                        main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                    }
+                }
+            });
+        }
+    }
+    if let Some(multiple_of) = &validate.multiple_of {
         checks.push(quote! {
             if let Some(v) = target {
-                if let Err(e) = ::vyuh::validators::max(#max)(v) {
+                if let Err(e) = ::vyuh::validators::multiple_of(#multiple_of as _)(v) {
                     main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
                 }
             }
@@ -290,6 +360,61 @@ fn gen_collection_validators(
             }
         });
     }
+    if validate.unique_items {
+        checks.push(quote! {
+            if let Some(v) = target {
+                if let Err(e) = ::vyuh::validators::unique_items(v) {
+                    main_report.push(::vyuh::validation::Path::root().at_field(#field_name), e);
+                }
+            }
+        });
+    }
+}
+
+fn gen_enum_validator(
+    checks: &mut Vec<proc_macro2::TokenStream>,
+    field_name: &str,
+    validate: &crate::schemable::ValidateAttrs,
+) {
+    if validate.enumeration.0.is_empty() {
+        return;
+    }
+
+    let comparisons = validate.enumeration.0.iter().map(|lit| match lit {
+        Lit::Str(value) => {
+            quote! { {
+                let value: &str = v.as_ref();
+                value == #value
+            } }
+        }
+        Lit::Int(value) => {
+            quote! { *v == #value }
+        }
+        Lit::Float(value) => {
+            quote! { *v == #value }
+        }
+        Lit::Bool(value) => {
+            quote! { *v == #value }
+        }
+        _ => {
+            quote! { false }
+        }
+    });
+
+    let choices = validate.enumeration.0.len();
+    checks.push(quote! {
+        if let Some(v) = target {
+            if !(#(#comparisons)||*) {
+                main_report.push(
+                    ::vyuh::validation::Path::root().at_field(#field_name),
+                    ::vyuh::validation::ValidationError::new(
+                        "invalid_choice",
+                        "Selected value is not a valid choice.",
+                    ).with_param("choices", #choices)
+                );
+            }
+        }
+    });
 }
 
 /// Generate pattern (regex) validator with safe compilation.
@@ -349,6 +474,8 @@ fn gen_field_schema_validation(
         constraints.push(quote! { ("format", ::serde_json::json!("uri")) });
     } else if validate.uuid {
         constraints.push(quote! { ("format", ::serde_json::json!("uuid")) });
+    } else if validate.phone_e164 {
+        constraints.push(quote! { ("pattern", ::serde_json::json!(r"^\+[1-9]\d{1,14}$")) });
     } else if validate.ipv4 {
         constraints.push(quote! { ("format", ::serde_json::json!("ipv4")) });
     } else if validate.ipv6 {
@@ -383,6 +510,10 @@ fn gen_field_schema_validation(
     if validate.unique_items {
         constraints.push(quote! { ("uniqueItems", ::serde_json::json!(true)) });
     }
+    if !validate.enumeration.0.is_empty() {
+        let values = validate.enumeration.0.iter();
+        constraints.push(quote! { ("enum", ::serde_json::json!([#(#values),*])) });
+    }
 
     let constraints_tokens = (!constraints.is_empty()).then(|| {
         quote! {
@@ -405,12 +536,24 @@ fn gen_field_schema_validation(
         }
     });
 
-    if constraints_tokens.is_none() && delegate_tokens.is_none() {
+    let custom_schema_tokens = validate.custom_schema.as_ref().map(|name| {
+        quote! {
+            ::vyuh::validation::apply_field_custom_validator(
+                schema,
+                definitions,
+                #field_name,
+                #name,
+            );
+        }
+    });
+
+    if constraints_tokens.is_none() && delegate_tokens.is_none() && custom_schema_tokens.is_none() {
         return None;
     }
 
     Some(quote! {
         #constraints_tokens
         #delegate_tokens
+        #custom_schema_tokens
     })
 }

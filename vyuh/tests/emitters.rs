@@ -4,10 +4,10 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::time::Duration;
-use vyuh::callables;
+use vyuh::Data;
 use vyuh::emitters::{self, *};
 
-async fn create_test_site(pool: PgPool) -> vyuh::Site {
+async fn create_site(pool: PgPool) -> vyuh::Site {
     let conf = vyuh::SiteConf {
         log_init: false,
         logging: vyuh::logging::LoggingConf {
@@ -18,7 +18,7 @@ async fn create_test_site(pool: PgPool) -> vyuh::Site {
     };
     let parts: Vec<vyuh::bundles::BundlePart> = vec![];
     let bundle = vyuh::bundles::bundle(parts);
-    vyuh::test_site(conf, bundle, pool)
+    vyuh::Site::test(conf, bundle, pool)
         .await
         .expect("Failed to create test site")
 }
@@ -31,12 +31,12 @@ async fn test_periodic(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
     let counter_clone = counter.clone();
 
-    async fn handler(cnt: Arc<AtomicUsize>) -> callables::Payload<Sample> {
+    async fn handler(cnt: Arc<AtomicUsize>) -> Data<Sample> {
         cnt.fetch_add(1, Ordering::SeqCst);
-        Sample.into()
+        Data::new(Sample)
     }
 
-    let site = create_test_site(pool).await;
+    let site = create_site(pool).await;
     let emitter = emitters::periodic(
         move |emitters::IterCount(_it): emitters::IterCount| handler(counter_clone.clone()),
         emitters::PeriodicConf {
@@ -75,12 +75,12 @@ async fn test_cron(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
     let counter_clone = counter.clone();
 
-    async fn handler(cnt: Arc<AtomicUsize>) -> callables::Payload<CronData> {
+    async fn handler(cnt: Arc<AtomicUsize>) -> Data<CronData> {
         cnt.fetch_add(1, Ordering::SeqCst);
-        CronData.into()
+        Data::new(CronData)
     }
 
-    let site = create_test_site(pool).await;
+    let site = create_site(pool).await;
     let emitter = emitters::cron(
         move || handler(counter_clone.clone()),
         emitters::CronConf {
@@ -119,13 +119,13 @@ async fn test_pgnotify(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let counter = Arc::new(AtomicUsize::new(0));
     let counter_clone = counter.clone();
 
-    let site = create_test_site(pool.clone()).await;
+    let site = create_site(pool.clone()).await;
     let emitter = emitters::pgnotify(
-        move |_s: callables::Payload<String>| {
+        move |_s: Data<String>| {
             let cnt = counter_clone.clone();
             async move {
                 cnt.fetch_add(1, Ordering::SeqCst);
-                NotifyData.into()
+                Data::new(NotifyData)
             }
         },
         emitters::PgNotifyConf {

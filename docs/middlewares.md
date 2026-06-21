@@ -17,7 +17,7 @@ The main public pieces are:
   middleware.
 
 Site-wide middleware is applied through the shared internal router path used by
-`serve_site`, `start_site_server`, and test router construction.
+`Site::serve`, `site.start()`, and test router construction.
 
 ## Site HTTP Configuration
 

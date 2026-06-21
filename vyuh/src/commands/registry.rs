@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use crate::Site;
+use crate::{Site, errors::ErrorSource};
 
 use super::args::CommandArgType;
 use super::error::CommandError;
@@ -75,18 +75,25 @@ impl CommandRegistry {
                 .as_deref()
                 .map(|d| format!(" - {}", d))
                 .unwrap_or_default();
+            let hints_str = if arg.hints.is_empty() {
+                String::new()
+            } else {
+                format!(" [{}]", arg.hints.join("; "))
+            };
             let line = if matches!(arg.arg_type, CommandArgType::Boolean) {
                 format!(
-                    "  --{} / --no-{}{}{}\n",
-                    arg.name, arg.name, required_str, desc_str
+                    "  --{} / --no-{}{}{}{}\n",
+                    arg.name, arg.name, required_str, hints_str, desc_str
                 )
             } else {
+                let value = if matches!(arg.arg_type, CommandArgType::Array(_)) {
+                    format!("<{}>...", arg.arg_type.type_name())
+                } else {
+                    format!("<{}>", arg.arg_type.type_name())
+                };
                 format!(
-                    "  --{} <{}>{}{}\n",
-                    arg.name,
-                    arg.arg_type.type_name(),
-                    required_str,
-                    desc_str
+                    "  --{} {}{}{}{}\n",
+                    arg.name, value, required_str, hints_str, desc_str
                 )
             };
             help.push_str(&line);
@@ -132,7 +139,15 @@ impl CommandRegistry {
             .ok_or_else(|| CommandError::UnknownCommand(command_name.to_string()))?;
         let payload = (command.parser)(command_name, args, &command.args)?;
         let ctx = CommandContext::new(site, payload);
-        command.handler.call(ctx).await.map(|_| ())
+        command
+            .handler
+            .call(ctx)
+            .await
+            .map(|_| ())
+            .map_err(|err| match &err.source {
+                Some(ErrorSource::Validation(report)) => CommandError::Validation(report.clone()),
+                _ => CommandError::Handler(err),
+            })
     }
 }
 

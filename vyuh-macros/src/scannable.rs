@@ -102,12 +102,10 @@ fn gen_where_clause(
                     #ty: #crate_path::db::Scannable
                 });
             }
-        } else if is_json(field) {
-            if seen.insert(ty_str) {
-                wc.predicates.push(syn::parse_quote! {
-                    #ty: ::serde::de::DeserializeOwned
-                });
-            }
+        } else if is_json(field) && seen.insert(ty_str) {
+            wc.predicates.push(syn::parse_quote! {
+                #ty: ::serde::de::DeserializeOwned
+            });
         }
     }
 }

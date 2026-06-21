@@ -29,7 +29,7 @@ fn test_extract_simple_function() {
     assert_eq!(spec.args[1].pos, 1);
     assert_eq!(spec.args[1].name, "name");
     assert!(
-        spec.returns.len() == 0,
+        spec.returns.is_empty(),
         "Expected at 0 return type: {:#?}",
         spec.returns
     );
@@ -577,13 +577,12 @@ fn test_validate_arg_with_valid_pos_and_name() {
 
     let mut arg_overrides = vec![];
     for item in &attrs {
-        if let darling::ast::NestedMeta::Meta(syn::Meta::List(list)) = item {
-            if list.path.is_ident("arg") {
-                let nested =
-                    darling::ast::NestedMeta::parse_meta_list(list.tokens.clone()).unwrap();
-                let arg_ovr = ArgOverride::from_list(&nested).unwrap();
-                arg_overrides.push(arg_ovr);
-            }
+        if let darling::ast::NestedMeta::Meta(syn::Meta::List(list)) = item
+            && list.path.is_ident("arg")
+        {
+            let nested = darling::ast::NestedMeta::parse_meta_list(list.tokens.clone()).unwrap();
+            let arg_ovr = ArgOverride::from_list(&nested).unwrap();
+            arg_overrides.push(arg_ovr);
         }
     }
 

@@ -12,4 +12,4 @@ pub use error::CommandError;
 pub(crate) use registry::CommandRegistry;
 pub(crate) use registry::builtin_registry;
 pub(crate) use types::{Command, command};
-pub use types::{CommandArgs, CommandConf, CommandContext};
+pub use types::{CommandConf, CommandContext};

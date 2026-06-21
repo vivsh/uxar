@@ -30,11 +30,7 @@ impl FnArg {
     /// Get type as string for code generation, or "_" if not specified.
     #[allow(dead_code)]
     pub fn type_name(&self) -> Option<String> {
-        if let Some(ty) = &self.ty {
-            Some(type_to_string(ty))
-        } else {
-            None
-        }
+        self.ty.as_ref().map(type_to_string)
     }
 }
 
@@ -53,11 +49,7 @@ impl FnReturn {
     /// Get type as string for code generation, or "_" if not specified.
     #[allow(dead_code)]
     pub fn type_name(&self) -> Option<String> {
-        if let Some(ty) = &self.ty {
-            Some(type_to_string(ty))
-        } else {
-            None
-        }
+        self.ty.as_ref().map(type_to_string)
     }
 }
 
@@ -119,17 +111,16 @@ fn extract_docs(attrs: &[syn::Attribute]) -> Option<String> {
         .iter()
         .filter(|attr| attr.path().is_ident("doc"))
         .filter_map(|attr| {
-            if let syn::Meta::NameValue(meta) = &attr.meta {
-                if let syn::Expr::Lit(expr_lit) = &meta.value {
-                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
-                        let line = lit_str.value();
-                        // Trim trailing whitespace
-                        let line = line.trim_end();
-                        // Strip conventional single leading space from `/// ` but keep extra indentation
-                        let line = line.strip_prefix(' ').unwrap_or(line);
-                        return Some(line.to_string());
-                    }
-                }
+            if let syn::Meta::NameValue(meta) = &attr.meta
+                && let syn::Expr::Lit(expr_lit) = &meta.value
+                && let syn::Lit::Str(lit_str) = &expr_lit.lit
+            {
+                let line = lit_str.value();
+                // Trim trailing whitespace
+                let line = line.trim_end();
+                // Strip conventional single leading space from `/// ` but keep extra indentation
+                let line = line.strip_prefix(' ').unwrap_or(line);
+                return Some(line.to_string());
             }
             None
         })
@@ -338,10 +329,10 @@ pub(crate) fn parse_and_apply_overrides<T: FromMeta + Default>(
             darling::ast::NestedMeta::Meta(syn::Meta::NameValue(nv))
                 if nv.path.is_ident("description") =>
             {
-                if let syn::Expr::Lit(expr_lit) = &nv.value {
-                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
-                        description = Some(lit_str.value());
-                    }
+                if let syn::Expr::Lit(expr_lit) = &nv.value
+                    && let syn::Lit::Str(lit_str) = &expr_lit.lit
+                {
+                    description = Some(lit_str.value());
                 }
             }
             _ => conf_items.push(item.clone()),
@@ -429,13 +420,13 @@ fn apply_return_overrides(spec: &mut FnSpec, overrides: &[ReturnOverride]) -> da
             // Has ty = append additional return
 
             // Validation: each status code used at most once
-            if let Some(status) = ovr.status {
-                if !status_codes.insert(status) {
-                    return Err(darling::Error::custom(format!(
-                        "Duplicate status code {} - each status can only have one return type",
-                        status
-                    )));
-                }
+            if let Some(status) = ovr.status
+                && !status_codes.insert(status)
+            {
+                return Err(darling::Error::custom(format!(
+                    "Duplicate status code {} - each status can only have one return type",
+                    status
+                )));
             }
 
             spec.returns.push(FnReturn {

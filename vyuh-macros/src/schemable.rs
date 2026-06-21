@@ -32,6 +32,7 @@ static VALIDATE_KEYS: &[&str] = &[
     "max_items",
     "unique_items",
     "custom",
+    "custom_schema",
     "delegate",
 ];
 
@@ -244,6 +245,8 @@ pub struct ValidateAttrs {
     #[darling(default)]
     pub custom: Option<syn::Path>,
     #[darling(default)]
+    pub custom_schema: Option<LitStr>,
+    #[darling(default)]
     pub delegate: bool,
 }
 
@@ -254,6 +257,13 @@ impl ValidateAttrs {
             return Err(Error::new(
                 proc_macro2::Span::call_site(),
                 "Cannot use both delegate and custom on the same field",
+            ));
+        }
+
+        if self.custom_schema.is_some() && self.custom.is_none() {
+            return Err(Error::new(
+                proc_macro2::Span::call_site(),
+                "custom_schema requires custom to be set",
             ));
         }
 
@@ -301,6 +311,15 @@ impl ValidateAttrs {
             return Err(Error::new(
                 proc_macro2::Span::call_site(),
                 "exact_length cannot be used with min_length or max_length",
+            ));
+        }
+
+        if let Some(multiple_of) = &self.multiple_of
+            && multiple_of.base10_parse::<i128>()? == 0
+        {
+            return Err(Error::new(
+                multiple_of.span(),
+                "multiple_of must not be zero",
             ));
         }
 
@@ -478,5 +497,59 @@ impl ParsedStruct {
             container,
             fields,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse_quote;
+
+    #[test]
+    fn validate_custom_schema_requires_custom() {
+        let input: DeriveInput = parse_quote! {
+            struct Test {
+                #[validate(custom_schema = "slug")]
+                field: String,
+            }
+        };
+        let result = ParsedStruct::from_derive_input(input);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "custom_schema requires custom to be set"
+        );
+    }
+
+    #[test]
+    fn validate_custom_schema_with_custom() {
+        let input: DeriveInput = parse_quote! {
+            struct Test {
+                #[validate(custom = "validate_field", custom_schema = "slug")]
+                field: String,
+            }
+        };
+        let parsed = ParsedStruct::from_derive_input(input).unwrap();
+        let field = &parsed.fields[0];
+        assert_eq!(
+            field.validate.custom_schema.as_ref().unwrap().value(),
+            "slug"
+        );
+    }
+
+    #[test]
+    fn validate_multiple_of_zero_fails() {
+        let input: DeriveInput = parse_quote! {
+            struct Test {
+                #[validate(multiple_of = 0)]
+                field: i32,
+            }
+        };
+        let result = ParsedStruct::from_derive_input(input);
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "multiple_of must not be zero"
+        );
     }
 }

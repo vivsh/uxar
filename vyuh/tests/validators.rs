@@ -1,6 +1,7 @@
 use vyuh::validation::{
-    alphanumeric, digits, email, exact_len, ipv4, max, max_chars, max_items, max_len, min,
-    min_chars, min_items, min_len, non_empty, non_empty_vec, present, range, slug, url, uuid,
+    alphanumeric, date, datetime, digits, email, exact_len, ipv4, ipv6, max, max_chars, max_items,
+    max_len, min, min_chars, min_items, min_len, multiple_of, non_empty, non_empty_vec, phone_e164,
+    present, range, slug, unique_items, url, uuid,
 };
 
 #[test]
@@ -16,6 +17,7 @@ fn test_min_len() {
     let validator = min_len(5);
     assert!(validator("hello world").is_ok());
     assert!(validator("hello").is_ok());
+    assert!(validator("ééééé").is_ok());
     assert!(validator("hi").is_err());
     assert!(validator("").is_err());
 }
@@ -33,6 +35,7 @@ fn test_max_len() {
 fn test_exact_len() {
     let validator = exact_len(5);
     assert!(validator("hello").is_ok());
+    assert!(validator("ééééé").is_ok());
     assert!(validator("hi").is_err());
     assert!(validator("hello world").is_err());
     assert!(validator("").is_err());
@@ -165,6 +168,21 @@ fn test_ipv4() {
 }
 
 #[test]
+fn test_additional_formats() {
+    assert!(ipv6("2001:db8::1").is_ok());
+    assert!(ipv6("not-ipv6").is_err());
+
+    assert!(phone_e164("+14155552671").is_ok());
+    assert!(phone_e164("4155552671").is_err());
+
+    assert!(date("2026-06-22").is_ok());
+    assert!(date("22-06-2026").is_err());
+
+    assert!(datetime("2026-06-22T10:30:00Z").is_ok());
+    assert!(datetime("2026-06-22 10:30:00").is_err());
+}
+
+#[test]
 fn test_min_numeric() {
     let validator = min(10);
     assert!(validator(&15).is_ok());
@@ -194,28 +212,41 @@ fn test_range_numeric() {
 }
 
 #[test]
+fn test_multiple_of() {
+    let validator = multiple_of(5);
+    assert!(validator(&10).is_ok());
+    assert!(validator(&12).is_err());
+}
+
+#[test]
 fn test_min_items() {
     let validator = min_items::<i32>(2);
-    assert!(validator(&vec![1, 2, 3]).is_ok());
-    assert!(validator(&vec![1, 2]).is_ok());
-    assert!(validator(&vec![1]).is_err());
-    assert!(validator(&vec![]).is_err());
+    assert!(validator(&[1, 2, 3]).is_ok());
+    assert!(validator(&[1, 2]).is_ok());
+    assert!(validator(&[1]).is_err());
+    assert!(validator(&[]).is_err());
 }
 
 #[test]
 fn test_max_items() {
     let validator = max_items::<i32>(2);
-    assert!(validator(&vec![1, 2]).is_ok());
-    assert!(validator(&vec![1]).is_ok());
-    assert!(validator(&vec![]).is_ok());
-    assert!(validator(&vec![1, 2, 3]).is_err());
+    assert!(validator(&[1, 2]).is_ok());
+    assert!(validator(&[1]).is_ok());
+    assert!(validator(&[]).is_ok());
+    assert!(validator(&[1, 2, 3]).is_err());
 }
 
 #[test]
 fn test_non_empty_vec() {
-    assert!(non_empty_vec(&vec![1, 2, 3]).is_ok());
-    assert!(non_empty_vec(&vec![1]).is_ok());
-    assert!(non_empty_vec::<i32>(&vec![]).is_err());
+    assert!(non_empty_vec(&[1, 2, 3]).is_ok());
+    assert!(non_empty_vec(&[1]).is_ok());
+    assert!(non_empty_vec::<i32>(&[]).is_err());
+}
+
+#[test]
+fn test_unique_items() {
+    assert!(unique_items(&[1, 2, 3]).is_ok());
+    assert!(unique_items(&[1, 2, 1]).is_err());
 }
 
 #[test]

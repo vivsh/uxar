@@ -30,7 +30,7 @@ struct Profile {
 #[bundles::route(path = "/login", method = "POST")]
 async fn login(site: Site) -> Result<Json<LoginResponse>, AuthError> {
     let user = AuthUser::new("user-123", 0);
-    let tokens = site.authenticator().create_token_pair(user, &["web"])?;
+    let tokens = site.auth().create_token_pair(user, &["web"])?;
     Ok(Json(LoginResponse {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,

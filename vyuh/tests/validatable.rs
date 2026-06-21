@@ -115,7 +115,11 @@ struct Nested {
 struct Container {
     #[validate(delegate)]
     nested: Nested,
-    #[validate(custom = "validate_custom")]
+    #[validate(
+        min_length = 3,
+        custom = "validate_custom",
+        custom_schema = "custom_rule"
+    )]
     custom_field: String,
 }
 
@@ -124,6 +128,65 @@ fn validate_custom(val: &String) -> Result<(), vyuh::validation::ValidationError
         Err(vyuh::validation::ValidationError::custom("invalid value"))
     } else {
         Ok(())
+    }
+}
+
+#[derive(Validate)]
+struct ParityRules {
+    #[validate(min = 1, exclusive_min, max = 10, exclusive_max)]
+    exclusive: i32,
+    #[validate(multiple_of = 5)]
+    multiple: i32,
+    #[validate(min_items = 2, max_items = 3, unique_items)]
+    items: Vec<i32>,
+    #[validate(enum_values("draft", "published"))]
+    status: String,
+    #[validate(phone_e164)]
+    phone: String,
+    #[validate(ipv6)]
+    ip6: String,
+    #[validate(date)]
+    date: String,
+    #[validate(datetime)]
+    datetime: String,
+}
+
+#[test]
+fn test_runtime_schema_parity_rules_are_enforced() {
+    let valid = ParityRules {
+        exclusive: 5,
+        multiple: 10,
+        items: vec![1, 2],
+        status: "draft".to_string(),
+        phone: "+14155552671".to_string(),
+        ip6: "2001:db8::1".to_string(),
+        date: "2026-06-22".to_string(),
+        datetime: "2026-06-22T10:30:00Z".to_string(),
+    };
+    assert!(valid.validate().is_ok());
+
+    let invalid = ParityRules {
+        exclusive: 1,
+        multiple: 12,
+        items: vec![1, 1],
+        status: "archived".to_string(),
+        phone: "4155552671".to_string(),
+        ip6: "127.0.0.1".to_string(),
+        date: "22-06-2026".to_string(),
+        datetime: "2026-06-22 10:30:00".to_string(),
+    };
+    let report = invalid.validate().expect_err("invalid rules should fail");
+    for field in [
+        "exclusive",
+        "multiple",
+        "items",
+        "status",
+        "phone",
+        "ip6",
+        "date",
+        "datetime",
+    ] {
+        assert!(report.has_error(field), "missing error for {field}");
     }
 }
 

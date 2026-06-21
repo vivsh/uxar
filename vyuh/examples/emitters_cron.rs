@@ -8,7 +8,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{Site, bundles, callables::Payload};
+use vyuh::{Data, Site, bundles};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 struct DailyTick {
@@ -16,15 +16,14 @@ struct DailyTick {
 }
 
 #[bundles::cron(expr = "0 0 0 * * *")]
-async fn publish_daily(site: Site) -> Payload<DailyTick> {
-    DailyTick {
+async fn publish_daily(site: Site) -> Data<DailyTick> {
+    Data::new(DailyTick {
         project: site.project_dir().display().to_string(),
-    }
-    .into()
+    })
 }
 
 #[bundles::signal]
-async fn record_daily(payload: Payload<DailyTick>) {
+async fn record_daily(payload: Data<DailyTick>) {
     println!("daily tick for {}", payload.project);
 }
 

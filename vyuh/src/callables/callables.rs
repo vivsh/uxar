@@ -8,55 +8,56 @@ use super::specs::{
     Tuple5, Tuple6,
 };
 
-/// Extracts typed arguments from context, excluding payload extractors.
+/// Extracts typed arguments from context, excluding data extractors.
 ///
 /// Types implementing this can appear at any position in a handler signature.
-/// Payload extractors implement only `FromContext`.
+/// Data extractors implement only `FromContext`.
 pub trait FromContextParts<C>: Sized + Send {
     fn from_context_parts(ctx: &C) -> Result<Self, CallError>;
 }
 
 /// Extracts typed arguments from context for the last argument position.
 ///
-/// Payload extractors (like `Payload<T>`) implement only this trait.
+/// Data extractors (like `Data<T>`) implement only this trait.
 /// Other extractors implement both this and `FromContextParts`.
 ///
-/// This enforces payload-must-be-last: handlers can only extract payloads
+/// This enforces data-must-be-last: handlers can only extract data
 /// as the final argument.
 pub trait FromContext<C>: Sized + Send {
     fn from_context(ctx: C) -> Result<Self, CallError>;
 
-    fn deserializer() -> Option<fn(&str) -> Result<PayloadData, CallError>> {
+    fn deserializer() -> Option<fn(&str) -> Result<DataBox, CallError>> {
         None
     }
 }
 
-/// Provides type-erased payload data from context.
-/// Implement for context types that carry payloads (SignalContext, TaskContext).
-pub trait IntoPayloadData {
-    fn into_payload_data(self) -> PayloadData;
+/// Provides type-erased data from context.
+/// Implement for context types that carry handler data, such as `SignalContext`
+/// and `TaskContext`.
+pub trait IntoDataBox {
+    fn into_data_box(self) -> DataBox;
 }
 
-/// Converts handler output into `Result<PayloadData, E>`.
+/// Converts handler output into `Result<DataBox, E>`.
 ///
-/// Supported return types: `Payload<T>`, `()`, `Result<Payload<T>, E>`, `Result<(), E>`.
+/// Supported return types: `Data<T>`, `()`, `Result<Data<T>, E>`, `Result<(), E>`.
 /// For truly infallible handlers, use `std::convert::Infallible` as error type.
 pub trait IntoOutput<E> {
-    fn into_output(self) -> Result<PayloadData, E>;
+    fn into_output(self) -> Result<DataBox, E>;
 }
 
 impl<T, E> IntoOutput<E> for Result<T, E>
 where
-    T: Send + Sync + 'static,
+    T: IntoOutput<E>,
 {
-    fn into_output(self) -> Result<PayloadData, E> {
-        self.map(PayloadData::new)
+    fn into_output(self) -> Result<DataBox, E> {
+        self.and_then(T::into_output)
     }
 }
 
 impl<E> IntoOutput<E> for () {
-    fn into_output(self) -> Result<PayloadData, E> {
-        Ok(PayloadData::new(()))
+    fn into_output(self) -> Result<DataBox, E> {
+        Ok(DataBox::new(()))
     }
 }
 
@@ -100,7 +101,7 @@ macro_rules! impl_context {
                 Ok($tuple($($ty,)* $last))
             }
 
-            fn deserializer() -> Option<fn(&str) -> Result<PayloadData, CallError>> {
+            fn deserializer() -> Option<fn(&str) -> Result<DataBox, CallError>> {
                 $last::deserializer()
             }
         }
@@ -114,15 +115,15 @@ impl_context!([T1, T2, T3], T4, Tuple4);
 impl_context!([T1, T2, T3, T4], T5, Tuple5);
 impl_context!([T1, T2, T3, T4, T5], T6, Tuple6);
 
-/// Type-erased payload container wrapping `Arc<dyn Any>`.
-/// Enables runtime downcasting and uniform storage of heterogeneous payloads.
+/// Type-erased data container wrapping `Arc<dyn Any>`.
+/// Enables runtime downcasting and uniform storage of heterogeneous data.
 #[derive(Debug, Clone)]
-pub struct PayloadData {
+pub struct DataBox {
     type_id: TypeId,
     inner: Arc<dyn std::any::Any + Send + Sync>,
 }
 
-impl PayloadData {
+impl DataBox {
     /// Wraps existing `Arc<T>` in type-erased container.
     pub fn from_arc<T: Send + Sync + 'static>(inner: Arc<T>) -> Self {
         Self {
@@ -160,10 +161,10 @@ impl PayloadData {
 
 /// Type-erased async handler storing context and error types only.
 ///
-/// Stores handlers with different payload/output types uniformly via `PayloadData`.
+/// Stores handlers with different data/output types uniformly via `DataBox`.
 /// Generic over context `C` and error `E`; input/output types erased at runtime.
 ///
-/// Payload-must-be-last constraint enforced via `FromContext`/`FromContextParts` split.
+/// Data-must-be-last constraint enforced via `FromContext`/`FromContextParts` split.
 pub struct Callable<C, E = CallError>
 where
     C: Send + 'static,
@@ -171,11 +172,9 @@ where
 {
     spec: Arc<CallSpec>,
     pub(crate) type_id: TypeId,
-    deserializer: Option<fn(&str) -> Result<PayloadData, CallError>>,
-    // serializer: Option<fn(PayloadData) -> Result<String, CallError>>,
-    inner: Arc<
-        dyn Fn(C) -> Pin<Box<dyn Future<Output = Result<PayloadData, E>> + Send>> + Send + Sync,
-    >,
+    deserializer: Option<fn(&str) -> Result<DataBox, CallError>>,
+    // serializer: Option<fn(DataBox) -> Result<String, CallError>>,
+    inner: Arc<dyn Fn(C) -> Pin<Box<dyn Future<Output = Result<DataBox, E>> + Send>> + Send + Sync>,
 }
 
 impl<C, E> Clone for Callable<C, E>
@@ -206,10 +205,10 @@ where
         &self.spec
     }
 
-    /// Deserializes JSON string into type-erased payload.
+    /// Deserializes JSON string into type-erased data.
     /// Returns error if no deserializer registered or parsing fails.
     #[inline]
-    pub fn deserialize(&self, data: &str) -> Result<PayloadData, CallError> {
+    pub fn deserialize(&self, data: &str) -> Result<DataBox, CallError> {
         if let Some(deser) = self.deserializer {
             deser(data)
         } else {
@@ -226,7 +225,7 @@ where
     /// Wraps typed handler into type-erased `Callable`.
     ///
     /// Captures spec, optional JSON deserializer, and type-erases input/output.
-    /// Payload-must-be-last enforced via `FromContext` bound on `Args`.
+    /// Data-must-be-last enforced via `FromContext` bound on `Args`.
     pub fn new<H, O, Args>(handler: H) -> Self
     where
         O: IntoOutput<E> + IntoReturnPart + Send + 'static,
@@ -237,7 +236,7 @@ where
         let type_id = spec.payload_type().unwrap_or(TypeId::of::<()>());
         let handler = Arc::new(handler);
         let inner = Arc::new(
-            move |ctx: C| -> Pin<Box<dyn Future<Output = Result<PayloadData, E>> + Send>> {
+            move |ctx: C| -> Pin<Box<dyn Future<Output = Result<DataBox, E>> + Send>> {
                 let handler = Arc::clone(&handler);
                 Box::pin(async move {
                     let args = Args::from_context(ctx).map_err(E::from)?;
@@ -247,7 +246,7 @@ where
             },
         );
 
-        // let serializer = |p: PayloadData|{
+        // let serializer = |p: DataBox|{
         //     let value = p.downcast_ref::<O>().ok_or(CallError::SerializeFailed)?;
         //     serde_json::to_string(value).map_err(|_| CallError::SerializeFailed)
         // };
@@ -265,11 +264,11 @@ where
 
     /// Invokes handler with context, returning type-erased output.
     #[inline]
-    pub fn call(&self, ctx: C) -> Pin<Box<dyn Future<Output = Result<PayloadData, E>> + Send>> {
+    pub fn call(&self, ctx: C) -> impl Future<Output = Result<DataBox, E>> + Send + '_ {
         (self.inner)(ctx)
     }
 
-    pub fn deserialize_input(&self, data: &str) -> Result<PayloadData, CallError> {
+    pub fn deserialize_input(&self, data: &str) -> Result<DataBox, CallError> {
         if let Some(deser) = self.deserializer {
             deser(data)
         } else {
@@ -277,7 +276,7 @@ where
         }
     }
 
-    // pub fn serialize_output<T: serde::Serialize>(&self, data: PayloadData) -> Result<String, CallError> {
+    // pub fn serialize_output<T: serde::Serialize>(&self, data: DataBox) -> Result<String, CallError> {
     //     if let Some(ser) = self.serializer {
     //         ser(data)
     //     } else {

@@ -1,5 +1,6 @@
 mod methods;
 pub mod middleware;
+pub mod multipart;
 mod types;
 
 #[cfg(feature = "cors")]
@@ -19,7 +20,7 @@ pub use axum::extract::{
 };
 
 // Extra extractors
-pub use axum_extra::extract::{Multipart, TypedHeader};
+pub use axum_extra::extract::TypedHeader;
 
 // HTTP primitives
 pub use axum::http::{HeaderMap, HeaderName, Method as HttpMethod, StatusCode, Uri};
@@ -28,9 +29,11 @@ pub use axum::http::{HeaderMap, HeaderName, Method as HttpMethod, StatusCode, Ur
 pub use axum::body::Body;
 
 // Local types
+pub use crate::Data;
 pub use crate::validation::Valid;
 pub use methods::{MethodIter, Methods};
 pub use middleware::{Middleware, RawLayer, layer_from};
+pub use multipart::{JsonPart, MultipartForm, MultipartMap, UploadedFile, UploadedText};
 pub use types::{BodyBytes, Form, Json, JsonStr, Path, Query, RouteConf};
 
 /// Explicit Axum escape hatch for applications that need raw Axum extractors.

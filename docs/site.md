@@ -6,7 +6,8 @@ emitter engines, services, commands, logging, and shutdown coordination.
 
 Most applications interact with `Site` in two places:
 
-- At startup, through `build_site`, `serve_site`, or `run_command`.
+- At startup, through `Site::build`, `Site::run`, `Site::serve`, or
+  `Site::test`.
 - Inside handlers and workers, where `Site` or subsystem handles can be
   extracted when framework access is needed.
 
@@ -15,13 +16,13 @@ Most applications interact with `Site` in two places:
 The main public pieces are:
 
 - `SiteConf` for application configuration.
-- `build_site(conf, bundle)` for building a site without serving it.
-- `serve_site(conf, bundle)` for building and running the HTTP server.
-- `start_site_server(site)` for serving an already-built site.
-- `test_site(conf, bundle, pool)` for tests with an explicit SQLx pool.
-- `run_command(conf, bundle)` for command-line entrypoints.
+- `Site::build(conf, bundle)` for building a site without serving it.
+- `Site::run(conf, bundle)` for command-aware application entrypoints.
+- `Site::serve(conf, bundle)` for directly building and serving HTTP.
+- `Site::test(conf, bundle, pool)` for tests with an explicit SQLx pool.
+- `site.start()` for serving an already-built site.
 - `Site` accessors such as `db()`, `tasks()`, `templates()`, `service()`,
-  `authenticator()`, `signals()`, and `reverse()`.
+  `auth()`, `signals()`, and `reverse()`.
 - `vyuh::testing::router(&site)` for tests or Axum interop.
 - `SiteConf::http(...)` for global HTTP middleware and slash behavior.
 - `SiteConf::templates(...)` for Minijinja environment behavior.
@@ -36,6 +37,7 @@ Start from `SiteConf::default()` and set only what the application needs:
 use vyuh::{
     SiteConf,
     db::DbConf,
+    file_storage::UploadConf,
     middlewares::{HttpConf, TraceConf},
     templates::{TemplateConf, TemplateDateFormats},
 };
@@ -60,16 +62,22 @@ let conf = SiteConf::default()
         trace: TraceConf { enabled: true },
         ..HttpConf::default()
     })
+    .uploads(UploadConf {
+        dir: "media/uploads".into(),
+        base_url: Some("/media/uploads".into()),
+        ..UploadConf::default()
+    })
     .static_dir("public", "/static")
     .timezone("UTC");
 ```
 
-`project_dir` is the base for relative static, media, template, and reload
-paths. `SiteConf::validate()` checks required fields and path readability before
-the site is built.
+`project_dir` is the base for relative static, media, upload, template, and
+reload paths. `SiteConf::validate()` checks required fields and path readability
+before the site is built.
 
 For global HTTP behavior, see [Middlewares](middlewares.md). For Minijinja
 environment behavior and formatting helpers, see [Templates](templates.md).
+For upload storage, see [Uploads](uploads.md).
 
 Environment helpers are available when configuration should come from the
 process environment:
@@ -83,9 +91,19 @@ let conf = vyuh::SiteConf::from_env_with_files()?;
 common deployment fields such as `DATABASE_URL`, `SECRET_KEY`, `HOST`, `PORT`,
 `TZ`, and `LOG_INIT`.
 
-## Build And Serve
+## Lifecycle
 
-Use `serve_site` for ordinary web server entrypoints:
+Vyuh keeps lifecycle on `Site`:
+
+| Method | Purpose |
+| --- | --- |
+| `Site::build` | build the site object without starting HTTP |
+| `Site::run` | command-aware application entrypoint; no args defaults to `serve` |
+| `Site::serve` | build and directly serve HTTP, ignoring commands |
+| `Site::test` | build a test site with an explicit SQLx pool |
+| `site.start` | serve an already-built site |
+
+Use `Site::run` for ordinary application binaries:
 
 ```rust
 use vyuh::{SiteConf, bundles};
@@ -96,25 +114,31 @@ async fn main() -> Result<(), vyuh::SiteError> {
         // routes, services, tasks, signals, assets, commands
     };
 
-    vyuh::serve_site(SiteConf::from_env_with_files()?, bundle).await
+    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
 }
 ```
 
-Use `build_site` when the caller needs the site before serving, for example to
+Use `Site::serve` when a binary should ignore commands and only serve HTTP:
+
+```rust
+vyuh::Site::serve(SiteConf::from_env_with_files()?, app_bundle()).await?;
+```
+
+Use `Site::build` when the caller needs the site before serving, for example to
 inspect configuration, run setup code, or pass the built site to another
 runtime:
 
 ```rust
-let site = vyuh::build_site(conf, bundle).await?;
-vyuh::start_site_server(site).await?;
+let site = vyuh::Site::build(conf, bundle).await?;
+site.start().await?;
 ```
 
-Use `run_command` for command-line entrypoints:
+When arguments are supplied, `Site::run` executes the requested command:
 
 ```rust
 #[tokio::main]
 async fn main() -> Result<(), vyuh::SiteError> {
-    vyuh::run_command(vyuh::SiteConf::from_env_with_files()?, app_bundle()).await
+    vyuh::Site::run(vyuh::SiteConf::from_env_with_files()?, app_bundle()).await
 }
 ```
 
@@ -132,7 +156,7 @@ use vyuh::{Site, bundles, routes::Json};
 
 #[bundles::route(path = "/health")]
 async fn health(site: Site) -> Json<String> {
-    Json(site.tz().to_string())
+    Json(site.timezone().to_string())
 }
 ```
 
@@ -142,7 +166,7 @@ Prefer subsystem handles for subsystem-specific work:
 let db = site.db();
 let templates = site.templates();
 let tasks = site.tasks();
-let auth = site.authenticator();
+let auth = site.auth();
 let counter = site.service::<CounterService>()?;
 ```
 
@@ -153,8 +177,9 @@ Task submission should go through `site.tasks().submit(...)` or
 ## Error Rendering
 
 Route parse errors, validation errors, auth failures, database errors, template
-errors, and application errors are normalized into `ErrorReport` before they are
-rendered. The default response is JSON-first.
+errors, and application `vyuh::Error` values are normalized into `ErrorReport`
+before they are rendered. The default response is JSON-first. See
+[Errors](errors.md) for the application/subsystem/rendered error model.
 
 Applications can replace error rendering with `SiteConf::errors(...)`:
 
@@ -185,9 +210,9 @@ type.
 ## Routing And Reverse URLs
 
 Raw Axum router access is intentionally not part of the normal application
-lifecycle. Use `serve_site` or `start_site_server` for serving. Use
-`vyuh::testing::router(&site)` only for tests or interop that truly needs an
-Axum `Router`.
+lifecycle. Use `Site::serve` or `site.start()` for serving. Use
+`vyuh::testing::router(&site)` only for tests or interop that truly needs an Axum
+`Router`.
 
 Named routes can be reversed through `Site::reverse`:
 
@@ -200,13 +225,13 @@ match a registered route.
 
 ## Testing
 
-Use `test_site` when a test should build the real site with a caller-provided
+Use `Site::test` when a test should build the real site with a caller-provided
 SQLx pool:
 
 ```rust
 #[sqlx::test]
 async fn route_works(pool: vyuh::db::Pool) -> Result<(), vyuh::SiteError> {
-    let site = vyuh::test_site(vyuh::SiteConf::default(), app_bundle(), pool).await?;
+    let site = vyuh::Site::test(vyuh::SiteConf::default(), app_bundle(), pool).await?;
     let app = vyuh::testing::router(&site);
     Ok(())
 }
@@ -230,7 +255,8 @@ tokio::select! {
 }
 ```
 
-`serve_site` installs graceful server shutdown. `shutdown_and_wait()` can be
+`Site::serve` and `site.start()` install graceful server shutdown.
+`shutdown_and_wait()` can be
 used by tests or embedding code that needs to notify background tasks and abort
 remaining join handles.
 
@@ -249,5 +275,5 @@ remaining join handles.
 
 - `Site` is an in-process application handle, not a distributed coordinator.
 - Background engines are tied to the process that built the site.
-- `test_site` uses the supplied pool but does not replace application-level
+- `Site::test` uses the supplied pool but does not replace application-level
   schema setup; tests still need the schema their routes and services expect.

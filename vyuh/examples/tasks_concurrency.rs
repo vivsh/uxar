@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    SiteConf, bundles,
-    tasks::{TaskConf, TaskInput, TaskOutcome},
+    Data, SiteConf, bundles,
+    tasks::{TaskConf, TaskOutcome},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -11,7 +11,7 @@ struct RenderJob {
 }
 
 #[bundles::task(name = "render_report")]
-async fn render_report(input: TaskInput<RenderJob>) -> TaskOutcome {
+async fn render_report(input: Data<RenderJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("rendered report {}", input.id)).unwrap()
 }
 

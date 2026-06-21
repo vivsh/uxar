@@ -28,8 +28,8 @@ The main public pieces are:
 
 - `bundles::command(handler, CommandConf)` for registration.
 - `CommandConf::new(name)` for naming the command.
-- `CommandArgs<T>` for typed command arguments.
-- `run_command(conf, bundle)` for CLI entrypoints.
+- `Data<T>` for typed command arguments.
+- `Site::run(conf, bundle)` for command-aware application entrypoints.
 - `Site::execute_command(name, args)` for tests and internal execution.
 
 Commands are registered through bundles and execute against a fully built
@@ -46,8 +46,8 @@ Define a typed argument struct and register the command as a bundle part:
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    commands::{CommandArgs, CommandConf, CommandError},
+    Data, Error, bundles,
+    commands::CommandConf,
 };
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
@@ -57,7 +57,7 @@ struct GreetArgs {
     loud: bool,
 }
 
-async fn greet(args: CommandArgs<GreetArgs>) -> Result<(), CommandError> {
+async fn greet(Data(args): Data<GreetArgs>) -> Result<(), Error> {
     let message = format!("hello {}", args.name);
     println!("{}", if args.loud { message.to_uppercase() } else { message });
     Ok(())
@@ -76,12 +76,13 @@ larger applications.
 
 ## Running
 
-Use `run_command` as the normal CLI entrypoint:
+Use `Site::run` as the normal command-aware application entrypoint. With no
+command arguments it runs the built-in `serve` command:
 
 ```rust
 #[tokio::main]
 async fn main() -> Result<(), vyuh::SiteError> {
-    vyuh::run_command(vyuh::SiteConf::from_env_with_files()?, app_bundle()).await
+    vyuh::Site::run(vyuh::SiteConf::from_env_with_files()?, app_bundle()).await
 }
 ```
 
@@ -95,7 +96,7 @@ cargo run -- greet --help
 
 Built-in commands include `help`, `serve`, `health`, and `config`.
 
-`run_command` returns an error when site build or command execution fails. With
+`Site::run` returns an error when site build or command execution fails. With
 a normal `#[tokio::main] async fn main() -> Result<_, _>`, success exits with
 code `0`, while site build failures and command failures exit non-zero.
 
@@ -106,8 +107,8 @@ when an operation must be exclusive.
 
 ## Arguments
 
-Command arguments come from the payload type's `JsonSchema`. Keep command
-argument structs simple and object-shaped:
+Command arguments come from the data type's `JsonSchema`. Keep command argument
+structs simple and object-shaped:
 
 - strings: `--name Vyuh`
 - integers and numbers: `--limit 10`
@@ -129,11 +130,11 @@ Empty arrays are not represented with a flag; omit an optional array field when
 there are no values. Empty strings are accepted when the shell passes an empty
 argument, for example `--name ""`.
 
-`CommandArgs<T>` supports `Deref`, `AsRef`, and `into_inner()`:
+`Data<T>` stores an `Arc<T>` so the same wrapper can be shared across
+subsystems. It supports pattern matching, `Deref`, `AsRef`, and `into_inner()`:
 
 ```rust
-async fn greet(args: CommandArgs<GreetArgs>) -> Result<(), CommandError> {
-    let args = args.into_inner();
+async fn greet(Data(args): Data<GreetArgs>) -> Result<(), vyuh::Error> {
     println!("hello {}", args.name);
     Ok(())
 }
@@ -144,9 +145,9 @@ async fn greet(args: CommandArgs<GreetArgs>) -> Result<(), CommandError> {
 Extract `Site` when a command needs subsystem access:
 
 ```rust
-use vyuh::{Site, commands::{CommandArgs, CommandError}};
+use vyuh::{Data, Site};
 
-async fn reindex(site: Site, args: CommandArgs<ReindexArgs>) -> Result<(), CommandError> {
+async fn reindex(site: Site, Data(args): Data<ReindexArgs>) -> Result<(), vyuh::Error> {
     let db = site.db();
     let templates = site.templates();
     let tasks = site.tasks();
@@ -160,11 +161,11 @@ constructors are different: they run while the site is still being assembled.
 Commands may enqueue tasks and this is often a good pattern:
 
 ```rust
-async fn rebuild(site: Site, args: CommandArgs<RebuildArgs>) -> Result<(), CommandError> {
+async fn rebuild(site: Site, Data(args): Data<RebuildArgs>) -> Result<(), vyuh::Error> {
     site.tasks()
         .submit_with(RebuildIndex { full: args.full }, Default::default())
         .await
-        .map_err(|err| CommandError::Other(Box::new(err)))?;
+        .map_err(vyuh::Error::other)?;
     Ok(())
 }
 ```
@@ -175,6 +176,43 @@ operationally interactive.
 
 Commands do not automatically run inside a database transaction. Use the normal
 database/session/transaction APIs explicitly when an operation needs atomicity.
+
+## Validation
+
+Wrap command data in `Valid<Data<T>>` when CLI arguments should be validated
+with the same rules used by routes:
+
+```rust
+use vyuh::{Data, Error, Valid, Validate};
+
+#[derive(serde::Deserialize, serde::Serialize, schemars::JsonSchema, Validate)]
+struct CreateUser {
+    #[validate(email)]
+    email: String,
+    #[validate(min_length = 3)]
+    name: String,
+}
+
+async fn create_user(Valid(Data(args)): Valid<Data<CreateUser>>) -> Result<(), Error> {
+    println!("creating {}", args.email);
+    Ok(())
+}
+```
+
+Argument parsing errors are command errors. Validation failures keep their
+field-oriented structure and are rendered as CLI output:
+
+```text
+Validation failed for command 'create-user':
+
+  --email
+    Enter a valid email address.
+
+Use 'create-user --help' for usage.
+```
+
+See [Validation](validation.md) for validation rules and [Errors](errors.md)
+for the application/subsystem error boundary.
 
 ## Help And Errors
 
@@ -198,13 +236,19 @@ Command errors are explicit:
 - unknown flags include the command and flag name;
 - missing required arguments name the flag;
 - parse errors include the flag, supplied value, and expected type;
+- validation failures render field-oriented CLI output;
+- handler `vyuh::Error` values render compact application messages;
 - duplicate command names and reserved names fail site build.
+
+`CommandError` is for command machinery. Application command handlers should
+return `vyuh::Error`.
 
 ## Router Boundary
 
-Commands do not need raw router access. Use `serve_site` or the built-in
-`serve` command for serving, and `vyuh::testing::router(&site)` only for tests
-or interop that truly needs an Axum `Router`.
+Commands do not need raw router access. Use `Site::serve` for server-only
+binaries or the built-in `serve` command through `Site::run`, and use
+`vyuh::testing::router(&site)` only for tests or interop that truly needs an
+Axum `Router`.
 
 ## Future Extensions
 

@@ -84,8 +84,8 @@ async fn list_notes() -> Json<Vec<Note>> {
 }
 
 #[bundles::signal]
-async fn index_note_change(payload: Payload<NoteChanged>) {
-    tracing::info!("note {} changed", payload.id);
+async fn index_note_change(Data(event): Data<NoteChanged>) {
+    tracing::info!("note {} changed", event.id);
 }
 
 let bundle = bundles::bundle! {

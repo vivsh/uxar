@@ -1,8 +1,8 @@
-use std::{any::TypeId, sync::Arc};
+use std::any::TypeId;
 
 use crate::{
-    Site,
-    callables::{self, Callable},
+    Error, Site,
+    callables::{self, ArgPart, Callable},
 };
 
 use super::args::{self, CommandArg};
@@ -30,78 +30,25 @@ impl CommandConf {
     }
 }
 
-pub struct CommandArgs<T: callables::Payloadable> {
-    inner: Arc<T>,
-}
-
-impl<T: callables::Payloadable> CommandArgs<T> {
-    pub fn into_inner(self) -> Arc<T> {
-        self.inner
-    }
-}
-
-impl<T: callables::Payloadable> std::ops::Deref for CommandArgs<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T: callables::Payloadable> AsRef<T> for CommandArgs<T> {
-    fn as_ref(&self) -> &T {
-        &self.inner
-    }
-}
-
-impl<T: callables::Payloadable> From<Arc<T>> for CommandArgs<T> {
-    fn from(value: Arc<T>) -> Self {
-        Self { inner: value }
-    }
-}
-
-impl<C, T> callables::FromContext<C> for CommandArgs<T>
-where
-    C: callables::IntoPayloadData + Send + 'static,
-    T: callables::Payloadable,
-{
-    fn from_context(ctx: C) -> Result<Self, callables::CallError> {
-        let payload_data = ctx.into_payload_data();
-        let value = payload_data
-            .downcast_arc::<T>()
-            .ok_or(callables::CallError::TypeMismatch)?;
-        Ok(Self::from(value))
-    }
-}
-
-impl<T: callables::Payloadable> callables::IntoArgPart for CommandArgs<T> {
-    fn into_arg_part() -> callables::ArgPart {
-        callables::ArgPart::Body(
-            callables::TypeSchema::wrap::<T>(),
-            "application/json".into(),
-        )
-    }
-}
-
 // ── handler alias ─────────────────────────────────────────────────────────────
 
-pub type CommandHandlerIn = Callable<CommandContext, CommandError>;
+pub type CommandHandlerIn = Callable<CommandContext, Error>;
 
 // ── context ───────────────────────────────────────────────────────────────────
 
 pub struct CommandContext {
     pub(super) site: Site,
-    pub(super) payload: callables::PayloadData,
+    pub(super) payload: callables::DataBox,
 }
 
 impl CommandContext {
-    pub(super) fn new(site: Site, payload: callables::PayloadData) -> Self {
+    pub(super) fn new(site: Site, payload: callables::DataBox) -> Self {
         Self { site, payload }
     }
 }
 
-impl callables::IntoPayloadData for CommandContext {
-    fn into_payload_data(self) -> callables::PayloadData {
+impl callables::IntoDataBox for CommandContext {
+    fn into_data_box(self) -> callables::DataBox {
         self.payload
     }
 }
@@ -118,8 +65,7 @@ pub(crate) struct Command {
     pub(crate) handler: CommandHandlerIn,
     pub(crate) options: CommandConf,
     pub(crate) args: Vec<CommandArg>,
-    pub(crate) parser:
-        fn(&str, &[&str], &[CommandArg]) -> Result<callables::PayloadData, CommandError>,
+    pub(crate) parser: fn(&str, &[&str], &[CommandArg]) -> Result<callables::DataBox, CommandError>,
 }
 
 impl Command {
@@ -134,24 +80,21 @@ impl Command {
 
 pub(crate) fn command<T, H, Args>(handler: H, options: CommandConf) -> Result<Command, CommandError>
 where
-    T: callables::Payloadable,
-    H: callables::Specable<Args, Output = Result<(), CommandError>> + Send + Sync + 'static,
+    T: callables::DataValue,
+    H: callables::Specable<Args, Output = Result<(), Error>> + Send + Sync + 'static,
     Args: callables::FromContext<CommandContext>
         + callables::IntoArgSpecs
-        + callables::HasPayload<T>
+        + callables::HasData<T>
         + Send
         + 'static,
 {
-    let mut callable: Callable<CommandContext, CommandError> = Callable::new(handler);
-    let mut settings = schemars::generate::SchemaSettings::default();
-    settings.inline_subschemas = true;
-    let mut generator = schemars::SchemaGenerator::new(settings);
-    let schema = generator.subschema_for::<T>();
+    let mut callable: Callable<CommandContext, Error> = Callable::new(handler);
+    let schema = command_schema_from_args::<Args>()?;
     let parsed_args = args::parse_schema_to_args(&schema)?;
-    let parser: fn(&str, &[&str], &[CommandArg]) -> Result<callables::PayloadData, CommandError> =
+    let parser: fn(&str, &[&str], &[CommandArg]) -> Result<callables::DataBox, CommandError> =
         |command_name, cli, arg_defs| {
             let obj: T = args::parse_args(command_name, cli, arg_defs)?;
-            Ok(callables::PayloadData::new(obj))
+            Ok(callables::DataBox::new(obj))
         };
     callable.type_id = TypeId::of::<T>();
     Ok(Command {
@@ -160,4 +103,28 @@ where
         args: parsed_args,
         parser,
     })
+}
+
+fn command_schema_from_args<Args>() -> Result<schemars::Schema, CommandError>
+where
+    Args: callables::IntoArgSpecs,
+{
+    let specs = Args::into_arg_specs();
+    let Some(spec) = specs
+        .iter()
+        .rev()
+        .find(|spec| matches!(spec.part, ArgPart::Body(_, _)))
+    else {
+        return Err(CommandError::UnsupportedSchema(
+            "command handlers must contain Data<T> or Valid<Data<T>>".into(),
+        ));
+    };
+
+    let ArgPart::Body(schema, _) = &spec.part else {
+        unreachable!("body arg was selected above");
+    };
+    let mut settings = schemars::generate::SchemaSettings::default();
+    settings.inline_subschemas = true;
+    let mut generator = schemars::SchemaGenerator::new(settings);
+    Ok(schema.schema(&mut generator))
 }

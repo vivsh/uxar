@@ -1,4 +1,4 @@
-use std::{hash::Hash, sync::Arc};
+use std::{future::Future, hash::Hash, sync::Arc};
 
 use super::site::Site;
 use axum::http::request::Parts;
@@ -7,6 +7,7 @@ use axum::response::{IntoResponse, Response};
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{self, Cookie};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+use futures::future::BoxFuture;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Validation, decode, encode};
 use ring::{
     digest, pbkdf2,
@@ -25,24 +26,306 @@ const DEFAULT_PBKDF2_ITERATIONS: u32 = 260_000;
 const UNUSABLE_PASSWORD_PREFIX: &str = "!";
 const UNUSABLE_PASSWORD_SUFFIX_LEN: usize = 40;
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum CookieSameSite {
+    Lax,
+    Strict,
+    None,
+}
+
+impl Default for CookieSameSite {
+    fn default() -> Self {
+        Self::Lax
+    }
+}
+
+impl From<CookieSameSite> for cookie::SameSite {
+    fn from(value: CookieSameSite) -> Self {
+        match value {
+            CookieSameSite::Lax => cookie::SameSite::Lax,
+            CookieSameSite::Strict => cookie::SameSite::Strict,
+            CookieSameSite::None => cookie::SameSite::None,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CookieConf {
     pub name: String,
     pub path: String,
     pub http_only: bool,
     pub secure: bool,
-    pub same_site: String,
+    pub same_site: CookieSameSite,
 }
 
 impl Default for CookieConf {
     fn default() -> Self {
-        return CookieConf {
+        CookieConf {
             name: "".to_string(),
             path: "/".to_string(),
             http_only: true,
             secure: true,
-            same_site: "Lax".to_string(),
-        };
+            same_site: CookieSameSite::Lax,
+        }
+    }
+}
+
+impl CookieConf {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            ..Self::default()
+        }
+    }
+
+    pub fn path(mut self, path: impl Into<String>) -> Self {
+        self.path = path.into();
+        self
+    }
+
+    pub fn http_only(mut self, http_only: bool) -> Self {
+        self.http_only = http_only;
+        self
+    }
+
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
+    pub fn same_site(mut self, same_site: CookieSameSite) -> Self {
+        self.same_site = same_site;
+        self
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthAudiencePolicy {
+    Optional,
+    Required,
+    Disabled,
+}
+
+impl Default for AuthAudiencePolicy {
+    fn default() -> Self {
+        Self::Optional
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKeyPrincipal {
+    pub key_id: Arc<str>,
+    pub subject: Option<Arc<str>>,
+    pub scopes: Vec<Arc<str>>,
+    pub roles: u64,
+}
+
+impl ApiKeyPrincipal {
+    pub fn new(key_id: impl Into<Arc<str>>) -> Self {
+        Self {
+            key_id: key_id.into(),
+            subject: None,
+            scopes: Vec::new(),
+            roles: 0,
+        }
+    }
+
+    pub fn subject(mut self, subject: impl Into<Arc<str>>) -> Self {
+        self.subject = Some(subject.into());
+        self
+    }
+
+    pub fn scopes<I, S>(mut self, scopes: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Arc<str>>,
+    {
+        self.scopes = scopes.into_iter().map(Into::into).collect();
+        self
+    }
+
+    pub fn roles(mut self, roles: u64) -> Self {
+        self.roles = roles;
+        self
+    }
+}
+
+pub trait ApiKeyVerifier: Send + Sync + 'static {
+    fn verify<'a>(
+        &'a self,
+        presented: &'a str,
+    ) -> impl Future<Output = Result<ApiKeyPrincipal, AuthError>> + Send + 'a;
+}
+
+pub(crate) trait ErasedApiKeyVerifier: Send + Sync + 'static {
+    fn verify_boxed<'a>(
+        &'a self,
+        presented: &'a str,
+    ) -> BoxFuture<'a, Result<ApiKeyPrincipal, AuthError>>;
+}
+
+impl<T> ErasedApiKeyVerifier for T
+where
+    T: ApiKeyVerifier,
+{
+    fn verify_boxed<'a>(
+        &'a self,
+        presented: &'a str,
+    ) -> BoxFuture<'a, Result<ApiKeyPrincipal, AuthError>> {
+        Box::pin(self.verify(presented))
+    }
+}
+
+#[derive(Clone)]
+pub struct ApiKeyConf {
+    pub enabled: bool,
+    pub header: String,
+    pub authorization_scheme: Option<String>,
+    pub allow_query_param: bool,
+    pub query_param: String,
+    pub(crate) verifier: Option<Arc<dyn ErasedApiKeyVerifier>>,
+}
+
+impl std::fmt::Debug for ApiKeyConf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApiKeyConf")
+            .field("enabled", &self.enabled)
+            .field("header", &self.header)
+            .field("authorization_scheme", &self.authorization_scheme)
+            .field("allow_query_param", &self.allow_query_param)
+            .field("query_param", &self.query_param)
+            .field("verifier", &self.verifier.as_ref().map(|_| "<configured>"))
+            .finish()
+    }
+}
+
+impl Default for ApiKeyConf {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            header: "X-API-Key".to_string(),
+            authorization_scheme: Some("ApiKey".to_string()),
+            allow_query_param: false,
+            query_param: "api_key".to_string(),
+            verifier: None,
+        }
+    }
+}
+
+impl Serialize for ApiKeyConf {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        struct ApiKeyConfOut<'a> {
+            enabled: bool,
+            header: &'a str,
+            authorization_scheme: &'a Option<String>,
+            allow_query_param: bool,
+            query_param: &'a str,
+        }
+
+        ApiKeyConfOut {
+            enabled: self.enabled,
+            header: &self.header,
+            authorization_scheme: &self.authorization_scheme,
+            allow_query_param: self.allow_query_param,
+            query_param: &self.query_param,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ApiKeyConf {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct ApiKeyConfIn {
+            #[serde(default)]
+            enabled: bool,
+            #[serde(default = "default_api_key_header")]
+            header: String,
+            #[serde(default = "default_api_key_authorization_scheme")]
+            authorization_scheme: Option<String>,
+            #[serde(default)]
+            allow_query_param: bool,
+            #[serde(default = "default_api_key_query_param")]
+            query_param: String,
+        }
+
+        let input = ApiKeyConfIn::deserialize(deserializer)?;
+        Ok(Self {
+            enabled: input.enabled,
+            header: input.header,
+            authorization_scheme: input.authorization_scheme,
+            allow_query_param: input.allow_query_param,
+            query_param: input.query_param,
+            verifier: None,
+        })
+    }
+}
+
+fn default_api_key_header() -> String {
+    "X-API-Key".to_string()
+}
+
+fn default_api_key_authorization_scheme() -> Option<String> {
+    Some("ApiKey".to_string())
+}
+
+fn default_api_key_query_param() -> String {
+    "api_key".to_string()
+}
+
+impl ApiKeyConf {
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn header(mut self, header: impl Into<String>) -> Self {
+        self.header = header.into();
+        self
+    }
+
+    pub fn authorization_scheme(mut self, scheme: impl Into<String>) -> Self {
+        self.authorization_scheme = Some(scheme.into());
+        self
+    }
+
+    pub fn no_authorization_scheme(mut self) -> Self {
+        self.authorization_scheme = None;
+        self
+    }
+
+    pub fn allow_query_param(mut self, allow: bool) -> Self {
+        self.allow_query_param = allow;
+        self
+    }
+
+    pub fn query_param(mut self, query_param: impl Into<String>) -> Self {
+        self.query_param = query_param.into();
+        self
+    }
+
+    pub fn verifier(mut self, verifier: impl ApiKeyVerifier) -> Self {
+        self.enabled = true;
+        self.verifier = Some(Arc::new(verifier));
+        self
+    }
+
+    pub fn verifier_arc<T>(mut self, verifier: Arc<T>) -> Self
+    where
+        T: ApiKeyVerifier,
+    {
+        self.enabled = true;
+        self.verifier = Some(verifier);
+        self
     }
 }
 
@@ -52,23 +335,79 @@ pub struct AuthConf {
     pub refresh_ttl: i64,
     pub access_cookie: Option<CookieConf>,
     pub refresh_cookie: Option<CookieConf>,
+    pub issuer: Option<String>,
+    pub audience: AuthAudiencePolicy,
+    pub leeway_seconds: u64,
+    pub min_secret_len: usize,
+    pub api_keys: ApiKeyConf,
 }
 
 impl Default for AuthConf {
     fn default() -> Self {
-        return AuthConf {
+        AuthConf {
             access_ttl: 3600,
             refresh_ttl: 604800,
-            access_cookie: Some(CookieConf {
-                name: "access_token".to_string(),
-                ..Default::default()
-            }),
-            refresh_cookie: Some(CookieConf {
-                name: "refresh_token".to_string(),
-                same_site: "Strict".to_string(),
-                ..Default::default()
-            }),
-        };
+            access_cookie: None,
+            refresh_cookie: None,
+            issuer: None,
+            audience: AuthAudiencePolicy::Optional,
+            leeway_seconds: 0,
+            min_secret_len: 32,
+            api_keys: ApiKeyConf::default(),
+        }
+    }
+}
+
+impl AuthConf {
+    pub fn access_ttl(mut self, seconds: i64) -> Self {
+        self.access_ttl = seconds;
+        self
+    }
+
+    pub fn refresh_ttl(mut self, seconds: i64) -> Self {
+        self.refresh_ttl = seconds;
+        self
+    }
+
+    pub fn access_cookie(mut self, cookie: CookieConf) -> Self {
+        self.access_cookie = Some(cookie);
+        self
+    }
+
+    pub fn refresh_cookie(mut self, cookie: CookieConf) -> Self {
+        self.refresh_cookie = Some(cookie);
+        self
+    }
+
+    pub fn cookie_pair(access: impl Into<String>, refresh: impl Into<String>) -> Self {
+        Self::default()
+            .access_cookie(CookieConf::new(access))
+            .refresh_cookie(CookieConf::new(refresh).same_site(CookieSameSite::Strict))
+    }
+
+    pub fn issuer(mut self, issuer: impl Into<String>) -> Self {
+        self.issuer = Some(issuer.into());
+        self
+    }
+
+    pub fn audience(mut self, audience: AuthAudiencePolicy) -> Self {
+        self.audience = audience;
+        self
+    }
+
+    pub fn leeway_seconds(mut self, seconds: u64) -> Self {
+        self.leeway_seconds = seconds;
+        self
+    }
+
+    pub fn min_secret_len(mut self, len: usize) -> Self {
+        self.min_secret_len = len;
+        self
+    }
+
+    pub fn api_keys(mut self, api_keys: ApiKeyConf) -> Self {
+        self.api_keys = api_keys;
+        self
     }
 }
 
@@ -227,10 +566,13 @@ pub struct TokenPair {
 pub struct Authenticator {
     access_ttl: i64,
     refresh_ttl: i64,
+    issuer: Option<String>,
+    audience: AuthAudiencePolicy,
     access_cookie_conf: Option<CookieConf>,
     refresh_cookie_conf: Option<CookieConf>,
     access_cookie_same_site: cookie::SameSite,
     refresh_cookie_same_site: cookie::SameSite,
+    api_keys: ApiKeyConf,
     algorithm: Algorithm,
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
@@ -242,24 +584,21 @@ impl std::fmt::Debug for Authenticator {
         f.debug_struct("Authenticator")
             .field("access_ttl", &self.access_ttl)
             .field("refresh_ttl", &self.refresh_ttl)
+            .field("issuer", &self.issuer)
+            .field("audience", &self.audience)
             .field("access_cookie_conf", &self.access_cookie_conf)
             .field("refresh_cookie_conf", &self.refresh_cookie_conf)
+            .field("api_keys", &self.api_keys)
             .field("algorithm", &self.algorithm)
             .finish()
     }
 }
 
 fn get_cookie_same_site(cookie_conf: &Option<CookieConf>) -> cookie::SameSite {
-    if let Some(conf) = cookie_conf {
-        match conf.same_site.to_lowercase().as_str() {
-            "lax" => cookie::SameSite::Lax,
-            "strict" => cookie::SameSite::Strict,
-            "none" => cookie::SameSite::None,
-            _ => cookie::SameSite::Lax,
-        }
-    } else {
-        cookie::SameSite::Lax
-    }
+    cookie_conf
+        .as_ref()
+        .map(|conf| conf.same_site.into())
+        .unwrap_or(cookie::SameSite::Lax)
 }
 
 impl Authenticator {
@@ -267,21 +606,31 @@ impl Authenticator {
         let secret_key = secret_key.as_bytes();
         let access_ttl = conf.access_ttl;
         let refresh_ttl = conf.refresh_ttl;
+        let issuer = conf.issuer.clone();
+        let audience = conf.audience;
         let access_cookie_conf = conf.access_cookie.clone();
         let refresh_cookie_conf = conf.refresh_cookie.clone();
+        let api_keys = conf.api_keys.clone();
         let algorithm = Algorithm::HS256;
         let encoding_key = EncodingKey::from_secret(secret_key);
         let decoding_key = DecodingKey::from_secret(secret_key);
         let mut validation = Validation::new(algorithm);
         validation.validate_aud = false;
+        validation.leeway = conf.leeway_seconds;
+        if let Some(issuer) = &conf.issuer {
+            validation.set_issuer(&[issuer]);
+        }
 
         Self {
             access_ttl,
             refresh_ttl,
+            issuer,
+            audience,
             access_cookie_same_site: get_cookie_same_site(&access_cookie_conf),
             refresh_cookie_same_site: get_cookie_same_site(&refresh_cookie_conf),
             access_cookie_conf,
             refresh_cookie_conf,
+            api_keys,
             algorithm,
             encoding_key,
             decoding_key,
@@ -302,8 +651,8 @@ impl Authenticator {
             .map_err(|e| AuthError::from(&e))
     }
 
-    pub fn extract_claims(&self, parts: &Parts, refresh: bool) -> Result<JWTClaim, AuthError> {
-        let cookies_conf = if refresh {
+    pub fn extract_claims(&self, parts: &Parts, kind: TokenKind) -> Result<JWTClaim, AuthError> {
+        let cookies_conf = if kind == TokenKind::Refresh {
             &self.refresh_cookie_conf
         } else {
             &self.access_cookie_conf
@@ -322,7 +671,10 @@ impl Authenticator {
             })
             .ok_or(AuthError::MissingToken)?;
         let claims = self.decode(&token)?;
-        return Ok(claims);
+        if claims.token_kind() != kind {
+            return Err(AuthError::WrongTokenKind);
+        }
+        Ok(claims)
     }
 
     pub fn extract_user(
@@ -331,22 +683,36 @@ impl Authenticator {
         aud: &[&str],
         refresh: bool,
     ) -> Result<AuthUser, AuthError> {
-        let claims = self.extract_claims(parts, refresh)?;
-        if !claims.aud.is_empty() && !aud.is_empty() {
-            if !claims.aud.iter().any(|a| aud.iter().any(|&b| a == b)) {
-                return Err(AuthError::Forbidden);
-            }
-        }
+        let kind = if refresh {
+            TokenKind::Refresh
+        } else {
+            TokenKind::Access
+        };
+        let claims = self.extract_claims(parts, kind)?;
+        self.validate_audience(&claims, aud)?;
         let user = claims.into_auth_user();
-        return Ok(user);
+        Ok(user)
     }
 
     pub fn create_token_pair(&self, user: AuthUser, aud: &[&str]) -> Result<TokenPair, AuthError> {
         let aud: Vec<String> = aud.iter().map(|&s| s.to_string()).collect();
-        let access_claims = JWTClaim::new(&user, "", aud.clone(), self.access_ttl);
+        let access_claims = JWTClaim::new(
+            &user,
+            "",
+            self.issuer.clone(),
+            aud.clone(),
+            self.access_ttl,
+            TokenKind::Access,
+        );
         let access_token = self.encode(&access_claims)?;
-        let mut refresh_claims = JWTClaim::new(&user, "", aud, self.refresh_ttl);
-        refresh_claims.refresh = true;
+        let refresh_claims = JWTClaim::new(
+            &user,
+            "",
+            self.issuer.clone(),
+            aud,
+            self.refresh_ttl,
+            TokenKind::Refresh,
+        );
         let refresh_token = self.encode(&refresh_claims)?;
         Ok(TokenPair {
             access_token,
@@ -408,10 +774,9 @@ impl Authenticator {
     }
 
     pub fn refresh(&self, parts: &Parts, aud: &[&str]) -> Result<TokenPair, AuthError> {
-        // generate refresh token and bind it to cookie just like login
         let user = self.extract_user(parts, aud, true)?;
         let pair = self.create_token_pair(user, aud)?;
-        return Ok(pair);
+        Ok(pair)
     }
 
     pub fn logout(&self, refresh: bool, resp: &mut Response) {
@@ -439,6 +804,95 @@ impl Authenticator {
                 }
             }
         }
+    }
+
+    fn validate_audience(&self, claims: &JWTClaim, aud: &[&str]) -> Result<(), AuthError> {
+        match self.audience {
+            AuthAudiencePolicy::Disabled => Ok(()),
+            AuthAudiencePolicy::Optional => {
+                if !claims.aud.is_empty()
+                    && !aud.is_empty()
+                    && !claims.aud.iter().any(|a| aud.iter().any(|&b| a == b))
+                {
+                    Err(AuthError::Forbidden)
+                } else {
+                    Ok(())
+                }
+            }
+            AuthAudiencePolicy::Required => {
+                if claims.aud.is_empty() || aud.is_empty() {
+                    return Err(AuthError::Forbidden);
+                }
+                if claims.aud.iter().any(|a| aud.iter().any(|&b| a == b)) {
+                    Ok(())
+                } else {
+                    Err(AuthError::Forbidden)
+                }
+            }
+        }
+    }
+
+    pub async fn extract_api_key(&self, parts: &Parts) -> Result<ApiKeyPrincipal, AuthError> {
+        let presented = self
+            .extract_presented_api_key(parts)
+            .ok_or(AuthError::MissingApiKey)?;
+
+        let verifier = self
+            .api_keys
+            .verifier
+            .as_ref()
+            .ok_or(AuthError::ApiKeyVerifierMissing)?;
+
+        verifier.verify_boxed(&presented).await
+    }
+
+    fn extract_presented_api_key(&self, parts: &Parts) -> Option<String> {
+        if !self.api_keys.enabled {
+            return None;
+        }
+
+        if let Ok(header_name) =
+            axum::http::header::HeaderName::from_bytes(self.api_keys.header.as_bytes())
+        {
+            if let Some(value) = parts.headers.get(header_name) {
+                if let Ok(value) = value.to_str() {
+                    if !value.is_empty() {
+                        return Some(value.to_string());
+                    }
+                }
+            }
+        }
+
+        if let Some(scheme) = &self.api_keys.authorization_scheme {
+            if let Some(value) = parts.headers.get(header::AUTHORIZATION) {
+                let bytes = value.as_bytes();
+                let prefix = format!("{scheme} ");
+                let prefix_bytes = prefix.as_bytes();
+                if bytes.len() > prefix_bytes.len()
+                    && bytes[..prefix_bytes.len()].eq_ignore_ascii_case(prefix_bytes)
+                {
+                    if let Ok(token) = std::str::from_utf8(&bytes[prefix_bytes.len()..]) {
+                        if !token.is_empty() {
+                            return Some(token.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        if self.api_keys.allow_query_param {
+            if let Some(query) = parts.uri.query() {
+                for (key, value) in
+                    serde_urlencoded::from_str::<Vec<(String, String)>>(query).unwrap_or_default()
+                {
+                    if key == self.api_keys.query_param && !value.is_empty() {
+                        return Some(value);
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -471,10 +925,42 @@ impl Hash for AuthUser {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiKey(pub ApiKeyPrincipal);
+
+impl ApiKey {
+    pub fn into_inner(self) -> ApiKeyPrincipal {
+        self.0
+    }
+}
+
+impl std::ops::Deref for ApiKey {
+    type Target = ApiKeyPrincipal;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl AsRef<ApiKeyPrincipal> for ApiKey {
+    fn as_ref(&self) -> &ApiKeyPrincipal {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TokenKind {
+    Access,
+    Refresh,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct JWTClaim {
     #[serde(default)]
     kid: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    iss: Option<String>,
     #[serde(default)]
     jti: String,
     #[serde(default)]
@@ -485,22 +971,45 @@ pub struct JWTClaim {
     exp: i64,
     #[serde(default)]
     refresh: bool,
+    #[serde(default = "default_token_kind")]
+    token_kind: TokenKind,
     #[serde(default)]
     roles: u64,
 }
 
+fn default_token_kind() -> TokenKind {
+    TokenKind::Access
+}
+
 impl JWTClaim {
-    pub fn new(user: &AuthUser, kid: &str, aud: Vec<String>, ttl: i64) -> Self {
+    pub fn new(
+        user: &AuthUser,
+        kid: &str,
+        issuer: Option<String>,
+        aud: Vec<String>,
+        ttl: i64,
+        token_kind: TokenKind,
+    ) -> Self {
         let now = unix_timestamp();
         Self {
             kid: kid.to_string(),
+            iss: issuer,
             jti: uuid::Uuid::new_v4().to_string(),
             sub: user.key.to_string(),
             aud,
             iat: now,
             exp: now + ttl,
-            refresh: false,
+            refresh: token_kind == TokenKind::Refresh,
+            token_kind,
             roles: user.roles,
+        }
+    }
+
+    pub fn token_kind(&self) -> TokenKind {
+        if self.refresh {
+            TokenKind::Refresh
+        } else {
+            self.token_kind
         }
     }
 
@@ -522,6 +1031,14 @@ pub enum AuthError {
     ExpiredToken,
     #[error("invalid token signature")]
     InvalidSignature,
+    #[error("wrong token kind")]
+    WrongTokenKind,
+    #[error("missing api key")]
+    MissingApiKey,
+    #[error("invalid api key")]
+    InvalidApiKey,
+    #[error("api key verifier is not configured")]
+    ApiKeyVerifierMissing,
     #[error("forbidden")]
     Forbidden,
     #[error("internal authentication error: {0}")]
@@ -548,10 +1065,23 @@ impl axum::extract::FromRequestParts<Site> for AuthUser {
             return Ok(user.clone());
         }
         let refresh = false;
-        let auth = site.authenticator();
+        let auth = site.auth();
         let user = auth.extract_user(parts, &[], refresh)?;
         parts.extensions.insert(user.clone());
         Ok(user)
+    }
+}
+
+impl axum::extract::FromRequestParts<Site> for ApiKey {
+    type Rejection = AuthError;
+
+    async fn from_request_parts(parts: &mut Parts, site: &Site) -> Result<Self, Self::Rejection> {
+        if let Some(principal) = parts.extensions.get::<ApiKeyPrincipal>() {
+            return Ok(Self(principal.clone()));
+        }
+        let principal = site.auth().extract_api_key(parts).await?;
+        parts.extensions.insert(principal.clone());
+        Ok(Self(principal))
     }
 }
 
@@ -562,6 +1092,13 @@ impl IntoResponse for AuthError {
             AuthError::MissingToken => (StatusCode::UNAUTHORIZED, "Missing token"),
             AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "Expired token"),
             AuthError::InvalidSignature => (StatusCode::UNAUTHORIZED, "Invalid token signature"),
+            AuthError::WrongTokenKind => (StatusCode::UNAUTHORIZED, "Wrong token kind"),
+            AuthError::MissingApiKey => (StatusCode::UNAUTHORIZED, "Missing API key"),
+            AuthError::InvalidApiKey => (StatusCode::UNAUTHORIZED, "Invalid API key"),
+            AuthError::ApiKeyVerifierMissing => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "API key verifier is not configured",
+            ),
             AuthError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden"),
             AuthError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.as_ref()),
         };

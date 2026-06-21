@@ -34,6 +34,24 @@ impl ValidationError {
     pub fn custom(msg: impl Into<Cow<'static, str>>) -> Self {
         Self::new("custom", msg)
     }
+
+    pub fn with_param(mut self, key: impl Into<Cow<'static, str>>, value: impl ToString) -> Self {
+        self.params.push((key.into(), value.to_string()));
+        self
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        let params = self
+            .params
+            .iter()
+            .map(|(key, value)| (key.to_string(), serde_json::Value::String(value.clone())))
+            .collect();
+        serde_json::json!({
+            "code": self.code,
+            "message": self.message,
+            "params": serde_json::Value::Object(params),
+        })
+    }
 }
 
 /// A segment in a validation path, representing field access, array indexing, or map key.
@@ -234,6 +252,21 @@ impl ValidationReport {
     /// - Arrays for `Index` segments
     /// Leaves are arrays of messages (strings).
     pub fn to_nested_map(&self) -> serde_json::Value {
+        self.to_nested_messages()
+    }
+
+    pub fn to_nested_errors(&self) -> serde_json::Value {
+        self.to_nested_with(|err| err.to_json())
+    }
+
+    pub fn to_nested_messages(&self) -> serde_json::Value {
+        self.to_nested_with(|err| serde_json::Value::String(err.message.to_string()))
+    }
+
+    fn to_nested_with<F>(&self, mut render: F) -> serde_json::Value
+    where
+        F: FnMut(&ValidationError) -> serde_json::Value,
+    {
         let mut root = serde_json::Value::Object(serde_json::Map::new());
 
         fn insert_at(cur: &mut serde_json::Value, segs: &[PathSeg], msg: &serde_json::Value) {
@@ -317,7 +350,7 @@ impl ValidationReport {
         }
 
         for iss in &self.issues {
-            let msg = serde_json::Value::String(iss.invalid.message.to_string());
+            let msg = render(&iss.invalid);
             if iss.path.is_root() {
                 if let Some(map) = root.as_object_mut() {
                     let entry = map
@@ -464,6 +497,31 @@ pub fn apply_field_constraints(
         let field_schema = object_mut(field_schema);
         for (key, value) in constraints {
             field_schema.insert((*key).to_string(), value.clone());
+        }
+    });
+}
+
+pub fn apply_field_custom_validator(
+    schema: &mut serde_json::Value,
+    definitions: &mut serde_json::Map<String, serde_json::Value>,
+    field: &'static str,
+    name: &'static str,
+) {
+    apply_to_schema_target(schema, definitions, |target, _definitions| {
+        let target = object_mut(target);
+        let properties = target
+            .entry("properties")
+            .or_insert_with(|| serde_json::json!({}));
+        let properties = object_mut(properties);
+        let field_schema = properties
+            .entry(field.to_string())
+            .or_insert_with(|| serde_json::json!({}));
+        let field_schema = object_mut(field_schema);
+        let entry = field_schema
+            .entry("x-vyuh-validators")
+            .or_insert_with(|| serde_json::Value::Array(Vec::new()));
+        if let serde_json::Value::Array(values) = entry {
+            values.push(serde_json::Value::String(name.to_string()));
         }
     });
 }

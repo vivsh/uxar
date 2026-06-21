@@ -302,8 +302,8 @@ pub trait Service: Sized + Send + Sync + 'static {
 pub struct ServiceInstance<T: Service>(pub T);
 
 impl<E, T: Service> callables::IntoOutput<E> for ServiceInstance<T> {
-    fn into_output(self) -> Result<callables::PayloadData, E> {
-        Ok(callables::PayloadData::new(self.0))
+    fn into_output(self) -> Result<callables::DataBox, E> {
+        Ok(callables::DataBox::new(self.0))
     }
 }
 

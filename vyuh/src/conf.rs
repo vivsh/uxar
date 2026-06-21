@@ -6,8 +6,8 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use crate::{
-    auth::AuthConf, db::DbConf, errors::ErrorConf, logging, middlewares::HttpConf, tasks::TaskConf,
-    templates::TemplateConf,
+    auth::AuthConf, channels::ChannelConf, db::DbConf, errors::ErrorConf, file_storage::UploadConf,
+    logging, middlewares::HttpConf, tasks::TaskConf, templates::TemplateConf,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -82,7 +82,10 @@ pub fn project_dir() -> PathBuf {
 }
 
 fn default_secret_key() -> String {
-    format!("dev-secret-{}", env!("CARGO_PKG_NAME"))
+    format!(
+        "dev-secret-{}-replace-before-production",
+        env!("CARGO_PKG_NAME")
+    )
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,6 +128,10 @@ pub struct SiteConf {
 
     pub tasks: TaskConf,
 
+    pub uploads: UploadConf,
+
+    pub channels: ChannelConf,
+
     pub logging: logging::LoggingConf,
 
     pub http: HttpConf,
@@ -150,6 +157,8 @@ impl Default for SiteConf {
             tz: None,
             auth: AuthConf::default(),
             tasks: TaskConf::default(),
+            uploads: UploadConf::default(),
+            channels: ChannelConf::default(),
             logging: logging::LoggingConf::default(),
             http: HttpConf::default(),
             errors: ErrorConf::default(),
@@ -246,6 +255,16 @@ impl SiteConf {
         self
     }
 
+    pub fn uploads(mut self, uploads: UploadConf) -> Self {
+        self.uploads = uploads;
+        self
+    }
+
+    pub fn channels(mut self, channels: ChannelConf) -> Self {
+        self.channels = channels;
+        self
+    }
+
     pub fn http(mut self, http: HttpConf) -> Self {
         self.http = http;
         self
@@ -306,6 +325,15 @@ impl SiteConf {
             errors.push(ConfError::RequiredField {
                 field: "secret_key".into(),
                 reason: "cannot be empty".into(),
+            });
+        } else if self.secret_key.len() < self.auth.min_secret_len {
+            errors.push(ConfError::InvalidValue {
+                field: "secret_key".into(),
+                reason: format!(
+                    "must be at least {} characters for auth signing",
+                    self.auth.min_secret_len
+                ),
+                expected: Some(format!("{} or more characters", self.auth.min_secret_len)),
             });
         }
         #[cfg(not(debug_assertions))]
@@ -377,6 +405,10 @@ impl SiteConf {
 
         if let Some(ref dir) = self.media_dir {
             validate_dir_writable(&base, dir, "media_dir", errors);
+        }
+        validate_upload_dir(&base, &self.uploads.dir, "uploads.dir", errors);
+        if let Some(ref dir) = self.uploads.temp_dir {
+            validate_upload_dir(&base, dir, "uploads.temp_dir", errors);
         }
         for (idx, dir) in self.templates.dirs.iter().enumerate() {
             validate_dir_readable(&base.join(dir), &format!("templates.dirs[{}]", idx), errors);
@@ -507,6 +539,31 @@ fn validate_dir_writable(base: &PathBuf, dir: &str, field: &str, errors: &mut Ve
         } else {
             let _ = std::fs::remove_file(test_file);
         }
+    }
+}
+
+fn validate_upload_dir(base: &PathBuf, dir: &str, field: &str, errors: &mut Vec<ConfError>) {
+    if dir.is_empty() {
+        errors.push(ConfError::RequiredField {
+            field: field.into(),
+            reason: "cannot be empty".into(),
+        });
+        return;
+    }
+    let path = base.join(dir);
+    if path.exists() {
+        validate_dir_writable(base, dir, field, errors);
+        return;
+    }
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    if !parent.exists() {
+        errors.push(ConfError::InvalidPath {
+            field: field.into(),
+            path: parent.display().to_string(),
+            reason: "parent directory does not exist".into(),
+        });
     }
 }
 

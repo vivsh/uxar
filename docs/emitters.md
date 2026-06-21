@@ -1,7 +1,7 @@
 # Emitters
 
 Emitters are typed in-process event sources. They run on the site runtime,
-produce `Payload<T>` values, and dispatch those payloads to another subsystem.
+produce `Data<T>` values, and dispatch that data to another subsystem.
 For v0, the public target is signals.
 
 Emitters are not durable queues. Missed cron or periodic ticks are not replayed,
@@ -13,13 +13,14 @@ a unit of background execution.
 
 Vyuh has three public emitter sources:
 
-- `cron`: produce a payload from a cron schedule.
-- `periodic`: produce a payload at a fixed interval.
-- `pgnotify`: produce a payload from a Postgres `LISTEN`/`NOTIFY` channel.
+- `cron`: produce data from a cron schedule.
+- `periodic`: produce data at a fixed interval.
+- `pgnotify`: produce data from a Postgres `LISTEN`/`NOTIFY` channel.
 
-Emitter handlers return `Payload<T>`. With the default signal target, the
-payload type `T` must have at least one registered signal handler or signal
+Emitter handlers return `Data<T>`. With the default signal target, the
+data type `T` must have at least one registered signal handler or signal
 dispatch logs `SignalError::NotFound`.
+Handlers that can fail should return `Result<Data<T>, vyuh::Error>`.
 
 ## Macro Sugar and Direct API
 
@@ -33,8 +34,8 @@ Use the macro for ordinary static emitters:
 
 ```rust
 #[bundles::periodic(secs = 30)]
-async fn publish_heartbeat(IterCount(count): IterCount) -> Payload<Heartbeat> {
-    Heartbeat { count }.into()
+async fn publish_heartbeat(IterCount(count): IterCount) -> Data<Heartbeat> {
+    Data::new(Heartbeat { count })
 }
 ```
 
@@ -55,17 +56,16 @@ registration when emitters are generated, conditional, or table-driven.
 
 ## Handler Signatures
 
-Emitter handlers can extract `Site`, `IterCount`, and `IterInstant` before the
-returned payload.
+Emitter handlers can extract `Site`, `IterCount`, and `IterInstant` before
+returning `Data<T>`.
 
 ```rust
 #[bundles::periodic(secs = 60)]
-async fn publish_minute(site: Site, IterCount(count): IterCount) -> Payload<MinuteTick> {
-    MinuteTick {
+async fn publish_minute(site: Site, IterCount(count): IterCount) -> Result<Data<MinuteTick>, vyuh::Error> {
+    Ok(Data::new(MinuteTick {
         count,
         project: site.project_dir().display().to_string(),
-    }
-    .into()
+    }))
 }
 ```
 
@@ -79,8 +79,8 @@ parsed at compile time.
 
 ```rust
 #[bundles::cron(expr = "0 0 0 * * *")]
-async fn publish_daily() -> Payload<DailyTick> {
-    DailyTick.into()
+async fn publish_daily() -> Data<DailyTick> {
+    Data::new(DailyTick)
 }
 ```
 
@@ -106,8 +106,8 @@ Periodic emitters run on a fixed in-process interval. The macro accepts `secs`,
 
 ```rust
 #[bundles::periodic(secs = 1, millis = 500)]
-async fn publish_queue_tick() -> Payload<QueueTick> {
-    QueueTick.into()
+async fn publish_queue_tick() -> Data<QueueTick> {
+    Data::new(QueueTick)
 }
 ```
 
@@ -129,15 +129,14 @@ delay or lose ticks.
 ## PgNotify
 
 PgNotify emitters listen to a Postgres channel and receive the raw notification
-payload as `Payload<String>`.
+data as `Data<String>`.
 
 ```rust
 #[bundles::pgnotify(channel = "notes_changed")]
-async fn publish_note_notification(payload: Payload<String>) -> Payload<NoteNotification> {
-    NoteNotification {
+async fn publish_note_notification(payload: Data<String>) -> Data<NoteNotification> {
+    Data::new(NoteNotification {
         raw: payload.to_string(),
-    }
-    .into()
+    })
 }
 ```
 
@@ -162,8 +161,8 @@ Emitters are registered as `BundlePart` values. Macro emitters and direct
 `bundles::cron`, `bundles::periodic`, or `bundles::pgnotify` registration
 produce the same kind of bundle part.
 
-Emitter registrations are unique by emitted payload type and emitter source
-kind. Registering two periodic emitters for the same payload type, for example,
+Emitter registrations are unique by emitted data type and emitter source kind.
+Registering two periodic emitters for the same data type, for example,
 is rejected during bundle validation.
 
 See [Bundles](bundles.md) for `BundlePart`, `bundle!`, cross-module bundle
@@ -191,7 +190,7 @@ cargo run --example emitters_pgnotify
   registration records a bundle error.
 - Invalid periodic interval attributes: the macro requires `secs`, `millis`, or
   both.
-- Duplicate emitter: the same payload type and source kind is already
+- Duplicate emitter: the same data type and source kind is already
   registered.
 - PgNotify setup failure: startup fails if Postgres notification listening
   cannot be established.
@@ -200,10 +199,12 @@ cargo run --example emitters_pgnotify
 
 ## Best Practices
 
-- Return stable payload structs and handle the real work in signal handlers.
+- Return stable data structs and handle the real work in signal handlers.
 - Keep emitter handlers small; use them to produce events, not durable work.
+- Return `vyuh::Error` for application failures; keep `EmitterError` for
+  emitter registration and source machinery.
 - Use direct registration for generated or conditional emitter lists.
-- Keep pgnotify payload parsing explicit and small.
+- Keep pgnotify data parsing explicit and small.
 - Use tasks for durable continuations, retries, persistence, or job observability.
 
 ## Current Limitations

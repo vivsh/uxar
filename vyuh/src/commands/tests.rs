@@ -1,16 +1,19 @@
-use crate::{Site, SiteConf, build_site};
+use crate::{
+    Data, Error, Site, SiteConf, Valid, Validate,
+    errors::{ErrorCommandContext, ErrorConf},
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::args::{parse_args, parse_schema_to_args};
 use super::error::CommandError;
 use super::registry::CommandRegistry;
-use super::types::{CommandArgs, CommandConf, command};
+use super::types::{CommandConf, command};
 
 async fn make_site() -> Site {
     let conf = SiteConf::default().log_init(false);
     let bundle = crate::bundles::Bundle::new();
-    build_site(conf, bundle).await.unwrap()
+    Site::build(conf, bundle).await.unwrap()
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -39,7 +42,7 @@ fn command_arg_defs<T: JsonSchema>() -> Vec<super::args::CommandArg> {
 }
 
 fn test_command() -> super::Command {
-    async fn handler(_args: CommandArgs<TestArgs>) -> Result<(), CommandError> {
+    async fn handler(_args: Data<TestArgs>) -> Result<(), Error> {
         Ok(())
     }
 
@@ -48,7 +51,7 @@ fn test_command() -> super::Command {
 
 #[tokio::test]
 async fn test_execute_command() {
-    async fn handler(args: CommandArgs<TestArgs>) -> Result<(), CommandError> {
+    async fn handler(args: Data<TestArgs>) -> Result<(), Error> {
         assert_eq!(args.name, "Alice");
         assert_eq!(args.age, 30);
         assert!(args.verbose);
@@ -165,7 +168,7 @@ async fn test_duplicate_and_reserved_command_names_fail() {
     let duplicate = registry.register(test_command()).unwrap_err();
     assert!(matches!(duplicate, CommandError::AlreadyExists(name) if name == "test"));
 
-    async fn help_handler(_args: CommandArgs<TestArgs>) -> Result<(), CommandError> {
+    async fn help_handler(_args: Data<TestArgs>) -> Result<(), Error> {
         Ok(())
     }
 
@@ -185,11 +188,11 @@ async fn test_unknown_command_mentions_help() {
 
 #[test]
 fn test_help_is_sorted_and_uses_descriptions() {
-    async fn alpha(_args: CommandArgs<TestArgs>) -> Result<(), CommandError> {
+    async fn alpha(_args: Data<TestArgs>) -> Result<(), Error> {
         Ok(())
     }
 
-    async fn beta(_args: CommandArgs<TestArgs>) -> Result<(), CommandError> {
+    async fn beta(_args: Data<TestArgs>) -> Result<(), Error> {
         Ok(())
     }
 
@@ -218,4 +221,86 @@ fn test_help_is_sorted_and_uses_descriptions() {
     let command_help = registry.generate_help("alpha").unwrap();
     assert!(command_help.find("--age").unwrap() < command_help.find("--name").unwrap());
     assert!(command_help.contains("Alpha command."));
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Validate)]
+struct ValidatedArgs {
+    #[validate(email)]
+    email: String,
+    #[validate(min_length = 3)]
+    name: String,
+}
+
+#[tokio::test]
+async fn test_valid_data_validates_command_args() {
+    async fn handler(Valid(Data(args)): Valid<Data<ValidatedArgs>>) -> Result<(), Error> {
+        assert_eq!(args.email, "person@example.com");
+        Ok(())
+    }
+
+    let mut registry = CommandRegistry::new();
+    registry
+        .register(command::<ValidatedArgs, _, _>(handler, CommandConf::new("create-user")).unwrap())
+        .unwrap();
+
+    let site = make_site().await;
+    registry
+        .execute(
+            "create-user",
+            &["--email", "person@example.com", "--name", "Ada"],
+            site.clone(),
+        )
+        .await
+        .unwrap();
+
+    let err = registry
+        .execute(
+            "create-user",
+            &["--email", "not-email", "--name", "Al"],
+            site,
+        )
+        .await
+        .unwrap_err();
+
+    let CommandError::Validation(_) = err else {
+        panic!("expected validation error, got {err:?}");
+    };
+    let rendered = ErrorConf::default().render_command(
+        ErrorCommandContext {
+            command: "create-user".to_string(),
+            args: vec![],
+        },
+        err.to_view(),
+    );
+    assert!(rendered.contains("Validation failed for command 'create-user'"));
+    assert!(rendered.contains("--email"));
+    assert!(rendered.contains("--name"));
+
+    let help = registry.generate_help("create-user").unwrap();
+    assert!(help.contains("min length: 3"));
+}
+
+#[test]
+fn test_custom_command_error_renderer_receives_error_view() {
+    let err = CommandError::MissingRequired {
+        flag: "name".to_string(),
+    };
+    let rendered = ErrorConf::default()
+        .command(|ctx, view| {
+            format!(
+                "{}:{}:{}",
+                ctx.command,
+                view.code,
+                view.message.contains("--name")
+            )
+        })
+        .render_command(
+            ErrorCommandContext {
+                command: "greet".to_string(),
+                args: vec![],
+            },
+            err.to_view(),
+        );
+
+    assert_eq!(rendered, "greet:command_parse_error:true");
 }

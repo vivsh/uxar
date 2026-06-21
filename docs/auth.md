@@ -1,30 +1,35 @@
 # Auth
 
-Vyuh auth provides JWT-backed request authentication, cookie or header token
-extraction, ergonomic role guards with `permit!`, and OpenAPI security metadata
-from handler signatures.
+Vyuh auth is opt-in and handler-signature driven. If a route does not extract
+`AuthUser`, `permit!(...)`, or `ApiKey`, Vyuh does no authentication work for
+that route.
 
-Auth is intentionally small. Vyuh does not provide a user database or account
-workflow in v0. Applications decide how users are loaded and verified, then use
-Vyuh auth to issue tokens and protect routes.
+Vyuh does not provide user models, registration, password reset, API-key tables,
+session tables, or account management flows. Applications own identity storage
+and decide how users or API keys are verified.
 
-## Overview
+Vyuh auth deliberately stops at verified principals. Applications own user
+records, account lifecycle, and domain permissions.
 
-The main public pieces are:
+## Mental Model
 
-- `AuthConf` for token lifetimes and cookie settings.
-- `Authenticator` for encoding, decoding, login, refresh, and logout helpers.
-- `AuthUser` for the authenticated subject and role mask.
-- `#[derive(BitRole)]` for typed role enums.
-- `permit!(Role, ...)` for concise role-protected route extraction.
-- OpenAPI bearer security metadata generated from `AuthUser` and `permit!`.
+| Need | Use |
+| --- | --- |
+| Public route | no auth type |
+| Authenticated JWT user | `AuthUser` |
+| Static role mask | `permit!(Role, Admin)` |
+| Dynamic permission | handler or service logic |
+| Machine-to-machine auth | `ApiKey` |
+| Issue or refresh JWTs | `site.auth()` |
+| Django password hashes | `make_password`, `check_password` |
 
-The site owns an `Authenticator`, built from `SiteConf.auth` and
-`SiteConf.secret_key`.
+Roles are optional. The `permit!` macro is a static role-mask convenience, not a
+general authorization framework. Omit roles entirely when an application does
+not need them.
 
 ## Configuration
 
-Auth configuration lives on `SiteConf`:
+Auth configuration lives on `SiteConf`. Cookies are disabled by default:
 
 ```rust
 use vyuh::{
@@ -34,62 +39,43 @@ use vyuh::{
 
 let conf = SiteConf::default()
     .secret_key("replace-with-a-long-random-secret")
-    .auth(AuthConf {
-        access_ttl: 3600,
-        refresh_ttl: 604800,
-        access_cookie: Some(CookieConf {
-            name: "access_token".into(),
-            ..CookieConf::default()
-        }),
-        refresh_cookie: Some(CookieConf {
-            name: "refresh_token".into(),
-            same_site: "Strict".into(),
-            ..CookieConf::default()
-        }),
-    });
+    .auth(
+        AuthConf::default()
+            .access_ttl(3600)
+            .refresh_ttl(604800)
+            .access_cookie(CookieConf::new("access_token"))
+            .refresh_cookie(CookieConf::new("refresh_token")),
+    );
 ```
 
-`access_ttl` and `refresh_ttl` are seconds. Tokens are signed with HS256 using
-`SiteConf.secret_key`.
+Tokens are signed with HS256 using `SiteConf.secret_key`. `SiteConf::validate()`
+checks the configured minimum secret length.
 
-Access and refresh cookies are optional. When configured, the authenticator can
-read tokens from cookies and write login/logout cookies. Requests can also pass
-an access token in the `Authorization` header:
+Useful `AuthConf` options:
 
-```text
-Authorization: Bearer <jwt>
-```
+- `access_ttl(seconds)` and `refresh_ttl(seconds)`.
+- `issuer(value)` to require and emit an issuer claim.
+- `audience(policy)` for optional, required, or disabled audience checks.
+- `leeway_seconds(seconds)` for clock skew.
+- `min_secret_len(len)` for signing-secret validation.
+- `access_cookie(...)` and `refresh_cookie(...)` for opt-in cookies.
+- `api_keys(...)` for API-key verification.
 
-The older `Authorization: JWT <jwt>` form is also accepted.
+## JWT Users
 
-## Authenticator
-
-Use `site.authenticator()` when a route needs to issue or refresh tokens:
+Use `site.auth()` to issue tokens:
 
 ```rust
 use vyuh::{Site, auth::{AuthError, AuthUser, TokenPair}, routes::Json};
 
 async fn login(site: Site) -> Result<Json<TokenPair>, AuthError> {
     let user = AuthUser::new("user-123", 0);
-    let tokens = site.authenticator().create_token_pair(user, &["web"])?;
+    let tokens = site.auth().create_token_pair(user, &["web"])?;
     Ok(Json(tokens))
 }
 ```
 
-The main methods are:
-
-- `create_token_pair(user, aud)` - create access and refresh JWTs.
-- `login_user(user, aud, response)` - create tokens and set configured cookies.
-- `refresh(parts, aud)` - read a refresh token and create a new token pair.
-- `logout(refresh, response)` - clear the configured access or refresh cookie.
-- `encode` and `decode` - lower-level JWT helpers.
-
-Audience checks are opt-in. If both the token and caller provide audiences, at
-least one value must match.
-
-## AuthUser
-
-Routes can extract `AuthUser` directly:
+Extract `AuthUser` to require an access token:
 
 ```rust
 use vyuh::{auth::AuthUser, routes::Json};
@@ -101,18 +87,40 @@ async fn me(user: AuthUser) -> Json<String> {
 
 `AuthUser` contains:
 
-- `key`: the authenticated subject, stored as the JWT `sub`.
-- `roles`: a `u64` role mask.
+- `key`: the authenticated subject, stored as JWT `sub`.
+- `roles`: a `u64` static role mask.
 
-Extracting `AuthUser` requires a valid access token. It also contributes bearer
-auth metadata to OpenAPI.
+Access and refresh tokens are distinct. `AuthUser` accepts access tokens only,
+and `site.auth().refresh(...)` accepts refresh tokens only.
 
-## Roles And Permit
+Access tokens can be sent with:
 
-Define roles with `BitRole`:
+```text
+Authorization: Bearer <jwt>
+```
+
+The older `Authorization: JWT <jwt>` form is also accepted.
+
+## Cookies
+
+Cookies are opt-in. When configured, `login_user(...)` writes access and refresh
+cookies, and `logout(...)` clears them:
 
 ```rust
-use vyuh::auth::{BitRole, AuthUser};
+let conf = SiteConf::default().auth(
+    AuthConf::cookie_pair("access_token", "refresh_token")
+);
+```
+
+`CookieConf` uses typed `CookieSameSite` values. Invalid SameSite strings are
+not silently accepted.
+
+## Static Roles
+
+Static role checks are useful for simple route gates:
+
+```rust
+use vyuh::auth::{AuthUser, BitRole, permit};
 
 #[derive(BitRole)]
 enum AppRole {
@@ -121,22 +129,8 @@ enum AppRole {
     Viewer,
 }
 
-let user = AuthUser::new("user-123", AppRole::Manager.to_role_type());
+async fn managers_only(_permit: permit!(AppRole, Manager)) {}
 ```
-
-Protect routes with `permit!`. It is designed to keep authorization close to
-the handler signature, so protected routes read like ordinary typed extractors:
-
-```rust
-use vyuh::{auth::permit, routes::Json};
-
-async fn managers_only(_permit: permit!(AppRole, Manager)) -> Json<&'static str> {
-    Json("ok")
-}
-```
-
-The route above requires a valid JWT and the `Manager` role. No separate
-middleware wiring or route-side permission boilerplate is needed.
 
 Role expressions support:
 
@@ -144,20 +138,78 @@ Role expressions support:
 - `permit!(AppRole, Manager | Editor)` - requires any listed role.
 - `permit!(AppRole, Manager & Editor)` - requires all listed roles.
 
-The permit extractor returns `401` for missing/invalid tokens and `403` when the
-token is valid but lacks the required role mask. It also contributes the same
-role requirement to OpenAPI automatically.
+`permit!` returns `401` for missing or invalid tokens and `403` when the token
+is valid but lacks the required role mask. It also contributes role metadata to
+OpenAPI.
+
+Use handler or service logic for dynamic authorization:
+
+```rust
+use vyuh::{Error, Site, auth::AuthUser, routes::{Json, Path}};
+
+async fn edit_post(
+    site: Site,
+    user: AuthUser,
+    Path(id): Path<i64>,
+) -> Result<Json<PostOut>, Error> {
+    let post = load_post(site.db(), id).await?;
+    if post.owner_id != user.key.as_ref() {
+        return Err(Error::new(vyuh::ErrorKind::Forbidden).with_context("not allowed"));
+    }
+    Ok(Json(post.into()))
+}
+```
+
+## API Keys
+
+API keys are for machine-to-machine authentication. Vyuh extracts keys, but the
+application verifies them through a hook. Vyuh does not store plaintext keys or
+own API-key tables.
+
+```rust
+use vyuh::auth::{ApiKey, ApiKeyPrincipal, ApiKeyVerifier, AuthError};
+
+struct MyVerifier;
+
+impl ApiKeyVerifier for MyVerifier {
+    async fn verify(&self, presented: &str) -> Result<ApiKeyPrincipal, AuthError> {
+        if presented == "secret" {
+            Ok(ApiKeyPrincipal::new("key-1").subject("service-1"))
+        } else {
+            Err(AuthError::InvalidApiKey)
+        }
+    }
+}
+
+async fn ingest(key: ApiKey) {
+    let key_id = key.key_id.to_string();
+}
+```
+
+Configure the verifier:
+
+```rust
+use vyuh::auth::{ApiKeyConf, AuthConf};
+
+let auth = AuthConf::default().api_keys(
+    ApiKeyConf::default().verifier(MyVerifier)
+);
+```
+
+By default, API keys are read from `X-API-Key` and
+`Authorization: ApiKey <key>`. Query-string API keys are disabled by default
+because URLs are commonly logged and copied. Enable them only when the protocol
+requires it.
 
 ## OpenAPI
 
 Auth is reflected in generated OpenAPI specs from handler arguments:
 
-- `AuthUser` adds a `bearerAuth` security requirement with no role scopes.
+- `AuthUser` adds `bearerAuth`.
 - `permit!(Role, ...)` adds `bearerAuth` with role scopes.
-- `permit!(Role, A | B)` records an any-role requirement.
-- `permit!(Role, A & B)` records an all-role requirement.
+- `ApiKey` adds `apiKeyAuth`.
 
-Vyuh also emits a `bearerAuth` security scheme as HTTP bearer JWT:
+Vyuh emits standard security schemes:
 
 ```yaml
 components:
@@ -166,6 +218,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
 ```
 
 OpenAPI spec endpoints can be protected independently with
@@ -179,29 +235,42 @@ Vyuh includes small PBKDF2 password helpers:
 - `check_password(password, encoded)`
 - `unusable_password()`
 
-The encoded hash format is compatible with Django PBKDF2 hashes, but this is a
-convenience, not the center of the auth subsystem. Vyuh does not prescribe where
-users, password hashes, sessions, or refresh-token records are stored.
+The encoded hash format is compatible with Django PBKDF2 hashes. Django
+compatibility means password-hash compatibility and migration friendliness, not
+Django sessions, permissions, groups, or user tables.
 
 ## Examples
 
-- [`auth_basic.rs`](../vyuh/examples/auth_basic.rs): issue a JWT token pair and
+- [`auth_jwt_basic.rs`](../vyuh/examples/auth_jwt_basic.rs): issue JWTs and
   protect a route with `AuthUser`.
-- [`auth_roles_openapi.rs`](../vyuh/examples/auth_roles_openapi.rs): role masks,
-  `permit!`, and generated OpenAPI bearer security metadata.
+- [`auth_cookies.rs`](../vyuh/examples/auth_cookies.rs): opt-in cookies and
+  refresh flow.
+- [`auth_roles_static.rs`](../vyuh/examples/auth_roles_static.rs): static role
+  masks and `permit!`.
+- [`auth_dynamic_permission.rs`](../vyuh/examples/auth_dynamic_permission.rs):
+  dynamic authorization in handler code.
+- [`auth_api_key.rs`](../vyuh/examples/auth_api_key.rs): verifier-backed API-key
+  route.
+- [`auth_api_key_openapi.rs`](../vyuh/examples/auth_api_key_openapi.rs):
+  API-key OpenAPI security metadata.
 
 ## Failure Modes
 
-- Missing tokens return `AuthError::MissingToken` and HTTP `401`.
-- Invalid tokens return `AuthError::InvalidToken` and HTTP `401`.
-- Expired tokens return `AuthError::ExpiredToken` and HTTP `401`.
-- Invalid signatures return `AuthError::InvalidSignature` and HTTP `401`.
-- Failed audience or role checks return `AuthError::Forbidden` and HTTP `403`.
+- Missing JWTs return `AuthError::MissingToken` and HTTP `401`.
+- Invalid JWTs return `AuthError::InvalidToken` and HTTP `401`.
+- Expired JWTs return `AuthError::ExpiredToken` and HTTP `401`.
+- Access/refresh token-kind mismatch returns `AuthError::WrongTokenKind` and
+  HTTP `401`.
+- Missing API keys return `AuthError::MissingApiKey` and HTTP `401`.
+- Invalid API keys return `AuthError::InvalidApiKey` and HTTP `401`.
+- Failed audience, role, or permission checks return `AuthError::Forbidden` and
+  HTTP `403`.
 
 ## Current Limitations
 
-- JWT signing is HS256 only in v0.
+- JWT signing is HS256 only in this pass.
 - Auth is stateless unless the application stores extra session or token data.
+- API-key storage and revocation are application responsibilities.
 - Vyuh does not ship user models, registration, password reset, or account
   management flows.
 - Role masks are limited to 64 bit positions.

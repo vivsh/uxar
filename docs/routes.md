@@ -18,10 +18,10 @@ The route pipeline has three parts:
   and other subsystem registrations.
 
 The `vyuh::routes` module provides Vyuh-owned request wrappers such as
-`Json<T>`, `Query<T>`, `Path<T>`, and `Form<T>`. These wrappers are the
+`Json<T>`, `Query<T>`, `Path<T>`, `Form<T>`, and `MultipartForm<T>`. These wrappers are the
 recommended route API; Axum remains an internal implementation detail unless an
 application explicitly imports Axum types as an escape hatch. See
-[Request Data](request-data.md) for wrapper behavior and [Validation](validation.md)
+[Request](request.md) for wrapper behavior and [Validation](validation.md)
 for `Valid<E>`.
 
 ## Macro Sugar And Direct API
@@ -100,8 +100,11 @@ Common inputs:
   metadata.
 - `Form<T>` parses a form request body and contributes form request-body
   metadata.
+- `MultipartForm<T>` parses file uploads and contributes `multipart/form-data`
+  metadata. See [Uploads](uploads.md).
 - `Valid<E>` wraps a request extractor and runs `Validate` after parsing.
-- `permit!(Role, Variant)` and `AuthUser` contribute bearer-auth metadata.
+- `AuthUser`, `permit!(Role, Variant)`, and `ApiKey` contribute security
+  metadata.
 
 Common outputs:
 
@@ -109,6 +112,8 @@ Common outputs:
 - `Html<String>` becomes a `text/html` response.
 - `StatusCode` and `()` become empty responses.
 - Raw `Response` is allowed but has unknown response metadata unless patched.
+
+For the full response API, see [Response](response.md).
 
 Doc comments become operation text. The first paragraph is the summary;
 remaining paragraphs become the description.
@@ -145,11 +150,13 @@ async fn create(Valid(Json(input)): Valid<Json<CreateUser>>) {
 ```
 
 Parse failures return `400` through `ErrorReport`. Validation failures return
-`422` through `ErrorReport` with a field-oriented `errors` object.
+`422` through `ErrorReport` with field-oriented `code`, `message`, and `params`
+entries.
 
-For the full request data API, see [Request Data](request-data.md). For
+For the full request API, see [Request](request.md). For
 validation rules, nested validation, runtime-only rules, and OpenAPI behavior,
-see [Validation](validation.md).
+see [Validation](validation.md). For application errors and HTTP rendering, see
+[Errors](errors.md).
 
 ## Bundles
 

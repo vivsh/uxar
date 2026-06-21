@@ -6,12 +6,11 @@
 //! cargo run --example commands_basic greet --name Vyuh --verbose
 //! ```
 
+#![allow(clippy::result_large_err)]
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{
-    SiteConf, bundles,
-    commands::{CommandArgs, CommandConf, CommandError},
-};
+use vyuh::{Data, Error, SiteConf, bundles, commands::CommandConf};
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
 struct GreetArgs {
@@ -23,7 +22,7 @@ struct GreetArgs {
 }
 
 /// Print a greeting.
-async fn greet(args: CommandArgs<GreetArgs>) -> Result<(), CommandError> {
+async fn greet(Data(args): Data<GreetArgs>) -> Result<(), Error> {
     if args.verbose {
         println!("running greet command");
     }
@@ -37,5 +36,5 @@ async fn main() -> Result<(), vyuh::SiteError> {
         greet,
         CommandConf::new("greet").description("Print a greeting."),
     )]);
-    vyuh::run_command(SiteConf::from_env_with_files()?, bundle).await
+    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
 }

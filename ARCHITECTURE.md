@@ -73,7 +73,7 @@ Backend selection belongs in `vyuh/src/db/commons.rs`, where `Database`,
 
 1. A bundle registers routes, commands, emitters, services, schema contributors,
    templates, assets, signals, and optional migrations.
-2. `build_site` validates `SiteConf` and bundle metadata.
+2. `Site::build` validates `SiteConf` and bundle metadata.
 3. `SiteBuilder` creates the database pool, router, template engine,
    authenticator, command registry, signal engine, emitter engine, services, and
    Postgres task engine when available.

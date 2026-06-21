@@ -1,6 +1,6 @@
 use crate::{
-    Site,
-    callables::{self, CallError, Callable, HasSite, IntoPayloadData, PayloadData},
+    Error, Site,
+    callables::{self, CallError, Callable, DataBox, HasSite, IntoDataBox},
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -9,11 +9,11 @@ use std::{any::TypeId, collections::HashMap, sync::Arc, time::Duration};
 #[derive(Clone)]
 pub struct SignalHandler {
     type_id: TypeId,
-    func: Callable<SignalContext, SignalError>,
+    func: Callable<SignalContext, Error>,
 }
 
 impl SignalHandler {
-    async fn call(&self, ctx: SignalContext) -> Result<(), SignalError> {
+    async fn call(&self, ctx: SignalContext) -> Result<(), Error> {
         self.func.call(ctx).await?;
         Ok(())
     }
@@ -22,7 +22,7 @@ impl SignalHandler {
 #[derive(Clone)]
 pub struct SignalContext {
     site: Site,
-    payload: PayloadData,
+    payload: DataBox,
 }
 
 impl HasSite for SignalContext {
@@ -49,11 +49,12 @@ impl Signaller {
 
 pub(crate) fn signal<T, H, Args>(handler: H, options: SignalConf) -> Signaller
 where
-    T: callables::Payloadable,
-    H: callables::Specable<Args, Output = ()> + Send + Sync + 'static,
+    T: callables::DataValue,
+    H: callables::Specable<Args> + Send + Sync + 'static,
+    H::Output: callables::IntoOutput<Error> + callables::IntoReturnPart + Send + 'static,
     Args: callables::FromContext<SignalContext>
         + callables::IntoArgSpecs
-        + callables::HasPayload<T>
+        + callables::HasData<T>
         + Send
         + 'static,
 {
@@ -68,8 +69,8 @@ where
     }
 }
 
-impl IntoPayloadData for SignalContext {
-    fn into_payload_data(self) -> PayloadData {
+impl IntoDataBox for SignalContext {
+    fn into_data_box(self) -> DataBox {
         self.payload
     }
 }
@@ -77,8 +78,8 @@ impl IntoPayloadData for SignalContext {
 /// Errors that can occur during signal registration and dispatch.
 #[derive(Debug, thiserror::Error)]
 pub enum SignalError {
-    #[error("Signal payload type mismatch")]
-    PayloadTypeMismatch,
+    #[error("Signal data type mismatch")]
+    DataTypeMismatch,
 
     #[error("Signal not found")]
     NotFound,
@@ -108,7 +109,7 @@ impl SignalRegistry {
         }
     }
 
-    /// Registers a handler for the named signal; all handlers for a signal must use the same payload type.
+    /// Registers a handler for the named signal; all handlers for a signal must use the same data type.
     pub(crate) fn register(&mut self, signaller: Signaller) {
         let type_id = signaller.handler.type_id;
         let entry = self.handlers.entry(type_id).or_default();
@@ -152,10 +153,10 @@ impl SignalClient {
     /// Queues a signal for immediate in-process dispatch.
     pub fn submit<T>(&self, item: T) -> Result<(), SignalError>
     where
-        T: callables::Payloadable,
+        T: callables::DataValue,
     {
-        let payload = PayloadData::new(item);
-        self.submit_payload(payload)
+        let payload = DataBox::new(item);
+        self.submit_data(payload)
     }
 
     /// Queues a signal for delayed in-process dispatch.
@@ -164,10 +165,10 @@ impl SignalClient {
     /// durable and are not retried.
     pub fn schedule<T>(&self, item: T, delay: Duration) -> Result<(), SignalError>
     where
-        T: callables::Payloadable,
+        T: callables::DataValue,
     {
-        let payload = PayloadData::new(item);
-        self.ensure_payload_handler(&payload)?;
+        let payload = DataBox::new(item);
+        self.ensure_data_handler(&payload)?;
 
         let site = self.site.clone();
         let engine = self.engine.clone();
@@ -175,7 +176,7 @@ impl SignalClient {
         self.site.spawn(async move {
             tokio::select! {
                 _ = tokio::time::sleep(delay) => {
-                    engine.dispatch_payload_fire_and_forget(site, payload).await;
+                    engine.dispatch_data_fire_and_forget(site, payload).await;
                 }
                 _ = shutdown.notified() => {}
             }
@@ -183,18 +184,18 @@ impl SignalClient {
         Ok(())
     }
 
-    fn submit_payload(&self, payload: PayloadData) -> Result<(), SignalError> {
-        self.ensure_payload_handler(&payload)?;
+    fn submit_data(&self, payload: DataBox) -> Result<(), SignalError> {
+        self.ensure_data_handler(&payload)?;
 
         let site = self.site.clone();
         let engine = self.engine.clone();
         self.site.spawn(async move {
-            engine.dispatch_payload_fire_and_forget(site, payload).await;
+            engine.dispatch_data_fire_and_forget(site, payload).await;
         });
         Ok(())
     }
 
-    fn ensure_payload_handler(&self, payload: &PayloadData) -> Result<(), SignalError> {
+    fn ensure_data_handler(&self, payload: &DataBox) -> Result<(), SignalError> {
         if self.engine.has_handler(payload.payload_type_id()) {
             Ok(())
         } else {
@@ -219,17 +220,17 @@ impl SignalEngine {
         self.registry.handlers.contains_key(&type_id)
     }
 
-    pub(crate) async fn dispatch_payload_fire_and_forget(&self, site: Site, payload: PayloadData) {
+    pub(crate) async fn dispatch_data_fire_and_forget(&self, site: Site, payload: DataBox) {
         if let Err(err) = self.dispatch_payload(site, payload).await {
             tracing::error!("Error dispatching signal: {}", err);
         }
     }
 
-    /// Dispatches a signal with the given payload to all registered handlers asynchronously.
+    /// Dispatches a signal with the given data to all registered handlers asynchronously.
     pub(crate) async fn dispatch_payload(
         &self,
         site: Site,
-        payload: PayloadData,
+        payload: DataBox,
     ) -> Result<(), SignalError> {
         let type_id = payload.payload_type_id();
         let handlers = match self.registry.handlers.get(&type_id) {
@@ -254,7 +255,7 @@ impl SignalEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::callables::Payload;
+    use crate::callables::Data;
     use schemars::JsonSchema;
 
     #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -262,7 +263,7 @@ mod tests {
         value: usize,
     }
 
-    async fn record_signal(_payload: Payload<TestSignal>) {}
+    async fn record_signal(_payload: Data<TestSignal>) {}
 
     #[test]
     fn direct_registration_records_signal_operation() {
@@ -275,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn registry_engine_detects_registered_payload_type() {
+    fn registry_engine_detects_registered_data_type() {
         let signaller = signal::<TestSignal, _, _>(record_signal, SignalConf::default());
         let mut registry = SignalRegistry::new();
         registry.register(signaller);
@@ -286,9 +287,9 @@ mod tests {
     }
 
     #[test]
-    fn merge_appends_handlers_for_same_payload_type() {
-        async fn first(_payload: Payload<TestSignal>) {}
-        async fn second(_payload: Payload<TestSignal>) {}
+    fn merge_appends_handlers_for_same_data_type() {
+        async fn first(_payload: Data<TestSignal>) {}
+        async fn second(_payload: Data<TestSignal>) {}
 
         let mut left = SignalRegistry::new();
         left.register(signal::<TestSignal, _, _>(first, SignalConf::default()));

@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use vyuh::{
-    SiteConf, Validate, bundles,
+    Data, SiteConf, SiteConfig, Validate, bundles,
     routes::{BodyBytes, Json, Path, Query, StatusCode, Valid},
     testing::TestClient,
 };
@@ -61,6 +61,21 @@ async fn create_valid_note(Valid(Json(input)): Valid<Json<CreateNote>>) -> Json<
     Json(input)
 }
 
+#[bundles::route(path = "/data-notes", method = "POST")]
+async fn create_data_note(Data(input): Data<CreateNote>) -> Data<CreateNote> {
+    Data::from_arc(input)
+}
+
+#[bundles::route(path = "/validated-data-notes", method = "POST")]
+async fn create_valid_data_note(Valid(Data(input)): Valid<Data<CreateNote>>) -> Data<CreateNote> {
+    Data::from_arc(input)
+}
+
+#[bundles::route(path = "/site-config")]
+async fn site_config(config: SiteConfig) -> Json<String> {
+    Json(config.host.clone())
+}
+
 #[bundles::route(path = "/search")]
 async fn search(Query(params): Query<SearchParams>) -> Json<SearchParams> {
     Json(params)
@@ -81,10 +96,13 @@ async fn webhook(BodyBytes(bytes): BodyBytes) -> Json<WebhookResult> {
     Json(WebhookResult { len: bytes.len() })
 }
 
-async fn request_data_site(openapi: bool) -> vyuh::Site {
+async fn request_site(openapi: bool) -> vyuh::Site {
     let bundle = bundles::bundle! {
         create_note,
         create_valid_note,
+        create_data_note,
+        create_valid_data_note,
+        site_config,
         search,
         user_detail,
         user_in_org,
@@ -93,19 +111,19 @@ async fn request_data_site(openapi: bool) -> vyuh::Site {
     let bundle = if openapi {
         bundle.with_openapi(
             bundles::OpenApiConf::default()
-                .title("Request Data")
+                .title("Request")
                 .version("0.1.0")
                 .spec("/openapi.json"),
         )
     } else {
         bundle
     };
-    vyuh::build_site(test_conf(), bundle).await.unwrap()
+    vyuh::Site::build(test_conf(), bundle).await.unwrap()
 }
 
 #[tokio::test]
-async fn request_data_documentation_signatures_work() {
-    let site = request_data_site(false).await;
+async fn request_documentation_signatures_work() {
+    let site = request_site(false).await;
     let client = TestClient::new(site.clone());
 
     let tuple_path: Value = client
@@ -138,6 +156,16 @@ async fn request_data_documentation_signatures_work() {
         .await;
     assert_eq!(parse_only["title"], "x");
 
+    let data_parse_only: Value = client
+        .post("/data-notes")
+        .json(&serde_json::json!({ "title": "x" }))
+        .send()
+        .await
+        .assert_status(StatusCode::OK)
+        .json()
+        .await;
+    assert_eq!(data_parse_only["title"], "x");
+
     client
         .post("/validated-notes")
         .json(&serde_json::json!({ "title": "x" }))
@@ -145,12 +173,28 @@ async fn request_data_documentation_signatures_work() {
         .await
         .assert_status(StatusCode::UNPROCESSABLE_ENTITY);
 
+    client
+        .post("/validated-data-notes")
+        .json(&serde_json::json!({ "title": "x" }))
+        .send()
+        .await
+        .assert_status(StatusCode::UNPROCESSABLE_ENTITY);
+
+    let config_host: Value = client
+        .get("/site-config")
+        .send()
+        .await
+        .assert_status(StatusCode::OK)
+        .json()
+        .await;
+    assert_eq!(config_host, "localhost");
+
     site.shutdown_and_wait().await;
 }
 
 #[tokio::test]
 async fn body_bytes_is_documented_as_binary_openapi_body() {
-    let site = request_data_site(true).await;
+    let site = request_site(true).await;
     let client = TestClient::new(site.clone());
 
     let spec: Value = client
@@ -165,6 +209,13 @@ async fn body_bytes_is_documented_as_binary_openapi_body() {
         ["schema"];
     assert_eq!(schema["type"], "string");
     assert_eq!(schema["format"], "binary");
+
+    let plain_data_schema = &spec["paths"]["/data-notes"]["post"]["requestBody"]["content"]["application/json"]
+        ["schema"];
+    let validated_data_schema = &spec["paths"]["/validated-data-notes"]["post"]["requestBody"]["content"]
+        ["application/json"]["schema"];
+    assert!(plain_data_schema.to_string().contains("CreateNote"));
+    assert_eq!(validated_data_schema["properties"]["title"]["minLength"], 3);
 
     site.shutdown_and_wait().await;
 }

@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::*;
+    use crate::{Valid, Validate};
     use schemars::JsonSchema;
     use std::future::Future;
     use std::pin::Pin;
@@ -23,9 +24,26 @@ mod tests {
         id: u64,
     }
 
-    impl IntoPayloadData for TestContext {
-        fn into_payload_data(self) -> PayloadData {
-            PayloadData::new(TestPayload { value: 42 })
+    impl IntoDataBox for TestContext {
+        fn into_data_box(self) -> DataBox {
+            DataBox::new(TestPayload { value: 42 })
+        }
+    }
+
+    #[derive(Debug, Clone, JsonSchema, serde::Serialize, serde::Deserialize, Validate)]
+    struct ValidPayload {
+        #[validate(min = 10)]
+        value: i32,
+    }
+
+    #[derive(Debug, Clone)]
+    struct ValidContext {
+        value: i32,
+    }
+
+    impl IntoDataBox for ValidContext {
+        fn into_data_box(self) -> DataBox {
+            DataBox::new(ValidPayload { value: self.value })
         }
     }
 
@@ -67,30 +85,36 @@ mod tests {
 
     fn handler_one_arg(
         _ex: TestExtractor,
-    ) -> Pin<Box<dyn Future<Output = Payload<TestResponse>> + Send>> {
+    ) -> Pin<Box<dyn Future<Output = Data<TestResponse>> + Send>> {
         Box::pin(async {
-            Payload::from(TestResponse {
+            Data::from(TestResponse {
                 result: "ok".into(),
             })
         })
     }
 
-    fn handler_with_payload(
-        _payload: Payload<TestPayload>,
-    ) -> Pin<Box<dyn Future<Output = Payload<TestResponse>> + Send>> {
+    fn handler_with_data(
+        _payload: Data<TestPayload>,
+    ) -> Pin<Box<dyn Future<Output = Data<TestResponse>> + Send>> {
         Box::pin(async {
-            Payload::from(TestResponse {
+            Data::from(TestResponse {
                 result: "ok".into(),
             })
         })
+    }
+
+    fn handler_with_valid_data(
+        _payload: Valid<Data<ValidPayload>>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), crate::Error>> + Send>> {
+        Box::pin(async { Ok(()) })
     }
 
     fn handler_two_args(
         _ex1: TestExtractor,
-        _payload: Payload<TestPayload>,
-    ) -> Pin<Box<dyn Future<Output = Payload<TestResponse>> + Send>> {
+        _payload: Data<TestPayload>,
+    ) -> Pin<Box<dyn Future<Output = Data<TestResponse>> + Send>> {
         Box::pin(async {
-            Payload::from(TestResponse {
+            Data::from(TestResponse {
                 result: "ok".into(),
             })
         })
@@ -125,14 +149,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_callable_with_payload() {
-        let callable = Callable::<TestContext, CallError>::new(handler_with_payload);
+    async fn test_callable_with_data() {
+        let callable = Callable::<TestContext, CallError>::new(handler_with_data);
 
         let spec = callable.inspect();
         assert_eq!(spec.arity(), 1);
         assert!(matches!(spec.args[0].part, ArgPart::Body(_, _)));
 
-        // Check payload type tracking
+        // Check data type tracking
         let payload_type = spec.payload_type();
         assert!(payload_type.is_some());
         assert_eq!(payload_type.unwrap(), std::any::TypeId::of::<TestPayload>());
@@ -189,8 +213,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_payload_extraction() {
-        let callable = Callable::<TestContext, CallError>::new(handler_with_payload);
+    async fn test_data_extraction() {
+        let callable = Callable::<TestContext, CallError>::new(handler_with_data);
 
         let ctx = TestContext { id: 1 };
         let result = callable.call(ctx).await;
@@ -209,8 +233,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_payload_extraction_arc() {
-        let callable = Callable::<TestContext, CallError>::new(handler_with_payload);
+    async fn test_valid_data_extraction() {
+        let callable = Callable::<ValidContext, crate::Error>::new(handler_with_valid_data);
+
+        assert!(callable.call(ValidContext { value: 10 }).await.is_ok());
+
+        let err = callable
+            .call(ValidContext { value: 1 })
+            .await
+            .expect_err("invalid data should fail");
+        assert!(matches!(
+            err.source,
+            Some(crate::errors::ErrorSource::Validation(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_data_extraction_arc() {
+        let callable = Callable::<TestContext, CallError>::new(handler_with_data);
 
         let ctx = TestContext { id: 1 };
         let result = callable.call(ctx).await;
@@ -226,8 +266,8 @@ mod tests {
     }
 
     #[test]
-    fn test_payload_data_type_id() {
-        let data = PayloadData::new(TestPayload { value: 123 });
+    fn test_data_box_type_id() {
+        let data = DataBox::new(TestPayload { value: 123 });
 
         assert_eq!(
             data.payload_type_id(),
@@ -237,9 +277,9 @@ mod tests {
 
     #[test]
     fn test_deserializer_registration() {
-        let callable = Callable::<TestContext, CallError>::new(handler_with_payload);
+        let callable = Callable::<TestContext, CallError>::new(handler_with_data);
 
-        // Should have deserializer since Payload<T> provides one
+        // Should have deserializer since Data<T> provides one
         let json = r#"{"value": 99}"#;
         let result = callable.deserialize(json);
 
@@ -254,7 +294,7 @@ mod tests {
     fn test_deserializer_not_registered() {
         let callable = Callable::<TestContext, CallError>::new(handler_one_arg);
 
-        // Should not have deserializer since no Payload<T> argument
+        // Should not have deserializer since no Data<T> argument
         let json = r#"{"value": 99}"#;
         let result = callable.deserialize(json);
 
@@ -264,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_deserializer_invalid_json() {
-        let callable = Callable::<TestContext, CallError>::new(handler_with_payload);
+        let callable = Callable::<TestContext, CallError>::new(handler_with_data);
 
         let json = r#"{"invalid": true}"#;
         let result = callable.deserialize(json);
@@ -273,9 +313,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_into_output_payload() {
+    async fn test_into_output_data() {
         let callable = Callable::<TestContext, CallError>::new(|| async {
-            Payload::from(TestResponse {
+            Data::from(TestResponse {
                 result: "test".into(),
             })
         });
@@ -336,13 +376,13 @@ mod tests {
     }
 
     #[test]
-    fn test_has_payload_trait() {
+    fn test_has_data_trait() {
         // This is a compile-time check, but we can verify the trait exists
-        fn assert_has_payload<T: HasPayload<TestPayload>>() {}
+        fn assert_has_data<T: HasData<TestPayload>>() {}
 
         // These should compile
-        assert_has_payload::<specs::Tuple1<Payload<TestPayload>>>();
-        assert_has_payload::<specs::Tuple2<TestExtractor, Payload<TestPayload>>>();
+        assert_has_data::<specs::Tuple1<Data<TestPayload>>>();
+        assert_has_data::<specs::Tuple2<TestExtractor, Data<TestPayload>>>();
     }
 
     #[test]
@@ -379,9 +419,9 @@ mod tests {
     async fn test_specable_one_arg() {
         fn handler(
             _arg: TestExtractor,
-        ) -> Pin<Box<dyn Future<Output = Payload<TestResponse>> + Send>> {
+        ) -> Pin<Box<dyn Future<Output = Data<TestResponse>> + Send>> {
             Box::pin(async {
-                Payload::from(TestResponse {
+                Data::from(TestResponse {
                     result: "ok".into(),
                 })
             })
@@ -392,8 +432,8 @@ mod tests {
     }
 
     #[test]
-    fn test_payload_clone() {
-        let payload1 = Payload::from(TestResponse {
+    fn test_data_clone() {
+        let payload1 = Data::from(TestResponse {
             result: "test".into(),
         });
         let payload2 = payload1.clone();
@@ -402,11 +442,11 @@ mod tests {
     }
 
     #[test]
-    fn test_payload_from_arc() {
+    fn test_data_from_arc() {
         let response = Arc::new(TestResponse {
             result: "test".into(),
         });
-        let payload: Payload<TestResponse> = Payload::from(response);
+        let payload: Data<TestResponse> = Data::from(response);
 
         assert_eq!(payload.result, "test");
     }
@@ -444,13 +484,13 @@ mod tests {
     }
 
     #[test]
-    fn test_payload_data_from_arc_vs_object() {
+    fn test_data_box_from_arc_vs_object() {
         let response = TestResponse {
             result: "test".into(),
         };
 
-        let data1 = PayloadData::new(response.clone());
-        let data2 = PayloadData::from_arc(Arc::new(response.clone()));
+        let data1 = DataBox::new(response.clone());
+        let data2 = DataBox::from_arc(Arc::new(response.clone()));
 
         assert_eq!(data1.payload_type_id(), data2.payload_type_id());
         assert_eq!(

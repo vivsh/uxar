@@ -11,8 +11,7 @@ use std::time::Duration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
-    bundles,
-    callables::Payload,
+    Data, bundles,
     signals::{SignalClient, SignalError},
 };
 
@@ -22,7 +21,7 @@ struct NoteChanged {
 }
 
 #[bundles::signal]
-async fn refresh_note_projection(payload: Payload<NoteChanged>) {
+async fn refresh_note_projection(payload: Data<NoteChanged>) {
     println!("refresh note {}", payload.id);
 }
 
