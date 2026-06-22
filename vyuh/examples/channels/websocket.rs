@@ -17,11 +17,16 @@ async fn events_ws(
         .map_err(Error::from)
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         events_ws,
     };
 
     assert_eq!(bundle.iter_operations().count(), 1);
     println!("WebSocket channel route registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

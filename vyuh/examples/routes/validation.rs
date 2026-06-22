@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example routes_validation
+//! cargo run -p vyuh --no-default-features --features sqlite --example routes_validation
 //! ```
 
 use schemars::JsonSchema;
@@ -43,7 +43,8 @@ async fn search_users(Valid(Query(input)): Valid<Query<UserSearch>>) -> Json<Vec
     Json(vec![format!("search: {}", input.q)])
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         parse_only,
         create_user,
@@ -58,4 +59,8 @@ fn main() {
 
     assert!(bundle.reverse("create_user", &[]).is_some());
     println!("Use Json<T> to parse only; use Valid<Json<T>> to parse and validate.");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

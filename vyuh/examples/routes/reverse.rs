@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example routes_reverse
+//! cargo run -p vyuh --no-default-features --features sqlite --example routes_reverse
 //! ```
 
 use schemars::JsonSchema;
@@ -34,7 +34,8 @@ async fn health() -> StatusCode {
     StatusCode::NO_CONTENT
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         note_detail,
         health,
@@ -51,4 +52,8 @@ fn main() {
         "reverse note_detail: {:?}",
         bundle.reverse("note_detail", &[("id", "42")])
     );
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

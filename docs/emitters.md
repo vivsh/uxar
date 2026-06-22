@@ -238,11 +238,11 @@ organization, validation, composition behavior, and the general patch API.
 Run the emitter examples in increasing complexity:
 
 ```sh
-cargo run --example emitters_periodic
-cargo run --example emitters_direct_api
-cargo run --example emitters_cron
-cargo run --example emitters_pgnotify
-cargo run --example emitters_pgnotify_burst_debounce
+cargo run -p vyuh --no-default-features --features sqlite --example emitters_periodic
+cargo run -p vyuh --no-default-features --features sqlite --example emitters_direct_api
+cargo run -p vyuh --no-default-features --features sqlite --example emitters_cron
+cargo run -p vyuh --no-default-features --features sqlite --example emitters_pgnotify
+cargo run -p vyuh --no-default-features --features sqlite --example emitters_pgnotify_burst_debounce
 ```
 
 - `emitters_periodic`: macro-based periodic emitter and signal handler.

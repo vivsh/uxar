@@ -22,11 +22,16 @@ async fn account_events(user: AuthUser, channels: ChannelRef) -> Result<ChannelS
         .map_err(Error::from)
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         account_events,
     };
 
     assert_eq!(bundle.iter_operations().count(), 1);
     println!("authenticated channel route registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

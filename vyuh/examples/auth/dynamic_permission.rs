@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example auth_dynamic_permission
+//! cargo run -p vyuh --no-default-features --features sqlite --example auth_dynamic_permission
 //! ```
 
 use schemars::JsonSchema;
@@ -33,7 +33,8 @@ async fn edit_post(user: AuthUser, Path(id): Path<u64>) -> Result<Json<PostOut>,
     Ok(Json(post))
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         edit_post,
     };
@@ -43,4 +44,9 @@ fn main() {
         Some("/posts/42".to_string())
     );
     println!("dynamic permission route registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+
+

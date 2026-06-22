@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use vyuh::db::mock::MockDBSession;
 use vyuh::db::{self, FilteredBuilder};
 
@@ -13,7 +15,7 @@ struct NotePatch {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), vyuh::db::DbError> {
+async fn main() -> Result<(), vyuh::SiteError> {
     let mut db = MockDBSession::new();
     db.plan_execute_ok("INSERT INTO notes", 1);
     db.plan_execute_ok("UPDATE notes", 1);
@@ -33,5 +35,7 @@ async fn main() -> Result<(), vyuh::db::DbError> {
         .await?;
 
     println!("inserted and updated a note");
-    Ok(())
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example(bundle).await
 }
+

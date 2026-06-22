@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example auth_api_key
+//! cargo run -p vyuh --no-default-features --features sqlite --example auth_api_key
 //! ```
 
 use schemars::JsonSchema;
@@ -39,7 +39,8 @@ async fn ingest(key: ApiKey) -> Json<KeyInfo> {
     })
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default()
         .auth(AuthConf::default().api_keys(ApiKeyConf::default().verifier(ExampleVerifier)));
     let bundle = bundles::bundle! {
@@ -49,4 +50,8 @@ fn main() {
     assert!(conf.auth.api_keys.enabled);
     assert_eq!(bundle.reverse("ingest", &[]), Some("/ingest".to_string()));
     println!("api key auth route registered");
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

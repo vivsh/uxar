@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example services_worker
+//! cargo run -p vyuh --no-default-features --features sqlite --example services_worker
 //! ```
 
 use std::{
@@ -57,7 +57,8 @@ async fn heartbeat_service() -> ServiceInstance<HeartbeatService> {
     .into()
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         heartbeat_service,
     };
@@ -65,4 +66,8 @@ fn main() {
     assert_eq!(bundle.iter_operations().count(), 1);
     let _method: fn(&HeartbeatService) -> usize = HeartbeatService::beats;
     println!("service worker registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

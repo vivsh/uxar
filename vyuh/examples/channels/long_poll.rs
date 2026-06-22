@@ -23,11 +23,16 @@ async fn events_poll(
         .map_err(Error::from)
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         events_poll,
     };
 
     assert_eq!(bundle.iter_operations().count(), 1);
     println!("long polling channel route registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

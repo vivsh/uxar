@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example uploads_macroless
+//! cargo run -p vyuh --no-default-features --features sqlite --example uploads_macroless
 //! ```
 
 use schemars::JsonSchema;
@@ -42,11 +42,16 @@ async fn upload_avatar(site: Site, form: MultipartMap) -> Result<Data<UploadOut>
     }))
 }
 
-fn main() {
-    let _conf = SiteConf::default();
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
+    let conf = SiteConf::default();
     let bundle = bundles::bundle! {
         upload_avatar,
     };
     assert_eq!(bundle.reverse("upload_avatar", &[]), Some("/avatar".into()));
     println!("registered macro-less upload route");
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

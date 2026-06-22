@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
@@ -15,13 +17,16 @@ async fn render_report(input: Data<RenderJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("rendered report {}", input.id)).unwrap()
 }
 
-fn main() {
-    let _conf = SiteConf::default().tasks(TaskConf {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
+    let conf = SiteConf::default().tasks(TaskConf {
         concurrency: 4,
         ..TaskConf::default()
     });
 
-    let _bundle = bundles::bundle! {
+    let bundle = bundles::bundle! {
         render_report,
     };
+    example_common::run_example_with_conf(conf, bundle).await
 }
+

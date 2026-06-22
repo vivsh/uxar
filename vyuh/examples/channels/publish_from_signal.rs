@@ -25,11 +25,16 @@ async fn publish_order_update(
     Ok(())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         publish_order_update,
     };
 
     assert_eq!(bundle.iter_operations().count(), 1);
     println!("signal-to-channel publisher registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

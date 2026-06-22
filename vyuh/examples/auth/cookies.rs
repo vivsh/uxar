@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example auth_cookies
+//! cargo run -p vyuh --no-default-features --features sqlite --example auth_cookies
 //! ```
 
 use vyuh::{
@@ -12,7 +12,8 @@ use vyuh::{
     bundles,
 };
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default()
         .secret_key("auth-cookie-example-secret-minimum-32-chars")
         .auth(
@@ -29,4 +30,9 @@ fn main() {
     assert!(conf.auth.refresh_cookie.is_some());
     assert!(bundle.iter_operations().next().is_none());
     println!("cookie auth configured explicitly");
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+
+

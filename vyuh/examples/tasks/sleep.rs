@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -28,8 +30,11 @@ async fn import_records(state: TaskState<ImportState>, input: Data<ImportJob>) -
     }
 }
 
-fn main() {
-    let _bundle = bundles::bundle! {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
+    let bundle = bundles::bundle! {
         import_records,
     };
+    example_common::run_example(bundle).await
 }
+

@@ -1,9 +1,10 @@
+#[path = "../common.rs"] mod example_common;
 //! Typed command arguments with direct command registration.
 //!
 //! Run:
 //!
 //! ```sh
-//! cargo run --example commands_macro greet --name Vyuh --verbose
+//! cargo run -p vyuh --no-default-features --features sqlite --example commands_macro greet --name Vyuh --verbose
 //! ```
 
 use schemars::JsonSchema;
@@ -34,5 +35,6 @@ async fn main() -> Result<(), vyuh::SiteError> {
         greet,
         CommandConf::new("greet").description("Print a greeting."),
     )]);
-    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
+    let conf = SiteConf::from_env_with_files()?;
+    example_common::run_example_with_conf(conf, bundle).await
 }

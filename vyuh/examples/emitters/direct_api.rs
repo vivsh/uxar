@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example emitters_direct_api
+//! cargo run -p vyuh --no-default-features --features sqlite --example emitters_direct_api
 //! ```
 
 use std::time::Duration;
@@ -29,7 +29,8 @@ async fn record_heartbeat(payload: Data<Heartbeat>) {
     println!("heartbeat {}", payload.count);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle([
         bundles::periodic::<Heartbeat, _, _>(
             publish_heartbeat,
@@ -43,4 +44,8 @@ fn main() {
 
     assert_eq!(bundle.iter_operations().count(), 2);
     println!("direct emitter registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

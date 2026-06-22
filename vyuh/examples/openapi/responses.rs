@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example openapi_responses
+//! cargo run -p vyuh --no-default-features --features sqlite --example openapi_responses
 //! ```
 
 use std::borrow::Cow;
@@ -60,7 +60,8 @@ async fn create_note_direct(Json(input): Json<CreateNote>) -> Json<Note> {
     })
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let direct_route = bundles::route(
         create_note_direct,
         RouteConf {
@@ -103,4 +104,8 @@ fn main() {
         Some("/direct/notes".to_string())
     );
     println!("OpenAPI response metadata includes macro and PatchOp overrides");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

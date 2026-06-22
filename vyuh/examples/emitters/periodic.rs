@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example emitters_periodic
+//! cargo run -p vyuh --no-default-features --features sqlite --example emitters_periodic
 //! ```
 
 use schemars::JsonSchema;
@@ -28,7 +28,8 @@ async fn record_heartbeat(payload: Data<Heartbeat>) {
     println!("heartbeat {}", payload.count);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         publish_heartbeat,
         record_heartbeat,
@@ -36,4 +37,8 @@ fn main() {
 
     assert_eq!(bundle.iter_operations().count(), 2);
     println!("periodic emitter registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

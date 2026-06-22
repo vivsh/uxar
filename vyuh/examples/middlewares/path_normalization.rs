@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example middlewares_path_normalization
+//! cargo run -p vyuh --no-default-features --features sqlite --example middlewares_path_normalization
 //! ```
 
 use vyuh::{
@@ -17,7 +17,8 @@ async fn docs() -> Html<String> {
     Html("docs".to_string())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default().http(HttpConf {
         slash: SlashConf {
             policy: SlashPolicy::Auto,
@@ -33,4 +34,8 @@ fn main() {
     assert_eq!(conf.http.slash.policy, SlashPolicy::Auto);
     assert_eq!(bundle.reverse("docs", &[]), Some("/docs/".to_string()));
     println!("configured slash policy");
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

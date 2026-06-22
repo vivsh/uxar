@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example openapi_basic
+//! cargo run -p vyuh --no-default-features --features sqlite --example openapi_basic
 //! ```
 
 use schemars::JsonSchema;
@@ -25,7 +25,8 @@ async fn list_notes() -> Json<Vec<Note>> {
     }])
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         list_notes,
     }
@@ -43,4 +44,8 @@ fn main() {
         Some("/v1/notes".to_string())
     );
     println!("OpenAPI spec path: /v1/api/openapi.json");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

@@ -83,243 +83,304 @@ tokio = { version = "1.46.1", features = ["full", "test-util"] }
 [[example]]
 name = "auth_api_key"
 path = "examples/auth/api_key.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_api_key_openapi"
 path = "examples/auth/api_key_openapi.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_basic"
 path = "examples/auth/basic.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_cookies"
 path = "examples/auth/cookies.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_dynamic_permission"
 path = "examples/auth/dynamic_permission.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_jwt_basic"
 path = "examples/auth/jwt_basic.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_roles_openapi"
 path = "examples/auth/roles_openapi.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "auth_roles_static"
 path = "examples/auth/roles_static.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "channels_auth"
 path = "examples/channels/auth.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "channels_custom_backend"
 path = "examples/channels/custom_backend.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "channels_long_poll"
 path = "examples/channels/long_poll.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "channels_publish_from_signal"
 path = "examples/channels/publish_from_signal.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "channels_sse"
 path = "examples/channels/sse.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "channels_websocket"
 path = "examples/channels/websocket.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "commands_macro"
 path = "examples/commands/macro.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "commands_reindex"
 path = "examples/commands/reindex.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "commands_site"
 path = "examples/commands/site.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "db_basic"
 path = "examples/db/basic.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "db_raw_statement"
 path = "examples/db/raw_statement.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "db_sqlx"
 path = "examples/db/sqlx.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "db_transactions"
 path = "examples/db/transactions.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "db_writes"
 path = "examples/db/writes.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "emitters_cron"
 path = "examples/emitters/cron.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "emitters_direct_api"
 path = "examples/emitters/direct_api.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "emitters_periodic"
 path = "examples/emitters/periodic.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "emitters_pgnotify"
 path = "examples/emitters/pgnotify.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "emitters_pgnotify_burst_debounce"
 path = "examples/emitters/pgnotify_burst_debounce.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "logging_setup"
 path = "examples/logging/setup.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "middlewares_global"
 path = "examples/middlewares/global.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "middlewares_path_normalization"
 path = "examples/middlewares/path_normalization.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "openapi_basic"
 path = "examples/openapi/basic.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "openapi_responses"
 path = "examples/openapi/responses.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "routes_json_post"
 path = "examples/routes/json_post.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "routes_macroless"
 path = "examples/routes/macroless.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "routes_reverse"
 path = "examples/routes/reverse.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "routes_validation"
 path = "examples/routes/validation.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "services_concrete"
 path = "examples/services/concrete.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "services_direct"
 path = "examples/services/direct.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "services_facade"
 path = "examples/services/facade.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "services_worker"
 path = "examples/services/worker.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "showcase_routes_signals_emitters"
 path = "examples/showcase/routes_signals_emitters.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "signals_macroless"
 path = "examples/signals/macroless.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "signals_multiple_handlers"
 path = "examples/signals/multiple_handlers.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "signals_scheduled"
 path = "examples/signals/scheduled.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "signals_simple"
 path = "examples/signals/simple.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_concurrency"
 path = "examples/tasks/concurrency.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_macro"
 path = "examples/tasks/macro.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_macroless"
 path = "examples/tasks/macroless.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_mysql"
 path = "examples/tasks/mysql.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_sleep"
 path = "examples/tasks/sleep.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_sqlite"
 path = "examples/tasks/sqlite.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "tasks_suspend_resume"
 path = "examples/tasks/suspend_resume.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "templates_assets"
 path = "examples/templates/assets.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "templates_config"
 path = "examples/templates/config.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "templates_datetime"
 path = "examples/templates/datetime.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "templates_project"
 path = "examples/templates/project.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "templates_route"
 path = "examples/templates/route.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "uploads_basic"
 path = "examples/uploads/basic.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "uploads_large"
 path = "examples/uploads/large.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "uploads_macroless"
 path = "examples/uploads/macroless.rs"
+required-features = ["sqlite"]
 
 [[example]]
 name = "uploads_validated"
 path = "examples/uploads/validated.rs"
+required-features = ["sqlite"]

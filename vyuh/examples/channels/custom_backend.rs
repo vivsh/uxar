@@ -52,7 +52,13 @@ impl ChannelBackend for AuditedBackend {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let _backend: Arc<dyn Send + Sync> = Arc::new(AuditedBackend::new());
     println!("custom channel backend implemented");
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

@@ -128,10 +128,10 @@ fire-and-forget even when the source is an emitter.
 Run the signal examples in increasing complexity:
 
 ```sh
-cargo run --example signals_simple
-cargo run --example signals_macroless
-cargo run --example signals_multiple_handlers
-cargo run --example signals_scheduled
+cargo run -p vyuh --no-default-features --features sqlite --example signals_simple
+cargo run -p vyuh --no-default-features --features sqlite --example signals_macroless
+cargo run -p vyuh --no-default-features --features sqlite --example signals_multiple_handlers
+cargo run -p vyuh --no-default-features --features sqlite --example signals_scheduled
 ```
 
 - `signals_simple`: macro handler registration and immediate submit API.

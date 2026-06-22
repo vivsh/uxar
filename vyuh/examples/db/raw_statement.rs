@@ -1,8 +1,10 @@
+#[path = "../common.rs"] mod example_common;
+
 use vyuh::db::mock::MockDBSession;
 use vyuh::db::{DBSession, Statement};
 
 #[tokio::main]
-async fn main() -> Result<(), vyuh::db::DbError> {
+async fn main() -> Result<(), vyuh::SiteError> {
     let mut db = MockDBSession::new();
     db.plan_fetch_scalar_ok("COUNT(*)", 3_i64);
 
@@ -11,5 +13,7 @@ async fn main() -> Result<(), vyuh::db::DbError> {
         .await?;
 
     println!("open notes: {total}");
-    Ok(())
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example(bundle).await
 }
+

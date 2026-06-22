@@ -1,9 +1,10 @@
+#[path = "../common.rs"] mod example_common;
 //! A command that extracts Site and inspects runtime state.
 //!
 //! Run:
 //!
 //! ```sh
-//! cargo run --example commands_site inspect --project
+//! cargo run -p vyuh --no-default-features --features sqlite --example commands_site inspect --project
 //! ```
 
 use schemars::JsonSchema;
@@ -32,5 +33,6 @@ async fn main() -> Result<(), vyuh::SiteError> {
         inspect,
         CommandConf::new("inspect").description("Inspect site runtime state."),
     )]);
-    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
+    let conf = SiteConf::from_env_with_files()?;
+    example_common::run_example_with_conf(conf, bundle).await
 }

@@ -3,14 +3,14 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example logging_setup
+//! cargo run -p vyuh --no-default-features --features sqlite --example logging_setup
 //! ```
 //!
 //! Override filters with:
 //!
 //! ```sh
-//! VYUH_LOG=info cargo run --example logging_setup
-//! VYUH_LOG_AUDIT=off cargo run --example logging_setup
+//! VYUH_LOG=info cargo run -p vyuh --no-default-features --features sqlite --example logging_setup
+//! VYUH_LOG_AUDIT=off cargo run -p vyuh --no-default-features --features sqlite --example logging_setup
 //! ```
 
 use vyuh::{
@@ -18,7 +18,8 @@ use vyuh::{
     logging::{LogRule, LogSink, LoggingConf, Rotation},
 };
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default().project_dir(".").logging(LoggingConf {
         env_prefix: Some("VYUH_LOG".into()),
         rules: vec![
@@ -42,4 +43,9 @@ fn main() {
     conf.logging.validate().unwrap();
 
     println!("logging configured; build a Site with this SiteConf to initialize tracing");
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

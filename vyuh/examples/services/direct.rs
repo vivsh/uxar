@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example services_direct
+//! cargo run -p vyuh --no-default-features --features sqlite --example services_direct
 //! ```
 
 use vyuh::{
@@ -25,10 +25,15 @@ async fn app_clock() -> ServiceInstance<AppClock> {
     AppClock.into()
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle([bundles::service(app_clock)]);
 
     assert_eq!(bundle.iter_operations().count(), 1);
     let _method: fn(&AppClock) -> &'static str = AppClock::label;
     println!("direct service registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

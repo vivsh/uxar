@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example templates_assets
+//! cargo run -p vyuh --no-default-features --features sqlite --example templates_assets
 //! ```
 
 use rust_silos::{Silo, embed_silo};
@@ -28,7 +28,8 @@ async fn asset_template(templates: Templates) -> Result<Html<String>, TemplateEr
     )
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         example_assets,
         asset_template,
@@ -36,4 +37,8 @@ fn main() {
 
     assert!(bundle.reverse("asset_template", &[]).is_some());
     println!("registered template from bundle asset dir");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

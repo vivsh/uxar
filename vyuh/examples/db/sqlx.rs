@@ -1,8 +1,10 @@
+#[path = "../common.rs"] mod example_common;
+
 use sqlx::Row as _;
 use vyuh::db::{DbConf, DbPool};
 
 #[tokio::main]
-async fn main() -> Result<(), vyuh::db::DbError> {
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = DbConf::from_env()?;
     let pool = DbPool::from_conf(&conf).await?;
 
@@ -12,5 +14,7 @@ async fn main() -> Result<(), vyuh::db::DbError> {
     let total: i64 = row.try_get("total")?;
 
     println!("notes: {total}");
-    Ok(())
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example_with_conf(conf, bundle).await
 }
+

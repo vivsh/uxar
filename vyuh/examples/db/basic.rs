@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use vyuh::db::mock::{DbCallKind, MockDBSession, PlannedCall, PlannedResponse};
 use vyuh::db::{self, FilteredBuilder};
 
@@ -9,7 +11,7 @@ struct Note {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), vyuh::db::DbError> {
+async fn main() -> Result<(), vyuh::SiteError> {
     let mut db = MockDBSession::new();
     db.plan(PlannedCall {
         kind: DbCallKind::FetchAll,
@@ -31,5 +33,7 @@ async fn main() -> Result<(), vyuh::db::DbError> {
     for note in notes {
         println!("#{} {} done={}", note.id, note.title, note.done);
     }
-    Ok(())
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example(bundle).await
 }
+

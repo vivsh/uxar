@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example routes_macroless
+//! cargo run -p vyuh --no-default-features --features sqlite --example routes_macroless
 //! ```
 
 use std::borrow::Cow;
@@ -28,7 +28,8 @@ async fn list_notes() -> Json<Vec<Note>> {
     }])
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle([bundles::route(
         list_notes,
         RouteConf {
@@ -44,4 +45,8 @@ fn main() {
         Some("/notes".to_string())
     );
     println!("direct route registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

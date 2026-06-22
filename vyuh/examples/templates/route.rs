@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example templates_route
+//! cargo run -p vyuh --no-default-features --features sqlite --example templates_route
 //! ```
 
 use vyuh::{
@@ -22,7 +22,8 @@ async fn dashboard(templates: Templates) -> Result<Html<String>, TemplateError> 
     )
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         dashboard,
     };
@@ -32,4 +33,8 @@ fn main() {
         Some("/dashboard".to_string())
     );
     println!("Templates can be extracted directly by route handlers");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

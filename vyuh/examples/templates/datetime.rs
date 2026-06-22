@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example templates_datetime
+//! cargo run -p vyuh --no-default-features --features sqlite --example templates_datetime
 //! ```
 
 use vyuh::{
@@ -25,7 +25,8 @@ fn published_day(
     vyuh::templates::format_date(site, published_at, Some("%d %b %Y"))
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default()
         .timezone("Asia/Kolkata")
         .templates(TemplateConf {
@@ -41,4 +42,9 @@ fn main() {
     let _ = published_day;
     assert_eq!(conf.templates.date_formats.datetime, "%d %b %Y, %H:%M");
     println!("configured template date/time formatting");
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

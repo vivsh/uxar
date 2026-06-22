@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
@@ -43,8 +45,9 @@ async fn wait_for_approval(
     .unwrap()
 }
 
-fn main() {
-    let _bundle = bundles::bundle! {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
+    let bundle = bundles::bundle! {
         wait_for_approval,
     };
 
@@ -52,4 +55,6 @@ fn main() {
     // site.tasks()
     //     .resume("approval:42", ApprovalReply { approved: true })
     //     .await?;
+    example_common::run_example(bundle).await
 }
+

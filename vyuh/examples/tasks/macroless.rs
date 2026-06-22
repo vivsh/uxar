@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{
@@ -21,6 +23,8 @@ fn app_bundle() -> bundles::Bundle {
     )])
 }
 
-fn main() {
-    let _bundle = app_bundle();
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
+    let bundle = app_bundle();
+    example_common::run_example(bundle).await
 }

@@ -194,9 +194,9 @@ configured through `SiteConf::http(...)`; see [Middlewares](middlewares.md).
 Run the route examples in increasing complexity:
 
 ```sh
-cargo run --example routes_json_post
-cargo run --example routes_macroless
-cargo run --example routes_reverse
+cargo run -p vyuh --no-default-features --features sqlite --example routes_json_post
+cargo run -p vyuh --no-default-features --features sqlite --example routes_macroless
+cargo run -p vyuh --no-default-features --features sqlite --example routes_reverse
 ```
 
 - `routes_json_post`: JSON body parsing and response rendering.

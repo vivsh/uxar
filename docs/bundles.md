@@ -190,12 +190,12 @@ paths and operation metadata.
 Bundles are exercised by the subsystem examples:
 
 ```sh
-cargo run --example routes_json_post
-cargo run --example routes_macroless
-cargo run --example routes_reverse
-cargo run --example openapi_basic
-cargo run --example signals_simple
-cargo run --example signals_macroless
+cargo run -p vyuh --no-default-features --features sqlite --example routes_json_post
+cargo run -p vyuh --no-default-features --features sqlite --example routes_macroless
+cargo run -p vyuh --no-default-features --features sqlite --example routes_reverse
+cargo run -p vyuh --no-default-features --features sqlite --example openapi_basic
+cargo run -p vyuh --no-default-features --features sqlite --example signals_simple
+cargo run -p vyuh --no-default-features --features sqlite --example signals_macroless
 ```
 
 - `routes_json_post`: basic macro route registration and typed JSON handling.

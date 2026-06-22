@@ -1,9 +1,10 @@
+#[path = "../common.rs"] mod example_common;
 //! Operational command that rebuilds an in-process search index service.
 //!
 //! Run:
 //!
 //! ```sh
-//! cargo run --example commands_reindex search:reindex --full
+//! cargo run -p vyuh --no-default-features --features sqlite --example commands_reindex search:reindex --full
 //! ```
 
 use schemars::JsonSchema;
@@ -60,5 +61,6 @@ async fn main() -> Result<(), vyuh::SiteError> {
             CommandConf::new("search:reindex").description("Rebuild the search index."),
         ),
     ]);
-    vyuh::Site::run(SiteConf::from_env_with_files()?, bundle).await
+    let conf = SiteConf::from_env_with_files()?;
+    example_common::run_example_with_conf(conf, bundle).await
 }

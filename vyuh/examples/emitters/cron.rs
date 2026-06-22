@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example emitters_cron
+//! cargo run -p vyuh --no-default-features --features sqlite --example emitters_cron
 //! ```
 
 use schemars::JsonSchema;
@@ -27,7 +27,8 @@ async fn record_daily(payload: Data<DailyTick>) {
     println!("daily tick for {}", payload.project);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         publish_daily,
         record_daily,
@@ -35,4 +36,8 @@ fn main() {
 
     assert_eq!(bundle.iter_operations().count(), 2);
     println!("cron emitter registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

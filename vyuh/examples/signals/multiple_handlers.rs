@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example signals_multiple_handlers
+//! cargo run -p vyuh --no-default-features --features sqlite --example signals_multiple_handlers
 //! ```
 
 use schemars::JsonSchema;
@@ -25,7 +25,8 @@ async fn audit_note_change(payload: Data<NoteChanged>) {
     println!("audit note {}", payload.id);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         index_note_change,
         audit_note_change,
@@ -33,4 +34,8 @@ fn main() {
 
     assert_eq!(bundle.iter_operations().count(), 2);
     println!("multiple signal handlers registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

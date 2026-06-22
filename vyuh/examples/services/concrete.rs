@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example services_concrete
+//! cargo run -p vyuh --no-default-features --features sqlite --example services_concrete
 //! ```
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -36,7 +36,8 @@ async fn count(counter: ServiceRef<Counter>) -> Html<String> {
     Html(counter.next().to_string())
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         counter,
         count,
@@ -44,4 +45,8 @@ fn main() {
 
     assert_eq!(bundle.reverse("count", &[]), Some("/count".to_string()));
     println!("basic service registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

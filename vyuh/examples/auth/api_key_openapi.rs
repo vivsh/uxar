@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example auth_api_key_openapi
+//! cargo run -p vyuh --no-default-features --features sqlite --example auth_api_key_openapi
 //! ```
 
 use schemars::JsonSchema;
@@ -36,7 +36,8 @@ async fn events(_key: ApiKey) -> Json<Accepted> {
     Json(Accepted { ok: true })
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let _verifier = ExampleVerifier;
     let bundle = bundles::bundle! {
         events,
@@ -49,4 +50,9 @@ fn main() {
 
     assert_eq!(bundle.reverse("events", &[]), Some("/events".to_string()));
     println!("api key OpenAPI security metadata registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+
+

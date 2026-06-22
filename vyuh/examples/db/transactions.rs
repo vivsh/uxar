@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use vyuh::db::{self, DbConf, DbPool, FilteredBuilder};
 
 #[derive(Debug, vyuh::db::Bindable)]
@@ -6,7 +8,7 @@ struct NewTodo {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), vyuh::db::DbError> {
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = DbConf::from_env()?;
     let pool = DbPool::from_conf(&conf).await?;
     let mut tx = pool.begin().await?;
@@ -22,5 +24,7 @@ async fn main() -> Result<(), vyuh::db::DbError> {
         .execute(&mut tx)
         .await?;
 
-    Ok(())
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example_with_conf(conf, bundle).await
 }
+

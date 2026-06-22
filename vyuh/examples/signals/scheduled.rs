@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example signals_scheduled
+//! cargo run -p vyuh --no-default-features --features sqlite --example signals_scheduled
 //! ```
 
 use std::time::Duration;
@@ -29,7 +29,8 @@ fn schedule_refresh(signals: SignalClient) -> Result<(), SignalError> {
     signals.schedule(NoteChanged { id: 3 }, Duration::from_secs(5))
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         refresh_note_projection,
     };
@@ -37,4 +38,8 @@ fn main() {
     assert_eq!(bundle.iter_operations().count(), 1);
     let _scheduler: fn(SignalClient) -> Result<(), SignalError> = schedule_refresh;
     println!("scheduled signal handler registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

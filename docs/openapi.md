@@ -215,8 +215,8 @@ parts contribute OpenAPI parameters to every operation in the layered bundle.
 Run the OpenAPI examples in increasing complexity:
 
 ```sh
-cargo run --example openapi_basic
-cargo run --example openapi_responses
+cargo run -p vyuh --no-default-features --features sqlite --example openapi_basic
+cargo run -p vyuh --no-default-features --features sqlite --example openapi_responses
 ```
 
 - `openapi_basic`: spec registration for a route bundle.

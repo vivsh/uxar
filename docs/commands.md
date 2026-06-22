@@ -93,9 +93,9 @@ async fn main() -> Result<(), vyuh::SiteError> {
 Then run commands by name:
 
 ```sh
-cargo run -- greet --name Vyuh --loud
-cargo run -- help
-cargo run -- greet --help
+cargo run -p vyuh --no-default-features --features sqlite --example commands_macro -- greet --name Vyuh --loud
+cargo run -p vyuh --no-default-features --features sqlite --example commands_site -- help
+cargo run -p vyuh --no-default-features --features sqlite --example commands_macro -- greet --help
 ```
 
 Built-in commands include `help`, `serve`, `health`, and `config`.

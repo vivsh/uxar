@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example auth_basic
+//! cargo run -p vyuh --no-default-features --features sqlite --example auth_basic
 //! ```
 
 use schemars::JsonSchema;
@@ -45,7 +45,8 @@ async fn me(user: AuthUser) -> Json<Profile> {
     })
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default().secret_key("auth-basic-example-secret");
     let bundle = bundles::bundle! {
         login,
@@ -58,4 +59,9 @@ fn main() {
         "auth routes registered with secret length {}",
         conf.secret_key.len()
     );
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+
+

@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example templates_config
+//! cargo run -p vyuh --no-default-features --features sqlite --example templates_config
 //! ```
 
 use vyuh::{
@@ -11,7 +11,8 @@ use vyuh::{
     templates::{TemplateAutoEscape, TemplateConf, TemplateDateFormats, TemplateUndefined},
 };
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let conf = SiteConf::default().templates(TemplateConf {
         dirs: vec!["templates".into()],
         auto_escape: TemplateAutoEscape::ByExtension,
@@ -30,4 +31,9 @@ fn main() {
     assert!(conf.templates.trim_blocks);
     assert_eq!(conf.templates.date_formats.date, "%d %b %Y");
     println!("configured template environment");
+    let bundle = vyuh::bundles::Bundle::new();
+    example_common::run_example_with_conf(conf, bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

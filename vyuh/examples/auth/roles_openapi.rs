@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example auth_roles_openapi
+//! cargo run -p vyuh --no-default-features --features sqlite --example auth_roles_openapi
 //! ```
 
 use schemars::JsonSchema;
@@ -48,7 +48,8 @@ async fn editor_or_manager(_permit: permit!(AppRole, Manager | Editor)) -> Json<
     })
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let manager = AuthUser::new(
         "manager-1",
         AppRole::Manager.to_role_type() | AppRole::Viewer.to_role_type(),
@@ -71,4 +72,9 @@ fn main() {
         Some("/manage".to_string())
     );
     println!("auth OpenAPI security metadata registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+
+

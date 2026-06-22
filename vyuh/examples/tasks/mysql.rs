@@ -1,33 +1,24 @@
-#[cfg(feature = "mysql")]
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
-#[cfg(feature = "mysql")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "mysql")]
 use vyuh::{Data, SiteConf, bundles, db::DbConf, tasks::TaskOutcome};
 
-#[cfg(feature = "mysql")]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 struct MysqlJob {
     id: i64,
 }
 
-#[cfg(feature = "mysql")]
 #[bundles::task(name = "mysql_job")]
 async fn mysql_job(input: Data<MysqlJob>) -> TaskOutcome {
     TaskOutcome::complete(&format!("processed {}", input.id)).unwrap()
 }
 
-#[cfg(feature = "mysql")]
-fn main() {
-    let _conf = SiteConf::default().database(DbConf::default());
-    let _bundle = bundles::bundle! {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
+    let conf = SiteConf::default().database(DbConf::default());
+    let bundle = bundles::bundle! {
         mysql_job,
     };
-}
-
-#[cfg(not(feature = "mysql"))]
-fn main() {
-    eprintln!(
-        "Run this example with: cargo run -p vyuh --no-default-features --features mysql --example tasks_mysql"
-    );
+    example_common::run_example_with_conf(conf, bundle).await
 }

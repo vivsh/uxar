@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example emitters_pgnotify_burst_debounce
+//! cargo run -p vyuh --no-default-features --features sqlite --example emitters_pgnotify_burst_debounce
 //! ```
 
 use schemars::JsonSchema;
@@ -31,7 +31,8 @@ async fn record_note_notification(payload: Data<NoteNotification>) {
     println!("notification {}", payload.raw);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         publish_note_notification,
         record_note_notification,
@@ -39,4 +40,8 @@ fn main() {
 
     assert_eq!(bundle.iter_operations().count(), 2);
     println!("debounced pgnotify emitter registered");
+    example_common::run_example(bundle).await
 }
+#[path = "../common.rs"] mod example_common;
+
+

@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{Data, bundles, tasks::TaskOutcome};
@@ -20,8 +22,8 @@ fn app_bundle() -> bundles::Bundle {
 }
 
 #[tokio::main]
-async fn main() {
-    let _bundle = app_bundle();
+async fn main() -> Result<(), vyuh::SiteError> {
+    let bundle = app_bundle();
 
     // With a built Site:
     // site.tasks().submit(EmailJob {
@@ -46,4 +48,6 @@ async fn main() {
     //         },
     //     )
     //     .await?;
+    example_common::run_example(bundle).await
 }
+

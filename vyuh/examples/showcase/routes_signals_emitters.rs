@@ -1,3 +1,5 @@
+#[path = "../common.rs"] mod example_common;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{Data, Error, Site, Valid, Validate, bundles};
@@ -44,7 +46,8 @@ async fn record_heartbeat(Data(pulse): Data<SystemPulse>) {
     println!("heartbeat for {}", pulse.project);
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<(), vyuh::SiteError> {
     let bundle = bundles::bundle! {
         signup,
         heartbeat,
@@ -64,4 +67,6 @@ fn main() {
         Some("/api/users".to_string())
     );
     println!("showcase bundle ready: POST /api/users, OpenAPI at /api/openapi.json");
+    example_common::run_example(bundle).await
 }
+
