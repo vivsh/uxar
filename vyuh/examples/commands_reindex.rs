@@ -6,8 +6,6 @@
 //! cargo run --example commands_reindex search:reindex --full
 //! ```
 
-#![allow(clippy::result_large_err)]
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};

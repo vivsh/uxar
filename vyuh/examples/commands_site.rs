@@ -6,8 +6,6 @@
 //! cargo run --example commands_site inspect --project
 //! ```
 
-#![allow(clippy::result_large_err)]
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{Data, Error, Site, SiteConf, bundles, commands::CommandConf};

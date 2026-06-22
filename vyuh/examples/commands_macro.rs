@@ -6,8 +6,6 @@
 //! cargo run --example commands_basic greet --name Vyuh --verbose
 //! ```
 
-#![allow(clippy::result_large_err)]
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use vyuh::{Data, Error, SiteConf, bundles, commands::CommandConf};

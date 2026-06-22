@@ -1,7 +1,5 @@
 //! Application-owned channel topic authorization.
 
-#![allow(clippy::result_large_err)]
-
 use vyuh::{
     Error,
     auth::AuthUser,
