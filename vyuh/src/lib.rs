@@ -10,6 +10,7 @@ pub mod bundles;
 pub mod callables;
 pub mod channels;
 pub mod commands;
+pub mod console;
 pub mod db;
 pub mod embed;
 pub mod emitters;

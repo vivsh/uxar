@@ -1,7 +1,11 @@
 use crate::{
     db::Pool,
-    tasks::{TaskError, TaskOutcome, TaskRecord, TaskStatus, store::AbstractTaskStore},
+    tasks::{
+        TaskError, TaskListFilter, TaskListPage, TaskOutcome, TaskRecord, TaskStatus,
+        store::AbstractTaskStore,
+    },
 };
+use sqlx::{MySql, QueryBuilder};
 
 #[derive(Clone)]
 pub struct MySqlTaskStore {
@@ -465,6 +469,58 @@ impl AbstractTaskStore for MySqlTaskStore {
         Ok(rows)
     }
 
+    async fn list_tasks(&self, filter: TaskListFilter) -> Result<TaskListPage, TaskError> {
+        let mut builder = QueryBuilder::<MySql>::new(
+            r#"
+            SELECT
+                id, name, input, state, resume_topic, resume_input, output, result,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
+                last_error, identity, locked_by, leased_until, ready_at, created_at,
+                updated_at, completed_at
+            FROM vyuh_tasks
+            WHERE 1 = 1
+            "#,
+        );
+        push_filters(&mut builder, &filter);
+        builder.push(" ORDER BY created_at DESC, id DESC LIMIT ");
+        builder.push_bind((filter.limit + 1) as i64);
+        builder.push(" OFFSET ");
+        builder.push_bind(filter.offset as i64);
+
+        let mut records = builder
+            .build_query_as::<TaskRecord>()
+            .fetch_all(&self.pool)
+            .await?;
+        let next_cursor = if records.len() > filter.limit {
+            records.truncate(filter.limit);
+            Some((filter.offset + filter.limit).to_string())
+        } else {
+            None
+        };
+        Ok(TaskListPage {
+            records,
+            next_cursor,
+        })
+    }
+
+    async fn get_task(&self, id: uuid::Uuid) -> Result<Option<TaskRecord>, TaskError> {
+        sqlx::query_as::<_, TaskRecord>(
+            r#"
+            SELECT
+                id, name, input, state, resume_topic, resume_input, output, result,
+                status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
+                last_error, identity, locked_by, leased_until, ready_at, created_at,
+                updated_at, completed_at
+            FROM vyuh_tasks
+            WHERE id = ?
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(TaskError::from)
+    }
+
     async fn run_migrations(&self) -> Result<(), TaskError> {
         sqlx::query(
             r#"
@@ -558,5 +614,34 @@ impl AbstractTaskStore for MySqlTaskStore {
         .await?;
 
         Ok(())
+    }
+}
+
+fn push_filters<'a>(builder: &mut QueryBuilder<'a, MySql>, filter: &'a TaskListFilter) {
+    if let Some(status) = filter.status {
+        builder.push(" AND status = ");
+        builder.push_bind(status);
+    }
+    if let Some(name) = &filter.name {
+        builder.push(" AND name = ");
+        builder.push_bind(name);
+    }
+    if let Some(identity) = &filter.identity {
+        builder.push(" AND identity = ");
+        builder.push_bind(identity);
+    }
+    if let Some(priority_min) = filter.priority_min {
+        builder.push(" AND priority >= ");
+        builder.push_bind(priority_min);
+    }
+    if let Some(q) = &filter.q {
+        let q = format!("%{}%", q.to_lowercase());
+        builder.push(" AND (lower(name) LIKE ");
+        builder.push_bind(q.clone());
+        builder.push(" OR lower(identity) LIKE ");
+        builder.push_bind(q.clone());
+        builder.push(" OR lower(last_error) LIKE ");
+        builder.push_bind(q);
+        builder.push(")");
     }
 }

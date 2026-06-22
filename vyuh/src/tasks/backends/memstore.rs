@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::tasks::{TaskError, TaskOutcome, TaskRecord, TaskStatus, store::AbstractTaskStore};
+use crate::tasks::{
+    TaskError, TaskListFilter, TaskListPage, TaskOutcome, TaskRecord, TaskStatus,
+    store::AbstractTaskStore,
+};
 
 /// In-memory task store for tests and local development.
 ///
@@ -199,6 +202,70 @@ impl AbstractTaskStore for MemoryTaskStore {
             }
         }
         Ok(count)
+    }
+
+    async fn list_tasks(&self, filter: TaskListFilter) -> Result<TaskListPage, TaskError> {
+        let mut records = self
+            .tasks
+            .read()
+            .await
+            .iter()
+            .filter(|task| filter.status.is_none_or(|status| task.status == status))
+            .filter(|task| filter.name.as_deref().is_none_or(|name| task.name == name))
+            .filter(|task| {
+                filter
+                    .identity
+                    .as_deref()
+                    .is_none_or(|identity| task.identity.as_deref() == Some(identity))
+            })
+            .filter(|task| {
+                filter
+                    .priority_min
+                    .is_none_or(|priority_min| task.priority >= priority_min)
+            })
+            .filter(|task| {
+                filter.q.as_deref().is_none_or(|q| {
+                    let q = q.to_lowercase();
+                    task.name.to_lowercase().contains(&q)
+                        || task
+                            .identity
+                            .as_ref()
+                            .is_some_and(|value| value.to_lowercase().contains(&q))
+                        || task
+                            .last_error
+                            .as_ref()
+                            .is_some_and(|value| value.to_lowercase().contains(&q))
+                })
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by_key(|task| std::cmp::Reverse(task.created_at));
+        let page = records
+            .into_iter()
+            .skip(filter.offset)
+            .take(filter.limit + 1)
+            .collect::<Vec<_>>();
+        if page.len() > filter.limit {
+            Ok(TaskListPage {
+                records: page.into_iter().take(filter.limit).collect(),
+                next_cursor: Some((filter.offset + filter.limit).to_string()),
+            })
+        } else {
+            Ok(TaskListPage {
+                records: page,
+                next_cursor: None,
+            })
+        }
+    }
+
+    async fn get_task(&self, id: uuid::Uuid) -> Result<Option<TaskRecord>, TaskError> {
+        Ok(self
+            .tasks
+            .read()
+            .await
+            .iter()
+            .find(|task| task.id == id)
+            .cloned())
     }
 
     async fn run_migrations(&self) -> Result<(), TaskError> {

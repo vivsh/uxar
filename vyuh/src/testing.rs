@@ -123,6 +123,9 @@ impl TestResponse {
     pub fn status(&self) -> axum::http::StatusCode {
         self.resp.status()
     }
+    pub fn header(&self, name: &str) -> Option<&axum::http::HeaderValue> {
+        self.resp.headers().get(name)
+    }
     pub async fn text(self) -> String {
         let bytes = body::to_bytes(self.resp.into_body(), usize::MAX)
             .await

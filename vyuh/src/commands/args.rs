@@ -7,7 +7,7 @@ use super::error::CommandError;
 // ── arg types ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone)]
-pub(super) enum CommandArgType {
+pub(crate) enum CommandArgType {
     String,
     Number,
     Integer,
@@ -16,7 +16,7 @@ pub(super) enum CommandArgType {
 }
 
 impl CommandArgType {
-    pub(super) fn type_name(&self) -> &'static str {
+    pub(crate) fn type_name(&self) -> &'static str {
         match self {
             CommandArgType::String => "string",
             CommandArgType::Number => "number",
@@ -35,11 +35,11 @@ impl CommandArgType {
 
 #[derive(Debug, Clone)]
 pub(crate) struct CommandArg {
-    pub(super) name: String,
-    pub(super) arg_type: CommandArgType,
-    pub(super) required: bool,
-    pub(super) description: Option<String>,
-    pub(super) hints: Vec<String>,
+    pub(crate) name: String,
+    pub(crate) arg_type: CommandArgType,
+    pub(crate) required: bool,
+    pub(crate) description: Option<String>,
+    pub(crate) hints: Vec<String>,
 }
 
 // ── schema parsing ────────────────────────────────────────────────────────────

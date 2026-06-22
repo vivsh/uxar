@@ -1,10 +1,27 @@
 use indexmap::IndexMap;
+use serde::Serialize;
 
 use crate::{Site, errors::ErrorSource};
 
 use super::args::CommandArgType;
 use super::error::CommandError;
 use super::types::{Command, CommandContext};
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CommandInfo {
+    pub name: String,
+    pub summary: Option<String>,
+    pub args: Vec<CommandArgInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CommandArgInfo {
+    pub name: String,
+    pub type_name: &'static str,
+    pub required: bool,
+    pub description: Option<String>,
+    pub hints: Vec<String>,
+}
 
 /// Registry of named CLI commands.
 pub struct CommandRegistry {
@@ -99,6 +116,29 @@ impl CommandRegistry {
             help.push_str(&line);
         }
         Ok(help)
+    }
+
+    pub(crate) fn infos(&self) -> Vec<CommandInfo> {
+        let mut commands = self.commands.iter().collect::<Vec<_>>();
+        commands.sort_by(|(left, _), (right, _)| left.cmp(right));
+        commands
+            .into_iter()
+            .map(|(name, command)| CommandInfo {
+                name: name.clone(),
+                summary: command_summary(command),
+                args: command
+                    .args
+                    .iter()
+                    .map(|arg| CommandArgInfo {
+                        name: arg.name.clone(),
+                        type_name: arg.arg_type.type_name(),
+                        required: arg.required,
+                        description: arg.description.clone(),
+                        hints: arg.hints.clone(),
+                    })
+                    .collect(),
+            })
+            .collect()
     }
 
     pub(crate) fn execute_help(&self) -> String {

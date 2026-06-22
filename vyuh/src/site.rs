@@ -244,6 +244,7 @@ impl SiteBuilder {
                 .map_err(|err| conf::ConfError::Other(format!("Auth config error: {err}")))?;
 
         bundle.doc_engine.setup(&mut router, &bundle.ops)?;
+        router = crate::console::mount_if_enabled(router, &self.conf.console);
 
         let slash_router = Arc::new(
             crate::middlewares::SlashRouter::from_operations(
@@ -303,6 +304,7 @@ impl SiteBuilder {
             slash_router,
             joinset: Arc::new(parking_lot::Mutex::new(tokio::task::JoinSet::new())),
             channels: LocalChannelBackend::new(self.conf.channels.clone()),
+            console_runtime: crate::console::runtime(&self.conf.console),
             bundle,
             signal_engine,
             emitter_engine,
@@ -324,6 +326,7 @@ struct SiteInner {
     authenticator: Authenticator,
     pool: DbPool,
     channels: LocalChannelBackend,
+    console_runtime: Option<crate::console::ConsoleRuntime>,
     template_engine: TemplateEngine,
     slash_router: Arc<crate::middlewares::SlashRouter>,
     timezone: Tz,
@@ -413,6 +416,7 @@ impl Site {
             site.inner.task_engine.store().run_migrations().await?;
         }
         SiteBuilder::start_engines(&site).await?;
+        crate::console::maybe_print_bootstrap_url(&site);
         Ok(site)
     }
 
@@ -575,6 +579,18 @@ impl Site {
 
     pub fn channels(&self) -> ChannelRef {
         ChannelRef::new(self.inner.channels.clone())
+    }
+
+    pub(crate) fn console_runtime(&self) -> Option<crate::console::ConsoleRuntime> {
+        self.inner.console_runtime.clone()
+    }
+
+    pub(crate) fn console_command_infos(&self) -> Vec<crate::commands::CommandInfo> {
+        self.inner.commands.infos()
+    }
+
+    pub(crate) fn console_service_infos(&self) -> Vec<crate::services::ServiceInfo> {
+        self.inner.service_engine.infos()
     }
 
     pub fn file_storage(&self) -> crate::file_storage::LocalStorage {

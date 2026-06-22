@@ -37,6 +37,7 @@ Start from `SiteConf::default()` and set only what the application needs:
 use vyuh::{
     SiteConf,
     db::DbConf,
+    console::ConsoleConf,
     file_storage::UploadConf,
     middlewares::{HttpConf, TraceConf},
     templates::{TemplateConf, TemplateDateFormats},
@@ -67,6 +68,7 @@ let conf = SiteConf::default()
         base_url: Some("/media/uploads".into()),
         ..UploadConf::default()
     })
+    .console(ConsoleConf::default().enabled(true))
     .static_dir("public", "/static")
     .timezone("UTC");
 ```
@@ -78,6 +80,7 @@ before the site is built.
 For global HTTP behavior, see [Middlewares](middlewares.md). For Minijinja
 environment behavior and formatting helpers, see [Templates](templates.md).
 For upload storage, see [Uploads](uploads.md).
+For optional operational inspection, see [Console](console.md).
 
 Environment helpers are available when configuration should come from the
 process environment:

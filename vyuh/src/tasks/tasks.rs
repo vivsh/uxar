@@ -127,6 +127,37 @@ pub struct TaskOptions {
     pub priority: i32,
 }
 
+#[derive(Debug, Clone)]
+pub struct TaskListFilter {
+    pub status: Option<TaskStatus>,
+    pub name: Option<String>,
+    pub priority_min: Option<i32>,
+    pub identity: Option<String>,
+    pub q: Option<String>,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+impl Default for TaskListFilter {
+    fn default() -> Self {
+        Self {
+            status: None,
+            name: None,
+            priority_min: None,
+            identity: None,
+            q: None,
+            limit: 50,
+            offset: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskListPage {
+    pub records: Vec<TaskRecord>,
+    pub next_cursor: Option<String>,
+}
+
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct TaskRecord {
     pub id: uuid::Uuid,
@@ -520,6 +551,14 @@ impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskClie
     pub async fn resume<T: Serialize>(&self, topic: &str, input: T) -> Result<u64, TaskError> {
         self.dispatcher.resume(topic, input).await
     }
+
+    pub async fn list(&self, filter: TaskListFilter) -> Result<TaskListPage, TaskError> {
+        self.dispatcher.list(filter).await
+    }
+
+    pub async fn get(&self, id: uuid::Uuid) -> Result<Option<TaskRecord>, TaskError> {
+        self.dispatcher.get(id).await
+    }
 }
 
 impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskDispatcher<S> {
@@ -625,6 +664,14 @@ impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskDisp
             self.notifier.notify_waiters();
         }
         Ok(count)
+    }
+
+    pub async fn list(&self, filter: TaskListFilter) -> Result<TaskListPage, TaskError> {
+        self.store.list_tasks(filter).await
+    }
+
+    pub async fn get(&self, id: uuid::Uuid) -> Result<Option<TaskRecord>, TaskError> {
+        self.store.get_task(id).await
     }
 }
 

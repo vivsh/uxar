@@ -4,7 +4,10 @@ use tokio::sync::OwnedSemaphorePermit;
 
 use crate::{
     Site,
-    tasks::{TaskDispatcher, TaskError, TaskOutcome, TaskRecord, TaskRegistry},
+    tasks::{
+        TaskDispatcher, TaskError, TaskListFilter, TaskListPage, TaskOutcome, TaskRecord,
+        TaskRegistry,
+    },
 };
 
 pub trait AbstractTaskStore {
@@ -30,6 +33,16 @@ pub trait AbstractTaskStore {
         topic: &'a str,
         input: String,
     ) -> impl Future<Output = Result<u64, TaskError>> + Send + 'a;
+
+    fn list_tasks(
+        &self,
+        filter: TaskListFilter,
+    ) -> impl Future<Output = Result<TaskListPage, TaskError>> + Send + '_;
+
+    fn get_task(
+        &self,
+        id: uuid::Uuid,
+    ) -> impl Future<Output = Result<Option<TaskRecord>, TaskError>> + Send + '_;
 
     fn run_migrations(&self) -> impl Future<Output = Result<(), TaskError>> + Send + '_;
 }
@@ -64,6 +77,20 @@ impl<T: AbstractTaskStore + ?Sized> AbstractTaskStore for Arc<T> {
         input: String,
     ) -> impl Future<Output = Result<u64, TaskError>> + Send + 'a {
         (**self).resume(topic, input)
+    }
+
+    fn list_tasks(
+        &self,
+        filter: TaskListFilter,
+    ) -> impl Future<Output = Result<TaskListPage, TaskError>> + Send + '_ {
+        (**self).list_tasks(filter)
+    }
+
+    fn get_task(
+        &self,
+        id: uuid::Uuid,
+    ) -> impl Future<Output = Result<Option<TaskRecord>, TaskError>> + Send + '_ {
+        (**self).get_task(id)
     }
 
     fn run_migrations(&self) -> impl Future<Output = Result<(), TaskError>> + Send + '_ {

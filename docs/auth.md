@@ -27,6 +27,9 @@ Roles are optional. The `permit!` macro is a static role-mask convenience, not a
 general authorization framework. Omit roles entirely when an application does
 not need them.
 
+Console roles live under `vyuh::console` and are separate from application
+roles. They only control access to Vyuh's optional read-only console APIs.
+
 ## Configuration
 
 Auth configuration lives on `SiteConf`. Cookies are disabled by default:

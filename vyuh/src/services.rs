@@ -1,6 +1,7 @@
 use std::{any::TypeId, ops::Deref, pin::Pin, sync::Arc};
 
 use indexmap::IndexMap;
+use serde::Serialize;
 
 use crate::{
     Site,
@@ -209,8 +210,16 @@ struct ServiceFacade {
 // Stored inside the serviceengine
 struct ServiceEntry {
     inner: AnyArc,
+    type_name: &'static str,
     workers: Vec<ServiceWorker>,
     facades: Vec<ServiceFacade>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ServiceInfo {
+    pub type_name: &'static str,
+    pub facades: Vec<&'static str>,
+    pub workers: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -265,6 +274,7 @@ impl ServiceHandler {
 
                 Ok(ServiceEntry {
                     inner: inner_t as AnyArc,
+                    type_name: std::any::type_name::<T>(),
                     workers: sr.workers,
                     facades: exposer.facades,
                 })
@@ -351,6 +361,7 @@ impl ServiceRegistry {
 pub struct ServiceEngine {
     services: IndexMap<TypeId, AnyBox>,
     workers: Vec<ServiceWorker>,
+    infos: Vec<ServiceInfo>,
 }
 
 impl ServiceEngine {
@@ -358,6 +369,7 @@ impl ServiceEngine {
         Self {
             services: IndexMap::new(),
             workers: vec![],
+            infos: Vec::new(),
         }
     }
 
@@ -371,6 +383,19 @@ impl ServiceEngine {
                 site: partial_site.clone(),
             });
             let entry = entry_future.await?;
+            let info = ServiceInfo {
+                type_name: entry.type_name,
+                facades: entry
+                    .facades
+                    .iter()
+                    .map(|facade| facade.type_name)
+                    .collect(),
+                workers: entry
+                    .workers
+                    .iter()
+                    .map(|worker| worker.name.clone())
+                    .collect(),
+            };
             for facade in entry.facades {
                 let iface = (facade.coerce_fn)(entry.inner.clone())?;
                 if self.services.contains_key(&facade.type_id) {
@@ -379,6 +404,7 @@ impl ServiceEngine {
                 self.services.insert(facade.type_id, iface);
             }
             self.workers.extend(entry.workers);
+            self.infos.push(info);
         }
         Ok(())
     }
@@ -405,6 +431,10 @@ impl ServiceEngine {
         self.services
             .get(&type_id)
             .and_then(|boxed_iface| boxed_iface.downcast_ref::<Arc<T>>().cloned())
+    }
+
+    pub(crate) fn infos(&self) -> Vec<ServiceInfo> {
+        self.infos.clone()
     }
 }
 

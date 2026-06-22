@@ -38,6 +38,7 @@ that part of the framework.
 | Server-side rendering | [Templates](templates.md) |
 | Generated API specs | [OpenAPI](openapi.md) |
 | Error normalization and rendering | [Errors](errors.md) |
+| Optional operational inspection | [Console](console.md) |
 
 ## Common Combinations
 
@@ -96,3 +97,5 @@ that part of the framework.
 - [Services](services.md): site-lifetime application services, route
   injection, trait facades, and service-owned workers.
 - [Logging](logging.md): structured tracing configuration and runtime logging.
+- [Console](console.md): opt-in read-only JSON APIs for operational
+  inspection, task records, and runtime status.

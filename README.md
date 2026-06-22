@@ -159,6 +159,8 @@ Vyuh is built around simplicity and uniformity:
   `site.tasks()`, `site.templates()`, `site.file_storage()`, and `site.auth()`.
 - Services remain distinct because they represent site-lifetime components, not
   handler input or output.
+- Console is opt-in and read-only in its first pass, for operational inspection
+  without exposing command or task mutation APIs.
 
 This keeps the framework cohesive without pretending every subsystem is the
 same thing.
@@ -199,6 +201,8 @@ same thing.
 - [Emitters](docs/emitters.md): cron, periodic, debounced, and notification
   sources.
 - [Logging](docs/logging.md): tracing setup, sinks, and runtime logging.
+- [Console](docs/console.md): optional JSON APIs for operations, task records,
+  and runtime status.
 
 See [docs/index.md](docs/index.md) for the full documentation index.
 

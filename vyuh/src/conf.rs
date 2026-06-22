@@ -8,6 +8,7 @@ use std::{ffi::OsString, path::PathBuf};
 use crate::{
     auth::{AuthConf, JwtKeySource},
     channels::ChannelConf,
+    console::ConsoleConf,
     db::DbConf,
     emitters::EmitterConf,
     errors::ErrorConf,
@@ -140,6 +141,8 @@ pub struct SiteConf {
 
     pub channels: ChannelConf,
 
+    pub console: ConsoleConf,
+
     #[serde(default)]
     pub emitters: EmitterConf,
 
@@ -170,6 +173,7 @@ impl Default for SiteConf {
             tasks: TaskConf::default(),
             uploads: UploadConf::default(),
             channels: ChannelConf::default(),
+            console: ConsoleConf::default(),
             emitters: EmitterConf::default(),
             logging: logging::LoggingConf::default(),
             http: HttpConf::default(),
@@ -277,6 +281,11 @@ impl SiteConf {
         self
     }
 
+    pub fn console(mut self, console: ConsoleConf) -> Self {
+        self.console = console;
+        self
+    }
+
     pub fn emitters(mut self, emitters: EmitterConf) -> Self {
         self.emitters = emitters;
         self
@@ -329,6 +338,7 @@ impl SiteConf {
         self.validate_required(&mut errors);
         self.validate_database(&mut errors);
         self.validate_paths(&mut errors);
+        self.console.validate(&mut errors);
 
         if errors.is_empty() {
             Ok(())
