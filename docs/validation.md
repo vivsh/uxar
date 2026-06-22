@@ -22,6 +22,15 @@ async fn parse_and_validate(Valid(Json(input)): Valid<Json<CreateUser>>) {
 }
 ```
 
+## Mental Model
+
+- Request wrappers parse.
+- `Valid<E>` validates.
+- `Validate` decides runtime correctness.
+- `ValidationSchema` describes supported constraints for OpenAPI.
+- Unsupported or business-specific rules never appear in OpenAPI unless they
+  opt in with explicit `custom_schema` vendor metadata.
+
 ## Defining Rules
 
 Derive `Validate` on request DTOs and add `#[validate(...)]` attributes:
@@ -280,11 +289,11 @@ explicit custom hints from `custom_schema`.
 Most applications do not need to implement it manually; it exists so advanced
 types can expose schema constraints in the same way as derive-generated types.
 
-## Mental Model
+## Current Limitations
 
-- Request wrappers parse.
-- `Valid<E>` validates.
-- `Validate` decides runtime correctness.
-- `ValidationSchema` describes supported constraints for OpenAPI.
-- Unsupported or business-specific rules never leak into OpenAPI unless they
-  opt in with explicit `custom_schema` vendor metadata.
+- Validation runs only where code explicitly calls `validate()` or uses
+  `Valid<E>`.
+- OpenAPI contains only constraints that Vyuh can represent accurately, plus
+  explicit `custom_schema` vendor hints.
+- Custom validators are ordinary Rust functions; Vyuh does not add a runtime
+  validator registry in this pass.

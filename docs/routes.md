@@ -7,6 +7,10 @@ reverse routing and OpenAPI.
 Route macros are convenience syntax over direct registration APIs. The macro
 path and the direct API path create the same kind of `BundlePart`.
 
+Use routes for HTTP APIs, pages, webhooks, and browser-facing endpoints. Do not
+use routes for maintenance scripts, durable background work, or site-lifetime
+workers; use commands, tasks, or services for those.
+
 ## Overview
 
 The route pipeline has three parts:
@@ -190,13 +194,13 @@ configured through `SiteConf::http(...)`; see [Middlewares](middlewares.md).
 Run the route examples in increasing complexity:
 
 ```sh
-cargo run --example routes_basic
-cargo run --example routes_direct
+cargo run --example routes_json_post
+cargo run --example routes_macroless
 cargo run --example routes_reverse
 ```
 
-- `routes_basic`: basic macro route registration.
-- `routes_direct`: equivalent direct `bundles::route(..., RouteConf)`
+- `routes_json_post`: JSON body parsing and response rendering.
+- `routes_macroless`: equivalent direct `bundles::route(..., RouteConf)`
   registration.
 - `routes_reverse`: named routes, path parameters, multi-method registration,
   prefixing, and `reverse()`.
@@ -220,3 +224,9 @@ direct API uses the same runtime bundle validation path.
 - Use direct registration for generated routes, conditional routes, or
   feature-gated route lists.
 - Apply `with_prefix` at bundle composition boundaries.
+
+## Current Limitations
+
+- Route registration is explicit; Vyuh does not auto-discover handlers.
+- Raw Axum router access is reserved for tests and interop.
+- OpenAPI metadata is inferred from handler types unless patched.

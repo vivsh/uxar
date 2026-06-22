@@ -10,6 +10,64 @@ use crate::{
     callables::{self, CallError, Callable, DataBox, DataValue, HasSite, IntoArgPart, IntoDataBox},
 };
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct EmitterConf {
+    #[serde(default = "default_notify_channel_capacity")]
+    pub notify_channel_capacity: usize,
+    #[serde(default = "default_max_in_flight_handlers")]
+    pub max_in_flight_handlers: usize,
+    #[serde(default = "default_pgnotify_reconnect_initial_ms")]
+    pub pgnotify_reconnect_initial_ms: u64,
+    #[serde(default = "default_pgnotify_reconnect_max_ms")]
+    pub pgnotify_reconnect_max_ms: u64,
+}
+
+impl Default for EmitterConf {
+    fn default() -> Self {
+        Self {
+            notify_channel_capacity: default_notify_channel_capacity(),
+            max_in_flight_handlers: default_max_in_flight_handlers(),
+            pgnotify_reconnect_initial_ms: default_pgnotify_reconnect_initial_ms(),
+            pgnotify_reconnect_max_ms: default_pgnotify_reconnect_max_ms(),
+        }
+    }
+}
+
+const fn default_notify_channel_capacity() -> usize {
+    1024
+}
+
+const fn default_max_in_flight_handlers() -> usize {
+    64
+}
+
+const fn default_pgnotify_reconnect_initial_ms() -> u64 {
+    250
+}
+
+const fn default_pgnotify_reconnect_max_ms() -> u64 {
+    30_000
+}
+
+impl EmitterConf {
+    pub(crate) fn notify_channel_capacity(&self) -> usize {
+        self.notify_channel_capacity.max(1)
+    }
+
+    pub(crate) fn max_in_flight_handlers(&self) -> usize {
+        self.max_in_flight_handlers.max(1)
+    }
+
+    pub(crate) fn pgnotify_reconnect_initial_ms(&self) -> u64 {
+        self.pgnotify_reconnect_initial_ms.max(1)
+    }
+
+    pub(crate) fn pgnotify_reconnect_max_ms(&self) -> u64 {
+        self.pgnotify_reconnect_max_ms
+            .max(self.pgnotify_reconnect_initial_ms())
+    }
+}
+
 pub struct IterCount(pub usize);
 
 impl IntoArgPart for IterCount {
@@ -378,8 +436,13 @@ impl EmitterRegistry {
     }
 
     pub fn create_engine(&self) -> EmitterEngine {
+        self.create_engine_with_conf(EmitterConf::default())
+    }
+
+    pub(crate) fn create_engine_with_conf(&self, conf: EmitterConf) -> EmitterEngine {
         EmitterEngine {
             sources: self.sources.clone(),
+            conf,
         }
     }
 }
@@ -387,12 +450,13 @@ impl EmitterRegistry {
 #[derive(Clone)]
 pub struct EmitterEngine {
     sources: HashMap<(TypeId, u8), Arc<Emitter>>,
+    conf: EmitterConf,
 }
 
 impl EmitterEngine {
     async fn dispatch(&self, site: &Site, payload: DataBox, target: EmitTarget) {
         if let Err(err) = site.dispatch_payload(payload, target).await {
-            tracing::error!("Error dispatching emitter payload: {}", err);
+            tracing::error!(target = ?target, "Error dispatching emitter payload: {}", err);
         }
     }
 
@@ -400,6 +464,11 @@ impl EmitterEngine {
         let mut timer_tasks = TimerQueue::new();
         let mut debounce_tasks = DebounceQueue::new();
         let shutdown = site.shutdown_notifier();
+        let handler_limit = Arc::new(tokio::sync::Semaphore::new(
+            self.conf.max_in_flight_handlers(),
+        ));
+        let (completion_tx, mut completion_rx) =
+            tokio::sync::mpsc::channel::<HandlerCompletion>(self.conf.max_in_flight_handlers());
         let mut notify_tasks: HashMap<String, Vec<usize>> = HashMap::new();
         let mut notify_works: Vec<NotifyWork> = Vec::new();
 
@@ -435,6 +504,7 @@ impl EmitterEngine {
                     notify_works.push(NotifyWork::new(
                         work_id,
                         type_id.clone(),
+                        channel.clone(),
                         handler.clone(),
                         emitter.target,
                         debounce.clone(),
@@ -456,25 +526,31 @@ impl EmitterEngine {
         loop {
             tokio::select! {
                 Some(work) = timer_tasks.pop() => {
+                    let source = HandlerSource::Timer {
+                        kind: work.kind_label(),
+                        type_id: work.type_id,
+                    };
                     let ctx = EmitterContext{
                         site: site.clone(),
                         payload: dummy_data.clone(),
                         iter_count: work.iter_count,
                         last_time: work.last_time,
                     };
-                    let target = work.target.clone();
-                    match work.producer.call(ctx).await{
-                        Ok(payload)=>{
-                            self.dispatch(&site, payload, target).await;
-                        }
-                        Err(err)=>{
-                            tracing::error!("Error calling emitter handler: {}", err);
-                        }
-                    }
+                    self.spawn_handler_call(
+                        &site,
+                        &handler_limit,
+                        &completion_tx,
+                        HandlerCall {
+                            source,
+                            handler: work.producer.clone(),
+                            target: work.target,
+                            ctx,
+                        },
+                    );
                     timer_tasks.push(work);
                 },
                 _=shutdown.notified()=>{
-                    tracing::info!("SignalEngine shutting down");
+                    tracing::info!("EmitterEngine shutting down");
                     break;
                 }
                 Some(deadline) = debounce_tasks.pop() => {
@@ -482,7 +558,21 @@ impl EmitterEngine {
                         .get_mut(deadline.work_id)
                         .and_then(|work| work.on_debounce_deadline(deadline));
                     if let Some(call) = call {
-                        self.run_notify_call(&site, &mut notify_works, call).await;
+                        self.spawn_notify_call(&site, &handler_limit, &completion_tx, call);
+                    }
+                }
+                Some(completion) = completion_rx.recv() => {
+                    match completion.result {
+                        Ok(payload) => self.dispatch(&site, payload, completion.target).await,
+                        Err(err) => {
+                            tracing::error!(
+                                source = completion.source.as_str(),
+                                source_detail = ?completion.source,
+                                target = ?completion.target,
+                                "Emitter handler failed: {}",
+                                err
+                            );
+                        }
                     }
                 }
                 Some(notif) = async {
@@ -500,7 +590,7 @@ impl EmitterEngine {
                                 None
                             };
                             if let Some(call) = call {
-                                self.run_notify_call(&site, &mut notify_works, call).await;
+                                self.spawn_notify_call(&site, &handler_limit, &completion_tx, call);
                             }
                         }
                     }
@@ -510,29 +600,122 @@ impl EmitterEngine {
         Ok(())
     }
 
-    async fn run_notify_call(
+    fn spawn_notify_call(
         &self,
         site: &Site,
-        notify_works: &mut [NotifyWork],
+        handler_limit: &Arc<tokio::sync::Semaphore>,
+        completion_tx: &tokio::sync::mpsc::Sender<HandlerCompletion>,
         call: NotifyCall,
     ) {
-        let result = call.handler.call(EmitterContext {
-            site: site.clone(),
-            payload: DataBox::new(call.payload),
-            iter_count: call.iter_count,
-            last_time: call.last_time,
+        self.spawn_handler_call(
+            site,
+            handler_limit,
+            completion_tx,
+            HandlerCall {
+                source: HandlerSource::PgNotify {
+                    channel: call.channel,
+                    type_id: call.type_id,
+                    debounce: call.debounce,
+                },
+                handler: call.handler,
+                target: call.target,
+                ctx: EmitterContext {
+                    site: site.clone(),
+                    payload: DataBox::new(call.payload),
+                    iter_count: call.iter_count,
+                    last_time: call.last_time,
+                },
+            },
+        );
+    }
+
+    fn spawn_handler_call(
+        &self,
+        site: &Site,
+        handler_limit: &Arc<tokio::sync::Semaphore>,
+        completion_tx: &tokio::sync::mpsc::Sender<HandlerCompletion>,
+        call: HandlerCall,
+    ) {
+        let Ok(permit) = handler_limit.clone().try_acquire_owned() else {
+            tracing::warn!(
+                source = call.source.as_str(),
+                source_detail = ?call.source,
+                target = ?call.target,
+                "Emitter handler skipped because max in-flight handler limit was reached"
+            );
+            return;
+        };
+
+        let completion_tx = completion_tx.clone();
+        site.spawn(async move {
+            let target = call.target;
+            let source = call.source;
+            let result = call.handler.call(call.ctx).await;
+            drop(permit);
+            let _ = completion_tx
+                .send(HandlerCompletion {
+                    source,
+                    target,
+                    result,
+                })
+                .await;
         });
-        let target = call.target;
-        match result.await {
-            Ok(payload) => {
-                self.dispatch(site, payload, target).await;
-            }
-            Err(err) => {
-                tracing::error!("Error parsing pgnotify payload: {}", err);
-            }
+    }
+}
+
+struct HandlerCall {
+    source: HandlerSource,
+    handler: EmitterHandler,
+    target: EmitTarget,
+    ctx: EmitterContext,
+}
+
+struct HandlerCompletion {
+    source: HandlerSource,
+    target: EmitTarget,
+    result: Result<DataBox, Error>,
+}
+
+#[derive(Clone)]
+enum HandlerSource {
+    Timer {
+        kind: &'static str,
+        type_id: TypeId,
+    },
+    PgNotify {
+        channel: String,
+        type_id: TypeId,
+        debounce: Option<DebounceConf>,
+    },
+}
+
+impl HandlerSource {
+    fn as_str(&self) -> &'static str {
+        match self {
+            HandlerSource::Timer { kind, .. } => kind,
+            HandlerSource::PgNotify { .. } => "pgnotify",
         }
-        if let Some(work) = notify_works.get_mut(call.work_id) {
-            work.update();
+    }
+}
+
+impl std::fmt::Debug for HandlerSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HandlerSource::Timer { kind, type_id } => f
+                .debug_struct("Timer")
+                .field("kind", kind)
+                .field("type_id", type_id)
+                .finish(),
+            HandlerSource::PgNotify {
+                channel,
+                type_id,
+                debounce,
+            } => f
+                .debug_struct("PgNotify")
+                .field("channel", channel)
+                .field("type_id", type_id)
+                .field("debounce", debounce)
+                .finish(),
         }
     }
 }
@@ -540,6 +723,7 @@ impl EmitterEngine {
 struct NotifyWork {
     id: usize,
     type_id: TypeId,
+    channel: String,
     handler: EmitterHandler,
     target: EmitTarget,
     iter_count: usize,
@@ -551,6 +735,7 @@ impl NotifyWork {
     fn new(
         id: usize,
         type_id: TypeId,
+        channel: String,
         handler: EmitterHandler,
         target: EmitTarget,
         debounce: Option<DebounceConf>,
@@ -558,6 +743,7 @@ impl NotifyWork {
         Self {
             id,
             type_id,
+            channel,
             handler,
             target,
             iter_count: 0,
@@ -568,7 +754,9 @@ impl NotifyWork {
 
     fn call(&self, payload: String) -> NotifyCall {
         NotifyCall {
-            work_id: self.id,
+            type_id: self.type_id,
+            channel: self.channel.clone(),
+            debounce: self.debounce.as_ref().map(|state| state.conf.clone()),
             handler: self.handler.clone(),
             target: self.target,
             iter_count: self.iter_count,
@@ -579,17 +767,33 @@ impl NotifyWork {
 
     fn on_notify(&mut self, payload: String, queue: &mut DebounceQueue) -> Option<NotifyCall> {
         let Some(mut debounce) = self.debounce.take() else {
-            return Some(self.call(payload));
+            let call = self.call(payload);
+            self.update();
+            return Some(call);
         };
-        let call = debounce.on_notify(self, payload, queue);
+        let debounce_conf = debounce.conf.clone();
+        let mut call = debounce.on_notify(self, payload, queue);
+        if let Some(call) = &mut call {
+            call.debounce = Some(debounce_conf);
+        }
         self.debounce = Some(debounce);
+        if call.is_some() {
+            self.update();
+        }
         call
     }
 
     fn on_debounce_deadline(&mut self, deadline: DebounceDeadline) -> Option<NotifyCall> {
         let mut debounce = self.debounce.take()?;
-        let call = debounce.on_deadline(self, deadline);
+        let debounce_conf = debounce.conf.clone();
+        let mut call = debounce.on_deadline(self, deadline);
+        if let Some(call) = &mut call {
+            call.debounce = Some(debounce_conf);
+        }
         self.debounce = Some(debounce);
+        if call.is_some() {
+            self.update();
+        }
         call
     }
 
@@ -600,7 +804,9 @@ impl NotifyWork {
 }
 
 struct NotifyCall {
-    work_id: usize,
+    type_id: TypeId,
+    channel: String,
+    debounce: Option<DebounceConf>,
     handler: EmitterHandler,
     target: EmitTarget,
     iter_count: usize,
@@ -789,6 +995,15 @@ enum TimerKind {
     Interval(tokio::time::Duration),
 }
 
+impl TimerKind {
+    fn label(&self) -> &'static str {
+        match self {
+            TimerKind::Schedule(_) => "cron",
+            TimerKind::Interval(_) => "periodic",
+        }
+    }
+}
+
 struct TimerWork {
     type_id: TypeId,
     last: Option<tokio::time::Instant>,
@@ -829,6 +1044,10 @@ impl TimerWork {
         self.last_time = Some(tokio::time::Instant::now());
         self.last = Some(tokio::time::Instant::now());
         self.deadline = Self::make_deadline(self.last, &self.kind);
+    }
+
+    fn kind_label(&self) -> &'static str {
+        self.kind.label()
     }
 
     fn make_deadline(last: Option<tokio::time::Instant>, kind: &TimerKind) -> tokio::time::Instant {
@@ -1010,6 +1229,7 @@ mod tests {
             NotifyWork::new(
                 0,
                 TypeId::of::<TestEvent>(),
+                "events".to_string(),
                 Callable::new(publish_event),
                 EmitTarget::Signal,
                 Some(DebounceConf {
@@ -1145,5 +1365,20 @@ mod tests {
         assert_eq!(config["channel"], "events");
         assert_eq!(config["debounce"]["mode"], "leading_trailing");
         assert_eq!(config["debounce"]["window_ms"], 250);
+    }
+
+    #[test]
+    fn emitter_conf_sanitizes_runtime_limits() {
+        let conf = EmitterConf {
+            notify_channel_capacity: 0,
+            max_in_flight_handlers: 0,
+            pgnotify_reconnect_initial_ms: 0,
+            pgnotify_reconnect_max_ms: 0,
+        };
+
+        assert_eq!(conf.notify_channel_capacity(), 1);
+        assert_eq!(conf.max_in_flight_handlers(), 1);
+        assert_eq!(conf.pgnotify_reconnect_initial_ms(), 1);
+        assert_eq!(conf.pgnotify_reconnect_max_ms(), 1);
     }
 }

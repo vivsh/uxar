@@ -239,7 +239,9 @@ impl SiteBuilder {
 
         template_engine.inject_templates(&self.conf.templates.dirs, &project_dir, &bundle)?;
 
-        let authenticator = Authenticator::new(&self.conf.auth, &self.conf.secret_key);
+        let authenticator =
+            Authenticator::new(&self.conf.auth, &self.conf.secret_key, &project_dir)
+                .map_err(|err| conf::ConfError::Other(format!("Auth config error: {err}")))?;
 
         bundle.doc_engine.setup(&mut router, &bundle.ops)?;
 
@@ -271,7 +273,9 @@ impl SiteBuilder {
 
         let signal_engine = bundle.signals.engine();
 
-        let emitter_engine = bundle.emitters.create_engine();
+        let emitter_engine = bundle
+            .emitters
+            .create_engine_with_conf(self.conf.emitters.clone());
 
         let mut command_registry = std::mem::replace(
             &mut bundle.commands,
@@ -521,9 +525,15 @@ impl Site {
         &self,
         topics: &[String],
     ) -> Result<mpsc::Receiver<Notify>, DbError> {
-        let capacity = topics.len() * 100 + 10;
+        let conf = &self.inner.conf.emitters;
         self.db()
-            .consume_notify(topics, capacity, self.shutdown_notifier())
+            .consume_notify(
+                topics,
+                conf.notify_channel_capacity(),
+                conf.pgnotify_reconnect_initial_ms(),
+                conf.pgnotify_reconnect_max_ms(),
+                self.shutdown_notifier(),
+            )
             .await
     }
 

@@ -3,7 +3,8 @@
 Vyuh is an Axum-based Rust web framework for building typed JSON APIs. The core
 architecture is handler-first: application code defines routes, commands,
 signals, tasks, and OpenAPI metadata through typed functions and bundle
-registration rather than through a separate configuration layer. The handlers can be registered using code as well as macros
+registration rather than through a separate configuration layer. Handlers can
+be registered with direct APIs or macros.
 
 ## Workspace Layout
 
@@ -11,7 +12,9 @@ registration rather than through a separate configuration layer. The handlers ca
 - `vyuh-macros/` contains procedural macros used by the runtime crate.
 - `docs/` contains subsystem-level documentation, one independent markdown file
   per subsystem.
-- `vyuh/examples/` contains runnable examples and comparisons.
+- `llms.txt` is the compact documentation routing entrypoint for LLMs and
+  coding agents.
+- `vyuh/examples/<subsystem>/` contains grouped runnable examples.
 - `migrations/` contains project-level migration examples.
 
 ## Runtime Crate
@@ -33,8 +36,8 @@ The `vyuh` crate is organized around these subsystems:
 - `auth` and `roles` provide JWT authentication and bit-mask role support.
 - `validation` and `validators` provide typed validation primitives and
   extractor integration.
-- `signals`, `emitters`, `debounce`, and `beacon` provide in-process events,
-  scheduled event sources, Postgres notification sources, and live channels.
+- `signals`, `emitters`, and `channels` provide in-process fanout, scheduled
+  or external event sources, and client-facing live delivery.
 - `tasks` provides typed background task registration and Postgres-backed task
   execution.
 - `commands` provides typed command registration and command dispatch through a

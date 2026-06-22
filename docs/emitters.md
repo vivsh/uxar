@@ -9,6 +9,14 @@ Postgres notifications are not persisted by Vyuh, and handler failures are
 logged rather than retried. Use tasks when work must be durable or observable as
 a unit of background execution.
 
+Use emitters to turn schedules or external notifications into typed `Data<T>`.
+Do not use emitters as durable schedulers, queues, or client-facing pub/sub.
+
+Emitter handler execution is isolated from the engine loop and bounded by
+`EmitterConf::max_in_flight_handlers`. When that limit is reached, new emitter
+handler invocations are skipped and logged instead of blocking timers,
+debounce deadlines, or PgNotify receives.
+
 ## Overview
 
 Vyuh has three public emitter sources:
@@ -22,7 +30,7 @@ data type `T` must have at least one registered signal handler or signal
 dispatch logs `SignalError::NotFound`.
 Handlers that can fail should return `Result<Data<T>, vyuh::Error>`.
 
-## Macro Sugar and Direct API
+## Macro Sugar And Direct API
 
 Emitter macros are sugar over direct bundle registration APIs:
 
@@ -193,6 +201,25 @@ execution.
 
 Pending trailing emissions are not flushed on shutdown.
 
+PgNotify listeners reconnect automatically with bounded backoff and re-listen
+to configured channels. PgNotify is still best-effort: notifications can be
+missed during database disconnects or dropped when the internal notification
+queue is full. Use periodic or cron fallback when missed notifications require
+reconciliation.
+
+Emitter runtime limits can be configured on `SiteConf`:
+
+```rust
+use vyuh::{SiteConf, emitters::EmitterConf};
+
+let conf = SiteConf::default().emitters(EmitterConf {
+    notify_channel_capacity: 2048,
+    max_in_flight_handlers: 128,
+    pgnotify_reconnect_initial_ms: 250,
+    pgnotify_reconnect_max_ms: 30_000,
+});
+```
+
 ## Bundles
 
 Emitters are registered as `BundlePart` values. Macro emitters and direct
@@ -212,18 +239,18 @@ Run the emitter examples in increasing complexity:
 
 ```sh
 cargo run --example emitters_periodic
-cargo run --example emitters_direct
+cargo run --example emitters_direct_api
 cargo run --example emitters_cron
 cargo run --example emitters_pgnotify
-cargo run --example emitters_pgnotify_debounce
+cargo run --example emitters_pgnotify_burst_debounce
 ```
 
 - `emitters_periodic`: macro-based periodic emitter and signal handler.
-- `emitters_direct`: equivalent direct periodic registration.
+- `emitters_direct_api`: equivalent direct periodic registration.
 - `emitters_cron`: cron emitter using `Site` extraction.
 - `emitters_pgnotify`: Postgres notification emitter registration.
-- `emitters_pgnotify_debounce`: PgNotify emitter with leading and trailing
-  debounce.
+- `emitters_pgnotify_burst_debounce`: PgNotify emitter with leading and
+  trailing debounce.
 
 ## Failure Modes
 

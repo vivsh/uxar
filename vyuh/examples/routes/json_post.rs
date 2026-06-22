@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example routes_basic
+//! cargo run --example routes_json_post
 //! ```
 
 use schemars::JsonSchema;

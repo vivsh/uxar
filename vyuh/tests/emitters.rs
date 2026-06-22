@@ -197,6 +197,81 @@ async fn test_pgnotify_leading_trailing_debounce_emits_first_and_last(
 }
 
 #[sqlx::test]
+async fn test_pgnotify_slow_handler_does_not_block_other_notifications(
+    pool: PgPool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
+    struct SlowData;
+
+    #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
+    struct FastData;
+
+    let slow_counter = Arc::new(AtomicUsize::new(0));
+    let fast_counter = Arc::new(AtomicUsize::new(0));
+    let slow_counter_clone = slow_counter.clone();
+    let fast_counter_clone = fast_counter.clone();
+
+    let site = create_site(pool.clone()).await;
+    let slow = emitters::pgnotify(
+        move |_payload: Data<String>| {
+            let cnt = slow_counter_clone.clone();
+            async move {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                cnt.fetch_add(1, Ordering::SeqCst);
+                Data::new(SlowData)
+            }
+        },
+        emitters::PgNotifyConf {
+            channel: "test_slow_pgnotify".to_string(),
+            target: emitters::EmitTarget::Signal,
+            debounce: None,
+        },
+    )?;
+    let fast = emitters::pgnotify(
+        move |_payload: Data<String>| {
+            let cnt = fast_counter_clone.clone();
+            async move {
+                cnt.fetch_add(1, Ordering::SeqCst);
+                Data::new(FastData)
+            }
+        },
+        emitters::PgNotifyConf {
+            channel: "test_fast_pgnotify".to_string(),
+            target: emitters::EmitTarget::Signal,
+            debounce: None,
+        },
+    )?;
+
+    let mut registry = EmitterRegistry::new();
+    registry.register(slow)?;
+    registry.register(fast)?;
+
+    let task_site = site.clone();
+    let engine = registry.create_engine();
+    let run_handle = tokio::spawn(async move { engine.run(task_site).await });
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    site.db()
+        .send_pgnotify("test_slow_pgnotify", "slow")
+        .await?;
+    tokio::time::sleep(Duration::from_millis(25)).await;
+    site.db()
+        .send_pgnotify("test_fast_pgnotify", "fast")
+        .await?;
+
+    assert!(
+        wait_for_count(&fast_counter, 1, Duration::from_millis(150)).await,
+        "fast pgnotify handler was blocked by slow handler"
+    );
+    assert_eq!(slow_counter.load(Ordering::SeqCst), 0);
+    assert!(wait_for_count(&slow_counter, 1, Duration::from_millis(400)).await);
+
+    site.shutdown_and_wait().await;
+    let _ = tokio::time::timeout(Duration::from_millis(100), run_handle).await;
+    Ok(())
+}
+
+#[sqlx::test]
 async fn test_cron(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
     #[derive(Clone, schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
     struct CronData;

@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example middlewares_basic
+//! cargo run --example middlewares_global
 //! ```
 
 use vyuh::{

@@ -230,7 +230,7 @@ pub fn cron(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// - `secs` - Interval in seconds (optional)
 /// - `millis` - Interval in milliseconds (optional)
-/// - `target` - Optional target. For v0, use `"signal"` or omit it.
+/// - `target` - Optional target: `"signal"` or `"task"`.
 ///
 /// At least one of `secs` or `millis` must be specified. Both can be used together.
 ///
@@ -294,6 +294,12 @@ pub fn periodic(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///     debounce = "leading_trailing"
 /// )]
 /// async fn publish_debounced_user_update(Data(raw): Data<String>) -> Data<UserUpdate> {
+///     serde_json::from_str::<UserUpdate>(&raw).unwrap().into()
+/// }
+///
+/// // Explicit target selection.
+/// #[pgnotify(channel = "user_updates", target = "task")]
+/// async fn enqueue_user_update(Data(raw): Data<String>) -> Data<UserUpdate> {
 ///     serde_json::from_str::<UserUpdate>(&raw).unwrap().into()
 /// }
 ///

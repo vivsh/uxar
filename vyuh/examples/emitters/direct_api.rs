@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example emitters_direct
+//! cargo run --example emitters_direct_api
 //! ```
 
 use std::time::Duration;

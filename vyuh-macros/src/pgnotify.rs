@@ -121,11 +121,11 @@ fn build_debounce(conf: &PgNotifyConfMeta) -> Result<proc_macro2::TokenStream, s
 
 fn validate_target(target: &str) -> Result<(), syn::Error> {
     match target.to_ascii_lowercase().as_str() {
-        "signal" => Ok(()),
+        "signal" | "task" => Ok(()),
         other => Err(syn::Error::new(
             proc_macro2::Span::call_site(),
             format!(
-                "Invalid emitter target '{}'. Supported target: \"signal\"",
+                "Invalid emitter target '{}'. Supported targets: \"signal\", \"task\"",
                 other
             ),
         )),
@@ -223,5 +223,11 @@ mod tests {
         };
 
         assert!(build_debounce(&conf).is_err());
+    }
+
+    #[test]
+    fn target_accepts_signal_and_task() {
+        assert!(validate_target("signal").is_ok());
+        assert!(validate_target("task").is_ok());
     }
 }

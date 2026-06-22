@@ -193,3 +193,27 @@ Vyuh infers the primary response from the return type:
 
 Use [OpenAPI](openapi.md) response overrides for non-`200` success responses,
 additional error responses, custom descriptions, or raw responses.
+
+## Examples
+
+- [`routes_json_post.rs`](../vyuh/examples/routes/json_post.rs): JSON response
+  wrappers in route handlers.
+- [`openapi_responses.rs`](../vyuh/examples/openapi/responses.rs): documented
+  response metadata and error responses.
+
+## Failure Modes
+
+- Serialization failure for `Data<T>` or `Json<T>` becomes an application
+  error.
+- Template rendering failure returns `TemplateError` and flows through the
+  error pipeline.
+- Raw `Response` values are allowed, but Vyuh cannot infer precise OpenAPI
+  metadata from them.
+
+## Current Limitations
+
+- Response metadata is inferred from the primary return type unless explicitly
+  patched.
+- Raw responses require manual OpenAPI metadata for public APIs.
+- Content negotiation is application-owned; wrappers choose their content type
+  directly.

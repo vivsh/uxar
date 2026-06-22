@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example routes_direct
+//! cargo run --example routes_macroless
 //! ```
 
 use std::borrow::Cow;

@@ -7,6 +7,10 @@ should be created once when the site starts.
 Services are not durable work queues. Use [Tasks](tasks.md) for work that must
 survive process restarts, retries, sleeps, or external resume.
 
+Use services for site-lifetime dependencies and workers that should be built
+once with the site. Do not use `Data<T>` for services; handlers should extract
+`ServiceRef<T>` or use `site.service::<T>()`.
+
 ## Overview
 
 The main public pieces are:
@@ -164,13 +168,13 @@ shutdown.
 
 ## Examples
 
-- [`services_concrete.rs`](../vyuh/examples/services_concrete.rs): concrete service
+- [`services_concrete.rs`](../vyuh/examples/services/concrete.rs): concrete service
   registration and route extraction.
-- [`services_direct.rs`](../vyuh/examples/services_direct.rs): equivalent
+- [`services_direct.rs`](../vyuh/examples/services/direct.rs): equivalent
   direct registration through `bundles::service`.
-- [`services_facade.rs`](../vyuh/examples/services_facade.rs): expose and use a
+- [`services_facade.rs`](../vyuh/examples/services/facade.rs): expose and use a
   trait object facade.
-- [`services_worker.rs`](../vyuh/examples/services_worker.rs): service-owned
+- [`services_worker.rs`](../vyuh/examples/services/worker.rs): service-owned
   background worker with shutdown handling.
 
 ## Failure Modes

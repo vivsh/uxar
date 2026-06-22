@@ -307,15 +307,15 @@ assert_eq!(total, 2);
 
 ## Examples
 
-- [`db_basic.rs`](../vyuh/examples/db_basic.rs): select rows with a typed
+- [`db_basic.rs`](../vyuh/examples/db/basic.rs): select rows with a typed
   `Scannable` result and named filters.
-- [`db_writes.rs`](../vyuh/examples/db_writes.rs): insert and update rows with
+- [`db_writes.rs`](../vyuh/examples/db/writes.rs): insert and update rows with
   `Bindable` structs.
-- [`db_raw_statement.rs`](../vyuh/examples/db_raw_statement.rs): execute direct
+- [`db_raw_statement.rs`](../vyuh/examples/db/raw_statement.rs): execute direct
   SQL through `Statement`.
-- [`db_sqlx.rs`](../vyuh/examples/db_sqlx.rs): use direct SQLx against the
+- [`db_sqlx.rs`](../vyuh/examples/db/sqlx.rs): use direct SQLx against the
   underlying `DbPool`.
-- [`db_transactions.rs`](../vyuh/examples/db_transactions.rs): run builders
+- [`db_transactions.rs`](../vyuh/examples/db/transactions.rs): run builders
   inside a transaction.
 
 ## Failure Modes

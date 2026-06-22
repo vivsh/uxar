@@ -3,14 +3,14 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example logging_basic
+//! cargo run --example logging_setup
 //! ```
 //!
 //! Override filters with:
 //!
 //! ```sh
-//! VYUH_LOG=info cargo run --example logging_basic
-//! VYUH_LOG_AUDIT=off cargo run --example logging_basic
+//! VYUH_LOG=info cargo run --example logging_setup
+//! VYUH_LOG_AUDIT=off cargo run --example logging_setup
 //! ```
 
 use vyuh::{

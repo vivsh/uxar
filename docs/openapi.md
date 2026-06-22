@@ -241,9 +241,7 @@ operations because OpenAPI 3 does not model `CONNECT`.
 - Prefer concrete request and response structs that derive `JsonSchema`.
 - Keep spec endpoints under the same prefix as the API they describe.
 
-## TODO
-
-### Documentation Viewers
+## Current Limitations
 
 Vyuh currently supports the generated JSON spec as the release-ready OpenAPI
 surface. Built-in HTML documentation viewers are present internally but hidden

@@ -217,15 +217,15 @@ prevents one bundle from silently replacing another bundle's template.
 
 ## Examples
 
-- [`templates_project.rs`](../vyuh/examples/templates_project.rs): project template
+- [`templates_project.rs`](../vyuh/examples/templates/project.rs): project template
   directory configuration.
-- [`templates_assets.rs`](../vyuh/examples/templates_assets.rs): templates
+- [`templates_assets.rs`](../vyuh/examples/templates/assets.rs): templates
   shipped through `#[bundles::asset_dir]`.
-- [`templates_route.rs`](../vyuh/examples/templates_route.rs): route extraction
+- [`templates_route.rs`](../vyuh/examples/templates/route.rs): route extraction
   of `Templates`.
-- [`templates_config.rs`](../vyuh/examples/templates_config.rs): environment
+- [`templates_config.rs`](../vyuh/examples/templates/config.rs): environment
   configuration.
-- [`templates_datetime.rs`](../vyuh/examples/templates_datetime.rs): date/time
+- [`templates_datetime.rs`](../vyuh/examples/templates/datetime.rs): date/time
   formatting configuration and Rust utilities.
 
 ## Failure Modes

@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example services_basic
+//! cargo run --example services_concrete
 //! ```
 
 use std::sync::atomic::{AtomicUsize, Ordering};

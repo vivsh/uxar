@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example templates_basic
+//! cargo run --example templates_project
 //! ```
 
 use vyuh::{

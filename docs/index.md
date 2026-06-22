@@ -8,9 +8,50 @@ that part of the framework.
 
 - `Data<T>`: handler input/output data for routes, commands, tasks, signals,
   and emitters.
+- `Valid<E>`: explicit validation wrapper around parsed request or handler data.
 - `ServiceRef<T>`: site-lifetime service access. Services are not handler data.
 - `Site`: cheap runtime handle for subsystem access.
 - `SiteConfig`: extracted runtime configuration for handlers that need it.
+- `Bundle`: feature composition unit for routes, commands, tasks, signals,
+  emitters, services, assets, and OpenAPI.
+- `ErrorView`: transport-neutral error renderer input.
+- `ErrorReport`: default HTTP JSON error body.
+
+## Choosing The Right Subsystem
+
+| Need | Use |
+| --- | --- |
+| HTTP request handling | [Routes](routes.md) |
+| Request parsing and body extraction | [Request](request.md) |
+| Response wrappers and metadata | [Response](response.md) |
+| Runtime validation | [Validation](validation.md) |
+| One-shot site-aware CLI operations | [Commands](commands.md) |
+| Durable retryable background work | [Tasks](tasks.md) |
+| In-process fanout | [Signals](signals.md) |
+| Scheduled or external event sources | [Emitters](emitters.md) |
+| Client-facing live delivery | [Channels](channels.md) |
+| Site-lifetime clients, caches, and workers | [Services](services.md) |
+| Opt-in auth and verified principals | [Auth](auth.md) |
+| SQLx-backed persistence | [Database](db.md) |
+| Multipart uploads and runtime files | [Uploads](uploads.md) |
+| Static public/private bundle files | [Assets](assets.md) |
+| Server-side rendering | [Templates](templates.md) |
+| Generated API specs | [OpenAPI](openapi.md) |
+| Error normalization and rendering | [Errors](errors.md) |
+
+## Common Combinations
+
+- JSON API: [Routes](routes.md), [Request](request.md),
+  [Response](response.md), [Validation](validation.md), [Errors](errors.md),
+  and [OpenAPI](openapi.md).
+- Admin CLI: [Commands](commands.md), [Site](site.md), and
+  [Errors](errors.md).
+- Durable async work: [Tasks](tasks.md), [Database](db.md), and
+  [Commands](commands.md).
+- Live UI updates: [Signals](signals.md), [Emitters](emitters.md), and
+  [Channels](channels.md).
+- Authenticated API: [Auth](auth.md), [Routes](routes.md),
+  [Errors](errors.md), and [OpenAPI](openapi.md).
 
 ## Subsystems
 

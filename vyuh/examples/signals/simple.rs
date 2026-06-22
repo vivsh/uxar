@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example signals_basic
+//! cargo run --example signals_simple
 //! ```
 
 use schemars::JsonSchema;

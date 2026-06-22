@@ -8,6 +8,10 @@ Commands are not durable background work. Use [Tasks](tasks.md) for retryable
 work that must survive restarts, and [Services](services.md) for site-lifetime
 background loops.
 
+Use commands for one-shot operational actions that need the configured `Site`.
+Do not use commands for user-facing HTTP endpoints, retryable background jobs,
+or long-running supervised workers.
+
 ## Mental Model
 
 - Routes handle HTTP requests.
@@ -261,11 +265,11 @@ handler signatures:
 
 ## Examples
 
-- [`commands_macro.rs`](../vyuh/examples/commands_macro.rs): typed command args
+- [`commands_macro.rs`](../vyuh/examples/commands/macro.rs): typed command args
   and direct registration.
-- [`commands_site.rs`](../vyuh/examples/commands_site.rs): a command that
+- [`commands_site.rs`](../vyuh/examples/commands/site.rs): a command that
   extracts `Site` and reads site configuration.
-- [`commands_reindex.rs`](../vyuh/examples/commands_reindex.rs): an
+- [`commands_reindex.rs`](../vyuh/examples/commands/reindex.rs): an
   operational command that rebuilds an in-process search index service.
 
 ## Current Limitations

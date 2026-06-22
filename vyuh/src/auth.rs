@@ -1,4 +1,9 @@
-use std::{future::Future, hash::Hash, sync::Arc};
+use std::{
+    future::Future,
+    hash::Hash,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use super::site::Site;
 use axum::http::request::Parts;
@@ -111,6 +116,142 @@ pub enum AuthAudiencePolicy {
 impl Default for AuthAudiencePolicy {
     fn default() -> Self {
         Self::Optional
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum JwtAlgorithm {
+    HS256,
+    HS384,
+    HS512,
+    RS256,
+    RS384,
+    RS512,
+    ES256,
+    ES384,
+    EdDSA,
+}
+
+impl Default for JwtAlgorithm {
+    fn default() -> Self {
+        Self::HS256
+    }
+}
+
+impl JwtAlgorithm {
+    fn as_jsonwebtoken(self) -> Algorithm {
+        match self {
+            JwtAlgorithm::HS256 => Algorithm::HS256,
+            JwtAlgorithm::HS384 => Algorithm::HS384,
+            JwtAlgorithm::HS512 => Algorithm::HS512,
+            JwtAlgorithm::RS256 => Algorithm::RS256,
+            JwtAlgorithm::RS384 => Algorithm::RS384,
+            JwtAlgorithm::RS512 => Algorithm::RS512,
+            JwtAlgorithm::ES256 => Algorithm::ES256,
+            JwtAlgorithm::ES384 => Algorithm::ES384,
+            JwtAlgorithm::EdDSA => Algorithm::EdDSA,
+        }
+    }
+
+    fn is_hmac(self) -> bool {
+        matches!(
+            self,
+            JwtAlgorithm::HS256 | JwtAlgorithm::HS384 | JwtAlgorithm::HS512
+        )
+    }
+
+    fn key_family(self) -> JwtKeyFamily {
+        match self {
+            JwtAlgorithm::HS256 | JwtAlgorithm::HS384 | JwtAlgorithm::HS512 => JwtKeyFamily::Hmac,
+            JwtAlgorithm::RS256 | JwtAlgorithm::RS384 | JwtAlgorithm::RS512 => JwtKeyFamily::Rsa,
+            JwtAlgorithm::ES256 | JwtAlgorithm::ES384 => JwtKeyFamily::Ec,
+            JwtAlgorithm::EdDSA => JwtKeyFamily::Ed,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JwtKeyFamily {
+    Hmac,
+    Rsa,
+    Ec,
+    Ed,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub enum JwtKeySource {
+    SiteSecret,
+    Inline(String),
+    Env(String),
+    File(String),
+}
+
+impl Default for JwtKeySource {
+    fn default() -> Self {
+        Self::SiteSecret
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct JwtConf {
+    pub algorithm: JwtAlgorithm,
+    pub signing_key: JwtKeySource,
+    pub verifying_key: Option<JwtKeySource>,
+    pub key_id: Option<String>,
+}
+
+impl Default for JwtConf {
+    fn default() -> Self {
+        Self::hs256_site_secret()
+    }
+}
+
+impl JwtConf {
+    pub fn hs256_site_secret() -> Self {
+        Self {
+            algorithm: JwtAlgorithm::HS256,
+            signing_key: JwtKeySource::SiteSecret,
+            verifying_key: None,
+            key_id: None,
+        }
+    }
+
+    pub fn hs512(signing_key: JwtKeySource) -> Self {
+        Self {
+            algorithm: JwtAlgorithm::HS512,
+            signing_key,
+            verifying_key: None,
+            key_id: None,
+        }
+    }
+
+    pub fn rs256(signing_key: JwtKeySource, verifying_key: JwtKeySource) -> Self {
+        Self {
+            algorithm: JwtAlgorithm::RS256,
+            signing_key,
+            verifying_key: Some(verifying_key),
+            key_id: None,
+        }
+    }
+
+    pub fn algorithm(mut self, algorithm: JwtAlgorithm) -> Self {
+        self.algorithm = algorithm;
+        self
+    }
+
+    pub fn signing_key(mut self, key: JwtKeySource) -> Self {
+        self.signing_key = key;
+        self
+    }
+
+    pub fn verifying_key(mut self, key: JwtKeySource) -> Self {
+        self.verifying_key = Some(key);
+        self
+    }
+
+    pub fn key_id(mut self, key_id: impl Into<String>) -> Self {
+        self.key_id = Some(key_id.into());
+        self
     }
 }
 
@@ -335,6 +476,8 @@ pub struct AuthConf {
     pub refresh_ttl: i64,
     pub access_cookie: Option<CookieConf>,
     pub refresh_cookie: Option<CookieConf>,
+    #[serde(default)]
+    pub jwt: JwtConf,
     pub issuer: Option<String>,
     pub audience: AuthAudiencePolicy,
     pub leeway_seconds: u64,
@@ -349,6 +492,7 @@ impl Default for AuthConf {
             refresh_ttl: 604800,
             access_cookie: None,
             refresh_cookie: None,
+            jwt: JwtConf::default(),
             issuer: None,
             audience: AuthAudiencePolicy::Optional,
             leeway_seconds: 0,
@@ -376,6 +520,11 @@ impl AuthConf {
 
     pub fn refresh_cookie(mut self, cookie: CookieConf) -> Self {
         self.refresh_cookie = Some(cookie);
+        self
+    }
+
+    pub fn jwt(mut self, jwt: JwtConf) -> Self {
+        self.jwt = jwt;
         self
     }
 
@@ -574,6 +723,7 @@ pub struct Authenticator {
     refresh_cookie_same_site: cookie::SameSite,
     api_keys: ApiKeyConf,
     algorithm: Algorithm,
+    key_id: Option<String>,
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
     validation: Validation,
@@ -590,6 +740,7 @@ impl std::fmt::Debug for Authenticator {
             .field("refresh_cookie_conf", &self.refresh_cookie_conf)
             .field("api_keys", &self.api_keys)
             .field("algorithm", &self.algorithm)
+            .field("key_id", &self.key_id)
             .finish()
     }
 }
@@ -601,9 +752,103 @@ fn get_cookie_same_site(cookie_conf: &Option<CookieConf>) -> cookie::SameSite {
         .unwrap_or(cookie::SameSite::Lax)
 }
 
+fn resolve_jwt_key_source(
+    source: &JwtKeySource,
+    site_secret: &str,
+    project_dir: &Path,
+) -> Result<Vec<u8>, AuthError> {
+    match source {
+        JwtKeySource::SiteSecret => Ok(site_secret.as_bytes().to_vec()),
+        JwtKeySource::Inline(value) => Ok(value.as_bytes().to_vec()),
+        JwtKeySource::Env(name) => std::env::var(name)
+            .map(|value| value.into_bytes())
+            .map_err(|_| AuthError::JwtConfigError(format!("JWT key env var '{name}' is not set"))),
+        JwtKeySource::File(path) => {
+            let path = PathBuf::from(path);
+            let path = if path.is_absolute() {
+                path
+            } else {
+                project_dir.join(path)
+            };
+            std::fs::read(&path).map_err(|err| {
+                AuthError::JwtConfigError(format!(
+                    "failed to read JWT key file '{}': {}",
+                    path.display(),
+                    err
+                ))
+            })
+        }
+    }
+}
+
+fn build_jwt_keys(
+    conf: &JwtConf,
+    site_secret: &str,
+    min_secret_len: usize,
+    project_dir: &Path,
+) -> Result<(Algorithm, EncodingKey, DecodingKey), AuthError> {
+    let algorithm = conf.algorithm.as_jsonwebtoken();
+    let signing_key = resolve_jwt_key_source(&conf.signing_key, site_secret, project_dir)?;
+
+    if conf.algorithm.is_hmac() {
+        if conf.verifying_key.is_some() {
+            return Err(AuthError::JwtConfigError(
+                "HMAC JWT algorithms use one symmetric signing key and must not configure verifying_key"
+                    .to_string(),
+            ));
+        }
+        if signing_key.len() < min_secret_len {
+            return Err(AuthError::JwtConfigError(format!(
+                "JWT signing key must be at least {min_secret_len} bytes for HMAC algorithms"
+            )));
+        }
+        return Ok((
+            algorithm,
+            EncodingKey::from_secret(&signing_key),
+            DecodingKey::from_secret(&signing_key),
+        ));
+    }
+
+    let verifying_source = conf.verifying_key.as_ref().ok_or_else(|| {
+        AuthError::JwtConfigError("asymmetric JWT algorithms require a verifying_key".to_string())
+    })?;
+    let verifying_key = resolve_jwt_key_source(verifying_source, site_secret, project_dir)?;
+
+    let encoding_key = match conf.algorithm.key_family() {
+        JwtKeyFamily::Hmac => unreachable!("HMAC algorithms returned earlier"),
+        JwtKeyFamily::Rsa => EncodingKey::from_rsa_pem(&signing_key),
+        JwtKeyFamily::Ec => EncodingKey::from_ec_pem(&signing_key),
+        JwtKeyFamily::Ed => EncodingKey::from_ed_pem(&signing_key),
+    }
+    .map_err(|err| {
+        AuthError::JwtConfigError(format!(
+            "failed to parse JWT signing key for {:?}: {}",
+            conf.algorithm, err
+        ))
+    })?;
+
+    let decoding_key = match conf.algorithm.key_family() {
+        JwtKeyFamily::Hmac => unreachable!("HMAC algorithms returned earlier"),
+        JwtKeyFamily::Rsa => DecodingKey::from_rsa_pem(&verifying_key),
+        JwtKeyFamily::Ec => DecodingKey::from_ec_pem(&verifying_key),
+        JwtKeyFamily::Ed => DecodingKey::from_ed_pem(&verifying_key),
+    }
+    .map_err(|err| {
+        AuthError::JwtConfigError(format!(
+            "failed to parse JWT verifying key for {:?}: {}",
+            conf.algorithm, err
+        ))
+    })?;
+
+    Ok((algorithm, encoding_key, decoding_key))
+}
+
 impl Authenticator {
-    pub(crate) fn new(conf: &AuthConf, secret_key: &str) -> Self {
-        let secret_key = secret_key.as_bytes();
+    pub(crate) fn new(
+        conf: &AuthConf,
+        secret_key: &str,
+        project_dir: &Path,
+    ) -> Result<Self, AuthError> {
         let access_ttl = conf.access_ttl;
         let refresh_ttl = conf.refresh_ttl;
         let issuer = conf.issuer.clone();
@@ -611,9 +856,8 @@ impl Authenticator {
         let access_cookie_conf = conf.access_cookie.clone();
         let refresh_cookie_conf = conf.refresh_cookie.clone();
         let api_keys = conf.api_keys.clone();
-        let algorithm = Algorithm::HS256;
-        let encoding_key = EncodingKey::from_secret(secret_key);
-        let decoding_key = DecodingKey::from_secret(secret_key);
+        let (algorithm, encoding_key, decoding_key) =
+            build_jwt_keys(&conf.jwt, secret_key, conf.min_secret_len, project_dir)?;
         let mut validation = Validation::new(algorithm);
         validation.validate_aud = false;
         validation.leeway = conf.leeway_seconds;
@@ -621,7 +865,7 @@ impl Authenticator {
             validation.set_issuer(&[issuer]);
         }
 
-        Self {
+        Ok(Self {
             access_ttl,
             refresh_ttl,
             issuer,
@@ -632,15 +876,17 @@ impl Authenticator {
             refresh_cookie_conf,
             api_keys,
             algorithm,
+            key_id: conf.jwt.key_id.clone(),
             encoding_key,
             decoding_key,
             validation,
-        }
+        })
     }
 
     pub fn encode(&self, item: &JWTClaim) -> Result<String, AuthError> {
         let key = &self.encoding_key;
-        let header = jsonwebtoken::Header::new(self.algorithm);
+        let mut header = jsonwebtoken::Header::new(self.algorithm);
+        header.kid = self.key_id.clone();
         encode(&header, item, &key).map_err(|e| AuthError::from(&e))
     }
 
@@ -1039,6 +1285,8 @@ pub enum AuthError {
     InvalidApiKey,
     #[error("api key verifier is not configured")]
     ApiKeyVerifierMissing,
+    #[error("invalid JWT configuration: {0}")]
+    JwtConfigError(String),
     #[error("forbidden")]
     Forbidden,
     #[error("internal authentication error: {0}")]
@@ -1052,6 +1300,7 @@ impl From<&jsonwebtoken::errors::Error> for AuthError {
             jsonwebtoken::errors::ErrorKind::InvalidToken => AuthError::InvalidToken,
             jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::ExpiredToken,
             jsonwebtoken::errors::ErrorKind::InvalidSignature => AuthError::InvalidSignature,
+            jsonwebtoken::errors::ErrorKind::InvalidAlgorithm => AuthError::InvalidToken,
             _ => AuthError::InternalError(err.to_string()),
         }
     }
@@ -1099,6 +1348,7 @@ impl IntoResponse for AuthError {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "API key verifier is not configured",
             ),
+            AuthError::JwtConfigError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.as_ref()),
             AuthError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden"),
             AuthError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.as_ref()),
         };

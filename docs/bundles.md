@@ -190,20 +190,20 @@ paths and operation metadata.
 Bundles are exercised by the subsystem examples:
 
 ```sh
-cargo run --example routes_basic
-cargo run --example routes_direct
+cargo run --example routes_json_post
+cargo run --example routes_macroless
 cargo run --example routes_reverse
 cargo run --example openapi_basic
-cargo run --example signals_basic
-cargo run --example signals_direct
+cargo run --example signals_simple
+cargo run --example signals_macroless
 ```
 
-- `routes_basic`: basic macro bundle construction.
-- `routes_direct`: direct `bundles::bundle([...])` construction.
+- `routes_json_post`: basic macro route registration and typed JSON handling.
+- `routes_macroless`: direct `bundles::bundle([...])` route construction.
 - `routes_reverse`: prefixing, multi-method routes, and reverse routing.
 - `openapi_basic`: OpenAPI registration on a composed bundle.
-- `signals_basic`: signal handlers as macro-generated bundle parts.
-- `signals_direct`: signal handlers as direct bundle parts.
+- `signals_simple`: signal handlers as macro-generated bundle parts.
+- `signals_macroless`: signal handlers as direct bundle parts.
 
 ## Best Practices
 
@@ -213,3 +213,20 @@ cargo run --example signals_direct
 - Apply `with_prefix`, `with_tags`, and `layer` at clear composition boundaries.
 - Call `with_openapi` after the routes for that spec have been registered and
   merged.
+
+## Failure Modes
+
+- Invalid route paths, prefixes, slash rules, and operation metadata are
+  collected on the bundle and reported during validation or site build.
+- Duplicate route names or method/path pairs fail site build.
+- Duplicate subsystem registrations, such as services or commands with the same
+  identity, fail before the site starts.
+- OpenAPI captures only routes registered before `with_openapi`.
+
+## Current Limitations
+
+- `bundle!` only works with macro-registered items visible in the current
+  module.
+- Bundle composition is order-sensitive for APIs that snapshot metadata.
+- Macros are convenience only; direct registration is the canonical escape hatch
+  for generated or conditional registrations.

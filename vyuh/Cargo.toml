@@ -1,6 +1,6 @@
 [package]
 name = "vyuh"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
 license = "MIT"
 description = "Vyuh web framework for Axum and SQLx with handler-first APIs"
@@ -59,7 +59,7 @@ http-serde = "2.1.1"
 serde_urlencoded = "0.7"
 rust-silos = {version="^0.3"}
 
-vyuh-macros = { path = "../vyuh-macros", version = "0.2.6" }
+vyuh-macros = { path = "../vyuh-macros", version = "0.2.7" }
 once_cell = { version = "1.21.3", features = ["parking_lot"] }
 axum-test = "17.3.0"
 notify = "^8.1"
@@ -79,3 +79,247 @@ tempfile = "3"
 
 [dev-dependencies]
 tokio = { version = "1.46.1", features = ["full", "test-util"] }
+
+[[example]]
+name = "auth_api_key"
+path = "examples/auth/api_key.rs"
+
+[[example]]
+name = "auth_api_key_openapi"
+path = "examples/auth/api_key_openapi.rs"
+
+[[example]]
+name = "auth_basic"
+path = "examples/auth/basic.rs"
+
+[[example]]
+name = "auth_cookies"
+path = "examples/auth/cookies.rs"
+
+[[example]]
+name = "auth_dynamic_permission"
+path = "examples/auth/dynamic_permission.rs"
+
+[[example]]
+name = "auth_jwt_basic"
+path = "examples/auth/jwt_basic.rs"
+
+[[example]]
+name = "auth_roles_openapi"
+path = "examples/auth/roles_openapi.rs"
+
+[[example]]
+name = "auth_roles_static"
+path = "examples/auth/roles_static.rs"
+
+[[example]]
+name = "channels_auth"
+path = "examples/channels/auth.rs"
+
+[[example]]
+name = "channels_custom_backend"
+path = "examples/channels/custom_backend.rs"
+
+[[example]]
+name = "channels_long_poll"
+path = "examples/channels/long_poll.rs"
+
+[[example]]
+name = "channels_publish_from_signal"
+path = "examples/channels/publish_from_signal.rs"
+
+[[example]]
+name = "channels_sse"
+path = "examples/channels/sse.rs"
+
+[[example]]
+name = "channels_websocket"
+path = "examples/channels/websocket.rs"
+
+[[example]]
+name = "commands_macro"
+path = "examples/commands/macro.rs"
+
+[[example]]
+name = "commands_reindex"
+path = "examples/commands/reindex.rs"
+
+[[example]]
+name = "commands_site"
+path = "examples/commands/site.rs"
+
+[[example]]
+name = "db_basic"
+path = "examples/db/basic.rs"
+
+[[example]]
+name = "db_raw_statement"
+path = "examples/db/raw_statement.rs"
+
+[[example]]
+name = "db_sqlx"
+path = "examples/db/sqlx.rs"
+
+[[example]]
+name = "db_transactions"
+path = "examples/db/transactions.rs"
+
+[[example]]
+name = "db_writes"
+path = "examples/db/writes.rs"
+
+[[example]]
+name = "emitters_cron"
+path = "examples/emitters/cron.rs"
+
+[[example]]
+name = "emitters_direct_api"
+path = "examples/emitters/direct_api.rs"
+
+[[example]]
+name = "emitters_periodic"
+path = "examples/emitters/periodic.rs"
+
+[[example]]
+name = "emitters_pgnotify"
+path = "examples/emitters/pgnotify.rs"
+
+[[example]]
+name = "emitters_pgnotify_burst_debounce"
+path = "examples/emitters/pgnotify_burst_debounce.rs"
+
+[[example]]
+name = "logging_setup"
+path = "examples/logging/setup.rs"
+
+[[example]]
+name = "middlewares_global"
+path = "examples/middlewares/global.rs"
+
+[[example]]
+name = "middlewares_path_normalization"
+path = "examples/middlewares/path_normalization.rs"
+
+[[example]]
+name = "openapi_basic"
+path = "examples/openapi/basic.rs"
+
+[[example]]
+name = "openapi_responses"
+path = "examples/openapi/responses.rs"
+
+[[example]]
+name = "routes_json_post"
+path = "examples/routes/json_post.rs"
+
+[[example]]
+name = "routes_macroless"
+path = "examples/routes/macroless.rs"
+
+[[example]]
+name = "routes_reverse"
+path = "examples/routes/reverse.rs"
+
+[[example]]
+name = "routes_validation"
+path = "examples/routes/validation.rs"
+
+[[example]]
+name = "services_concrete"
+path = "examples/services/concrete.rs"
+
+[[example]]
+name = "services_direct"
+path = "examples/services/direct.rs"
+
+[[example]]
+name = "services_facade"
+path = "examples/services/facade.rs"
+
+[[example]]
+name = "services_worker"
+path = "examples/services/worker.rs"
+
+[[example]]
+name = "showcase_routes_signals_emitters"
+path = "examples/showcase/routes_signals_emitters.rs"
+
+[[example]]
+name = "signals_macroless"
+path = "examples/signals/macroless.rs"
+
+[[example]]
+name = "signals_multiple_handlers"
+path = "examples/signals/multiple_handlers.rs"
+
+[[example]]
+name = "signals_scheduled"
+path = "examples/signals/scheduled.rs"
+
+[[example]]
+name = "signals_simple"
+path = "examples/signals/simple.rs"
+
+[[example]]
+name = "tasks_concurrency"
+path = "examples/tasks/concurrency.rs"
+
+[[example]]
+name = "tasks_macro"
+path = "examples/tasks/macro.rs"
+
+[[example]]
+name = "tasks_macroless"
+path = "examples/tasks/macroless.rs"
+
+[[example]]
+name = "tasks_mysql"
+path = "examples/tasks/mysql.rs"
+
+[[example]]
+name = "tasks_sleep"
+path = "examples/tasks/sleep.rs"
+
+[[example]]
+name = "tasks_sqlite"
+path = "examples/tasks/sqlite.rs"
+
+[[example]]
+name = "tasks_suspend_resume"
+path = "examples/tasks/suspend_resume.rs"
+
+[[example]]
+name = "templates_assets"
+path = "examples/templates/assets.rs"
+
+[[example]]
+name = "templates_config"
+path = "examples/templates/config.rs"
+
+[[example]]
+name = "templates_datetime"
+path = "examples/templates/datetime.rs"
+
+[[example]]
+name = "templates_project"
+path = "examples/templates/project.rs"
+
+[[example]]
+name = "templates_route"
+path = "examples/templates/route.rs"
+
+[[example]]
+name = "uploads_basic"
+path = "examples/uploads/basic.rs"
+
+[[example]]
+name = "uploads_large"
+path = "examples/uploads/large.rs"
+
+[[example]]
+name = "uploads_macroless"
+path = "examples/uploads/macroless.rs"
+
+[[example]]
+name = "uploads_validated"
+path = "examples/uploads/validated.rs"

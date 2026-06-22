@@ -6,8 +6,16 @@
 use std::{ffi::OsString, path::PathBuf};
 
 use crate::{
-    auth::AuthConf, channels::ChannelConf, db::DbConf, errors::ErrorConf, file_storage::UploadConf,
-    logging, middlewares::HttpConf, tasks::TaskConf, templates::TemplateConf,
+    auth::{AuthConf, JwtKeySource},
+    channels::ChannelConf,
+    db::DbConf,
+    emitters::EmitterConf,
+    errors::ErrorConf,
+    file_storage::UploadConf,
+    logging,
+    middlewares::HttpConf,
+    tasks::TaskConf,
+    templates::TemplateConf,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -132,6 +140,9 @@ pub struct SiteConf {
 
     pub channels: ChannelConf,
 
+    #[serde(default)]
+    pub emitters: EmitterConf,
+
     pub logging: logging::LoggingConf,
 
     pub http: HttpConf,
@@ -159,6 +170,7 @@ impl Default for SiteConf {
             tasks: TaskConf::default(),
             uploads: UploadConf::default(),
             channels: ChannelConf::default(),
+            emitters: EmitterConf::default(),
             logging: logging::LoggingConf::default(),
             http: HttpConf::default(),
             errors: ErrorConf::default(),
@@ -265,6 +277,11 @@ impl SiteConf {
         self
     }
 
+    pub fn emitters(mut self, emitters: EmitterConf) -> Self {
+        self.emitters = emitters;
+        self
+    }
+
     pub fn http(mut self, http: HttpConf) -> Self {
         self.http = http;
         self
@@ -326,7 +343,9 @@ impl SiteConf {
                 field: "secret_key".into(),
                 reason: "cannot be empty".into(),
             });
-        } else if self.secret_key.len() < self.auth.min_secret_len {
+        } else if matches!(self.auth.jwt.signing_key, JwtKeySource::SiteSecret)
+            && self.secret_key.len() < self.auth.min_secret_len
+        {
             errors.push(ConfError::InvalidValue {
                 field: "secret_key".into(),
                 reason: format!(

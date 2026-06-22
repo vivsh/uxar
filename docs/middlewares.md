@@ -212,3 +212,25 @@ let bundle = vyuh::bundles::bundle! {
 Direct Tower or Axum layers remain escape hatches for behavior Vyuh does not
 wrap yet. Prefer Vyuh's config and wrapper APIs when they cover the use case so
 errors, OpenAPI metadata, and future compatibility remain consistent.
+
+## Examples
+
+- [`middlewares_global.rs`](../vyuh/examples/middlewares/global.rs): site-wide
+  HTTP middleware configuration.
+- [`middlewares_path_normalization.rs`](../vyuh/examples/middlewares/path_normalization.rs):
+  slash policy behavior.
+
+## Failure Modes
+
+- Invalid slash policies or generated slash aliases fail during site build.
+- Timeout and body-limit failures are rendered through the normal error
+  pipeline.
+- Panics are converted to framework errors when panic catching is enabled.
+
+## Current Limitations
+
+- Built-in middleware configuration covers common transport policy, not every
+  Tower layer.
+- Direct Tower layers remain available, but they do not automatically provide
+  Vyuh OpenAPI metadata.
+- Slash policy is based on route metadata, not request `Accept` headers.

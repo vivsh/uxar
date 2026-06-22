@@ -310,23 +310,61 @@ impl DbPool {
         &self,
         topics: &[String],
         capacity: usize,
+        reconnect_initial_ms: u64,
+        reconnect_max_ms: u64,
         shutdown: CancellationNotifier,
     ) -> Result<mpsc::Receiver<Notify>, DbError> {
-        let mut listener = sqlx::postgres::PgListener::connect_with(&self.pool).await?;
-        for topic in topics {
-            listener.listen(topic).await?;
-        }
-
         let (sender, receiver) = mpsc::channel::<Notify>(capacity);
+        let pool = self.pool.clone();
+        let topics = topics.to_vec();
+        let reconnect_initial = std::time::Duration::from_millis(reconnect_initial_ms.max(1));
+        let reconnect_max =
+            std::time::Duration::from_millis(reconnect_max_ms.max(reconnect_initial_ms.max(1)));
 
         tokio::spawn(async move {
+            let mut backoff = reconnect_initial;
             loop {
-                tokio::select! {
-                    _ = shutdown.notified() => {
-                        tracing::info!("notification listener shutting down");
+                let mut listener = match sqlx::postgres::PgListener::connect_with(&pool).await {
+                    Ok(listener) => listener,
+                    Err(err) => {
+                        tracing::warn!("notification listener connect failed: {}", err);
+                        if !sleep_reconnect_backoff(&shutdown, backoff).await {
+                            break;
+                        }
+                        backoff = next_reconnect_backoff(backoff, reconnect_max);
+                        continue;
+                    }
+                };
+
+                let mut listen_failed = false;
+                for topic in &topics {
+                    if let Err(err) = listener.listen(topic).await {
+                        tracing::warn!(
+                            channel = topic.as_str(),
+                            "notification listener LISTEN failed: {}",
+                            err
+                        );
+                        listen_failed = true;
                         break;
                     }
-                    notif = listener.recv() => {
+                }
+                if listen_failed {
+                    if !sleep_reconnect_backoff(&shutdown, backoff).await {
+                        break;
+                    }
+                    backoff = next_reconnect_backoff(backoff, reconnect_max);
+                    continue;
+                }
+
+                backoff = reconnect_initial;
+
+                loop {
+                    tokio::select! {
+                        _ = shutdown.notified() => {
+                            tracing::info!("notification listener shutting down");
+                            return;
+                        }
+                        notif = listener.recv() => {
                         match notif {
                             Ok(notification) => {
                                 let notify = Notify {
@@ -335,17 +373,34 @@ impl DbPool {
                                 };
                                 if let Err(e) = sender.try_send(notify) {
                                     match e {
-                                        TrySendError::Full(_) => continue,
+                                        TrySendError::Full(notify) => {
+                                            tracing::warn!(
+                                                channel = notify.channel.as_str(),
+                                                "notification dropped because internal notification queue is full"
+                                            );
+                                            continue;
+                                        }
                                         TrySendError::Closed(_) => break,
                                     }
                                 }
                             }
                             Err(e) => {
-                                tracing::error!("notification error: {}", e);
+                                tracing::warn!("notification listener receive failed: {}", e);
+                                break;
                             }
+                        }
                         }
                     }
                 }
+
+                if sender.is_closed() {
+                    break;
+                }
+
+                if !sleep_reconnect_backoff(&shutdown, backoff).await {
+                    break;
+                }
+                backoff = next_reconnect_backoff(backoff, reconnect_max);
             }
             tracing::info!("notification listener ended");
         });
@@ -358,9 +413,35 @@ impl DbPool {
         &self,
         _topics: &[String],
         _: usize,
+        _: u64,
+        _: u64,
         _shutdown: CancellationNotifier,
     ) -> Result<mpsc::Receiver<Notify>, DbError> {
         Err(DbError::Unsupported("LISTEN/NOTIFY (Postgres only)"))
+    }
+}
+
+#[cfg(feature = "postgres")]
+fn next_reconnect_backoff(
+    current: std::time::Duration,
+    max: std::time::Duration,
+) -> std::time::Duration {
+    let doubled = current.saturating_mul(2).min(max);
+    let jitter_window = (doubled.as_millis() / 4).max(1) as u64;
+    let jitter = rand::random::<u64>() % jitter_window;
+    doubled
+        .saturating_add(std::time::Duration::from_millis(jitter))
+        .min(max)
+}
+
+#[cfg(feature = "postgres")]
+async fn sleep_reconnect_backoff(
+    shutdown: &CancellationNotifier,
+    backoff: std::time::Duration,
+) -> bool {
+    tokio::select! {
+        _ = shutdown.notified() => false,
+        _ = tokio::time::sleep(backoff) => true,
     }
 }
 

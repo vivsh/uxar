@@ -311,3 +311,17 @@ validation errors, runtime-only rules, and explicit `custom_schema` hints.
 Vyuh wrappers are the recommended API. Direct Axum extractors remain possible
 through explicit Axum imports, or through `vyuh::routes::axum_extractors` when a
 route needs behavior Vyuh does not wrap yet.
+
+## Failure Modes
+
+- Parse and deserialization failures return `400`.
+- Validation failures return `422` only when `Valid<E>` is used.
+- Multipart type, size, and sniffing failures use the upload error mapping
+  described in [Uploads](uploads.md).
+
+## Current Limitations
+
+- Request wrappers are route-only.
+- Direct Axum extractors are available, but Vyuh cannot infer custom metadata
+  unless the wrapper or route patch provides it.
+- Validation metadata is intentionally opt-in through `Valid<E>`.

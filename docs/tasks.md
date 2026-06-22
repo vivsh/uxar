@@ -11,6 +11,10 @@ execution, bounded worker concurrency, persisted continuation state, timed
 sleep, and topic-based suspend/resume. A task can run, save state, sleep or
 suspend, and later resume from storage with new input.
 
+Use tasks for work that needs persistence, retry, sleep, leases, or external
+resume. Do not use tasks for in-process fanout, site-lifetime loops, or
+interactive CLI tools.
+
 ## When To Use Tasks
 
 Use tasks when work needs one or more of these properties:
@@ -26,7 +30,7 @@ Use [signals](signals.md) for in-process, fire-and-forget notifications. Use
 [emitters](emitters.md) to produce scheduled or external events. Use tasks when
 the work itself needs persistence, leases, and durable continuation.
 
-## Architecture
+## Mental Model
 
 Tasks are registered as typed handlers, submitted into a durable queue, claimed
 by workers, and advanced by returning a `TaskOutcome`. A task handler is written
@@ -341,19 +345,19 @@ SQLite notes:
 
 ## Examples
 
-- [`tasks_macro.rs`](../vyuh/examples/tasks_macro.rs): macro task registration
+- [`tasks_macro.rs`](../vyuh/examples/tasks/macro.rs): macro task registration
   and typed submit shape.
-- [`tasks_macroless.rs`](../vyuh/examples/tasks_macroless.rs): equivalent direct task
+- [`tasks_macroless.rs`](../vyuh/examples/tasks/macroless.rs): equivalent direct task
   registration through `bundles::task`.
-- [`tasks_sleep.rs`](../vyuh/examples/tasks_sleep.rs): continuation state with a
+- [`tasks_sleep.rs`](../vyuh/examples/tasks/sleep.rs): continuation state with a
   timed wake.
-- [`tasks_suspend_resume.rs`](../vyuh/examples/tasks_suspend_resume.rs): topic
+- [`tasks_suspend_resume.rs`](../vyuh/examples/tasks/suspend_resume.rs): topic
   suspension and explicit resume.
-- [`tasks_concurrency.rs`](../vyuh/examples/tasks_concurrency.rs): configuring
+- [`tasks_concurrency.rs`](../vyuh/examples/tasks/concurrency.rs): configuring
   max parallel task execution.
-- [`tasks_sqlite.rs`](../vyuh/examples/tasks_sqlite.rs): SQLite-backed local
+- [`tasks_sqlite.rs`](../vyuh/examples/tasks/sqlite.rs): SQLite-backed local
   task configuration.
-- [`tasks_mysql.rs`](../vyuh/examples/tasks_mysql.rs): MySQL-backed task
+- [`tasks_mysql.rs`](../vyuh/examples/tasks/mysql.rs): MySQL-backed task
   configuration.
 
 ## Failure Modes

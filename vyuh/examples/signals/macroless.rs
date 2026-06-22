@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example signals_direct
+//! cargo run --example signals_macroless
 //! ```
 
 use schemars::JsonSchema;

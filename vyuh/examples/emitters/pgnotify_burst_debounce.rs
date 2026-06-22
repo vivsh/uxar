@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example emitters_pgnotify_debounce
+//! cargo run --example emitters_pgnotify_burst_debounce
 //! ```
 
 use schemars::JsonSchema;

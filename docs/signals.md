@@ -5,6 +5,10 @@ They are fire-and-forget: Vyuh does not guarantee delivery, ordering,
 durability, retries, or handler completion. Use tasks when work must be durable
 or observable as a unit of background execution.
 
+Use signals for lightweight local fanout after application events. Do not use
+signals for durable queues, client delivery, scheduled polling, or work that
+must be retried.
+
 ## Overview
 
 A signal is dispatched by Rust data type. Every handler registered for that data
@@ -19,7 +23,7 @@ Signals are useful for lightweight local fan-out:
 Signals are not a queue. If the process exits, pending and scheduled signals can
 be lost.
 
-## Macro Sugar and Direct API
+## Macro Sugar And Direct API
 
 `#[bundles::signal]` is sugar over direct bundle registration with
 `bundles::signal(handler, SignalConf::default())`.
@@ -124,14 +128,15 @@ fire-and-forget even when the source is an emitter.
 Run the signal examples in increasing complexity:
 
 ```sh
-cargo run --example signals_basic
-cargo run --example signals_direct
+cargo run --example signals_simple
+cargo run --example signals_macroless
 cargo run --example signals_multiple_handlers
 cargo run --example signals_scheduled
 ```
 
-- `signals_basic`: macro handler registration and immediate submit API.
-- `signals_direct`: equivalent direct `bundles::signal(...)` registration.
+- `signals_simple`: macro handler registration and immediate submit API.
+- `signals_macroless`: equivalent direct `bundles::signal(...)`
+  registration.
 - `signals_multiple_handlers`: one data type with multiple handlers.
 - `signals_scheduled`: delayed in-process scheduling.
 

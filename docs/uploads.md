@@ -144,7 +144,7 @@ absolute paths, `..`, backslashes, NUL bytes, and empty names are rejected.
 `UploadedFile::file_name()` is client metadata only. Do not use it directly as a
 storage name.
 
-## Errors
+## Failure Modes
 
 Multipart failures use the normal Vyuh error pipeline:
 
@@ -172,10 +172,18 @@ Validation metadata is published only when a route uses
 
 ## Examples
 
-- [`uploads_basic.rs`](../vyuh/examples/uploads_basic.rs): basic typed upload.
-- [`uploads_validated.rs`](../vyuh/examples/uploads_validated.rs): MIME,
+- [`uploads_basic.rs`](../vyuh/examples/uploads/basic.rs): basic typed upload.
+- [`uploads_validated.rs`](../vyuh/examples/uploads/validated.rs): MIME,
   extension, sniffing, and size checks.
-- [`uploads_macroless.rs`](../vyuh/examples/uploads_macroless.rs):
+- [`uploads_macroless.rs`](../vyuh/examples/uploads/macroless.rs):
   `MultipartMap` and `MultipartSpec`.
-- [`uploads_large.rs`](../vyuh/examples/uploads_large.rs): large upload
+- [`uploads_large.rs`](../vyuh/examples/uploads/large.rs): large upload
   configuration.
+
+## Current Limitations
+
+- Multipart handling is route-only.
+- `LocalStorage` is the only built-in storage backend in this pass.
+- Sniffing can reject after a bounded prefix is read, not before any bytes are
+  received.
+- Uploads are runtime files; static assets remain a separate subsystem.

@@ -215,7 +215,6 @@ SQLite is useful for local, embedded, and single-process deployments.
 
 - Vyuh is usable, but not API-stable yet. Expect breaking changes before a
   stable release.
-- JWT signing is HS256-only in this pass.
 - Services are in-process and not durable.
 - Tasks provide durable single-task continuations, not multi-task workflow
   orchestration.

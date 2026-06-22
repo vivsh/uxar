@@ -3,7 +3,7 @@
 //! Run:
 //!
 //! ```sh
-//! cargo run --example commands_basic greet --name Vyuh --verbose
+//! cargo run --example commands_macro greet --name Vyuh --verbose
 //! ```
 
 use schemars::JsonSchema;

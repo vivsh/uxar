@@ -48,8 +48,9 @@ let conf = SiteConf::default()
     );
 ```
 
-Tokens are signed with HS256 using `SiteConf.secret_key`. `SiteConf::validate()`
-checks the configured minimum secret length.
+By default, JWTs are signed with `HS256` using `SiteConf.secret_key`.
+`SiteConf::validate()` checks the configured minimum length for HMAC signing
+keys.
 
 Useful `AuthConf` options:
 
@@ -58,6 +59,7 @@ Useful `AuthConf` options:
 - `audience(policy)` for optional, required, or disabled audience checks.
 - `leeway_seconds(seconds)` for clock skew.
 - `min_secret_len(len)` for signing-secret validation.
+- `jwt(...)` for algorithm and key configuration.
 - `access_cookie(...)` and `refresh_cookie(...)` for opt-in cookies.
 - `api_keys(...)` for API-key verification.
 
@@ -100,6 +102,42 @@ Authorization: Bearer <jwt>
 ```
 
 The older `Authorization: JWT <jwt>` form is also accepted.
+
+## JWT Algorithms
+
+Vyuh defaults to `HS256` with `SiteConf.secret_key`. That matches the common
+Django Simple JWT default of HS256 with Django's `SECRET_KEY`. Django core
+itself does not use JWT for its built-in sessions; its signing utilities use
+SHA-256 signed values and cookies.
+
+Use `JwtConf` when deployments need a different symmetric algorithm or an
+asymmetric key pair:
+
+```rust
+use vyuh::auth::{AuthConf, JwtConf, JwtKeySource};
+
+let auth = AuthConf::default().jwt(JwtConf::hs512(JwtKeySource::Env(
+    "JWT_SECRET".into(),
+)));
+```
+
+Asymmetric deployments can sign with a private PEM and verify with a public
+PEM. Relative file paths are resolved from `SiteConf.project_dir`:
+
+```rust
+use vyuh::auth::{AuthConf, JwtConf, JwtKeySource};
+
+let auth = AuthConf::default().jwt(JwtConf::rs256(
+    JwtKeySource::File("secrets/jwt-private.pem".into()),
+    JwtKeySource::File("secrets/jwt-public.pem".into()),
+));
+```
+
+Supported algorithms are `HS256`, `HS384`, `HS512`, `RS256`, `RS384`,
+`RS512`, `ES256`, `ES384`, and `EdDSA`. HMAC algorithms use one symmetric key
+and reject a separate verifying key. RSA, ECDSA, and EdDSA configurations
+require both signing and verifying keys. Token decoding accepts only the
+configured algorithm.
 
 ## Cookies
 
@@ -241,17 +279,17 @@ Django sessions, permissions, groups, or user tables.
 
 ## Examples
 
-- [`auth_jwt_basic.rs`](../vyuh/examples/auth_jwt_basic.rs): issue JWTs and
+- [`auth_jwt_basic.rs`](../vyuh/examples/auth/jwt_basic.rs): issue JWTs and
   protect a route with `AuthUser`.
-- [`auth_cookies.rs`](../vyuh/examples/auth_cookies.rs): opt-in cookies and
+- [`auth_cookies.rs`](../vyuh/examples/auth/cookies.rs): opt-in cookies and
   refresh flow.
-- [`auth_roles_static.rs`](../vyuh/examples/auth_roles_static.rs): static role
+- [`auth_roles_static.rs`](../vyuh/examples/auth/roles_static.rs): static role
   masks and `permit!`.
-- [`auth_dynamic_permission.rs`](../vyuh/examples/auth_dynamic_permission.rs):
+- [`auth_dynamic_permission.rs`](../vyuh/examples/auth/dynamic_permission.rs):
   dynamic authorization in handler code.
-- [`auth_api_key.rs`](../vyuh/examples/auth_api_key.rs): verifier-backed API-key
+- [`auth_api_key.rs`](../vyuh/examples/auth/api_key.rs): verifier-backed API-key
   route.
-- [`auth_api_key_openapi.rs`](../vyuh/examples/auth_api_key_openapi.rs):
+- [`auth_api_key_openapi.rs`](../vyuh/examples/auth/api_key_openapi.rs):
   API-key OpenAPI security metadata.
 
 ## Failure Modes
@@ -268,9 +306,9 @@ Django sessions, permissions, groups, or user tables.
 
 ## Current Limitations
 
-- JWT signing is HS256 only in this pass.
 - Auth is stateless unless the application stores extra session or token data.
 - API-key storage and revocation are application responsibilities.
+- JWK and JWKS fetching are not included in this pass.
 - Vyuh does not ship user models, registration, password reset, or account
   management flows.
 - Role masks are limited to 64 bit positions.

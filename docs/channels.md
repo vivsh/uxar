@@ -7,6 +7,10 @@ polling.
 Channels are not durable work queues. Use [Tasks](tasks.md) for durable
 background work and [Signals](signals.md) for in-process handler fanout.
 
+Use channels for client-facing live updates over SSE, WebSocket, or long
+polling. Do not use channels for task queues, exactly-once delivery, or
+application-internal fanout.
+
 ## Mental Model
 
 | Need | Use |
@@ -136,10 +140,27 @@ cross-process pub/sub and replay storage.
 Custom backends should preserve Vyuh's channel semantics: bounded replay,
 opaque cursors, non-blocking publish, and explicit topic validation.
 
-## Errors
+## Failure Modes
 
 - invalid topic or cursor: `400`
 - too many topics: `400`
 - oversized messages: `413`
 - unavailable backend: `503`
 - serialization or transport failure: application error
+
+## Examples
+
+- [`channels_sse.rs`](../vyuh/examples/channels/sse.rs): SSE subscription.
+- [`channels_websocket.rs`](../vyuh/examples/channels/websocket.rs):
+  WebSocket subscription.
+- [`channels_long_poll.rs`](../vyuh/examples/channels/long_poll.rs): polling
+  with cursors.
+- [`channels_auth.rs`](../vyuh/examples/channels/auth.rs): topic selection
+  after authentication.
+
+## Current Limitations
+
+- `LocalChannelBackend` is process-local and in-memory.
+- Channels provide bounded replay, not durable delivery.
+- Authorization is application-owned and belongs in route handlers.
+- WebSocket client-side topic mutation is not part of the first API.

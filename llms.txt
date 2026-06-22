@@ -1,0 +1,49 @@
+# Vyuh
+
+Vyuh is a handler-first Rust web framework built on Axum and SQLx. It is
+usable, but not API-stable yet; expect breaking changes before a stable
+release. Vyuh is Postgres-first where database semantics matter most, while the
+common database and task surfaces also support MySQL and SQLite.
+
+Human entrypoints:
+
+- README.md: project overview, philosophy, getting-started example, and docs
+  index.
+- docs/index.md: subsystem routing, vocabulary, and common documentation paths.
+- ARCHITECTURE.md: implementation ownership, workspace layout, and extension
+  rules for coding agents.
+- AGENTS.md: repository-specific working rules for coding agents.
+
+Core vocabulary:
+
+- `Data<T>`: typed handler input/output data for routes, commands, tasks,
+  signals, and emitters.
+- `Valid<E>`: explicit validation wrapper; plain request wrappers parse only.
+- `Site`: runtime handle and lifecycle surface.
+- `Bundle`: composition unit for registering framework parts.
+- `ServiceRef<T>`: site-lifetime service access; services are not handler data.
+- `vyuh::Error`: normal application handler error.
+- `ErrorView`: transport-neutral renderer input.
+- `ErrorReport`: default HTTP JSON error body.
+
+Task routing:
+
+- For application startup and subsystem handles, read docs/site.md.
+- For feature composition and macro/direct registration, read docs/bundles.md.
+- For HTTP handlers, read docs/routes.md, docs/request.md, docs/response.md,
+  docs/validation.md, docs/errors.md, and docs/openapi.md.
+- For durable background work, read docs/tasks.md. Do not use signals,
+  emitters, or channels as durable queues.
+- For one-shot operational CLI tools, read docs/commands.md.
+- For in-process fanout, read docs/signals.md.
+- For scheduled or external event sources, read docs/emitters.md.
+- For client-facing live delivery, read docs/channels.md.
+- For shared clients, caches, and site-lifetime workers, read docs/services.md.
+- For auth, read docs/auth.md; auth is opt-in and stops at verified
+  principals.
+- For SQLx/database work, read docs/db.md.
+- For templates, assets, uploads, logging, and middlewares, read the matching
+  subsystem doc under docs/.
+
+Macros are convenience syntax. Routes, commands, tasks, signals, emitters,
+services, assets, and OpenAPI wiring can also be registered through direct APIs.

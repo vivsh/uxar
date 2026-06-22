@@ -13,7 +13,7 @@ use vyuh::{
     templates::{TemplateError, Templates},
 };
 
-const EXAMPLE_ASSETS: Silo = embed_silo!("examples/templates_assets_assets");
+const EXAMPLE_ASSETS: Silo = embed_silo!("examples/templates/assets_assets");
 
 #[bundles::asset_dir]
 fn example_assets() -> embed::Dir {
