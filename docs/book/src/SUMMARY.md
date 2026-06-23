@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](introduction.md)
+- [Philosophy](philosophy.md)
 - [Getting Started](getting-started.md)
 - [Concepts](concepts.md)
 - [Docs Map](docs-map.md)
