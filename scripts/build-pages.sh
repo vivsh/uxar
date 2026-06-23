@@ -14,4 +14,10 @@ cp -R "$ROOT/vyuh/web/public/." "$OUT/public/"
 perl -0pi -e 's#\.\./public/#./public/#g; s#\.\./\.\./\.\./docs/book/book/index\.html#./docs/#g' "$OUT/index.html"
 
 mdbook build "$ROOT/docs/book" --dest-dir "$OUT/docs"
+
+# mdBook renders the sidebar title as plain text. On the hosted book, make it a
+# stable path back to the landing page at the Pages root.
+find "$OUT/docs" -name '*.html' -print0 |
+  xargs -0 perl -0pi -e 's#<h1 class="menu-title">Vyuh</h1>#<h1 class="menu-title"><a class="vyuh-book-home" href="../">Vyuh</a></h1>#g'
+
 touch "$OUT/.nojekyll"

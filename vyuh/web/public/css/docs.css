@@ -33,6 +33,15 @@ body {
   border-right: 1px solid var(--vyuh-line);
 }
 
+.menu-title .vyuh-book-home {
+  color: inherit;
+  text-decoration: none;
+}
+
+.menu-title .vyuh-book-home:hover {
+  color: var(--vyuh-ember);
+}
+
 .chapter li.chapter-item a.active,
 .chapter li.chapter-item a:hover {
   color: var(--vyuh-ember);
