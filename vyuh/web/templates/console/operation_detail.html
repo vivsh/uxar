@@ -1,0 +1,21 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section>
+  <p class="vyuh-kicker">{{ operation.kind }}</p>
+  <h1 class="vyuh-section-title">{{ operation.name }}</h1>
+  <p class="vyuh-copy">{{ operation.description | default(value=operation.summary | default(value="No description registered.")) }}</p>
+
+  <section class="vyuh-card console-detail">
+    <table class="console-table">
+      <tbody>
+        <tr><th>ID</th><td>{{ operation.id }}</td></tr>
+        <tr><th>Path</th><td>{{ operation.path }}</td></tr>
+        <tr><th>Methods</th><td>{{ operation.methods | join(sep=", ") }}</td></tr>
+        <tr><th>Owner</th><td>{{ operation.owner | default(value="") }}</td></tr>
+        <tr><th>Hidden</th><td>{{ operation.hidden }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+</section>
+{% endblock %}

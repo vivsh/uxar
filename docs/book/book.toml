@@ -1,0 +1,14 @@
+[book]
+title = "Vyuh"
+src = "src"
+description = "Vyuh documentation"
+authors = ["Vyuh contributors"]
+
+[output.html]
+site-url = "/"
+additional-css = [
+  "theme/base.css",
+  "theme/docs.css",
+]
+git-repository-url = "https://github.com/vivsh/vyuh"
+edit-url-template = "https://github.com/vivsh/vyuh/edit/main/docs/book/{path}"

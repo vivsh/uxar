@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vyuh - Rust Application Framework</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,750&family=JetBrains+Mono:wght@450;650&family=Manrope:wght@500;650;750;800&display=swap" rel="stylesheet">
+  <link rel="icon" href="../public/img/favicon.svg" />
+  <link rel="stylesheet" href="../public/css/base.css" />
+  <link rel="stylesheet" href="../public/css/landing.css" />
+</head>
+<body class="vyuh-page">
+  <header class="vyuh-header">
+    <nav class="vyuh-shell vyuh-nav">
+      <a href="#" class="vyuh-brand">
+        <img src="../public/img/vyuh-logo-transparent.png" alt="Vyuh logo" />
+        <span>vyuh</span>
+      </a>
+      <div class="vyuh-links">
+        <a href="../../../docs/book/book/index.html">Docs</a>
+        <a href="#code">Examples</a>
+        <a href="#code">Commands</a>
+        <a href="#stack">Stack</a>
+        <a href="https://github.com/vivsh/vyuh">GitHub</a>
+      </div>
+      <div class="vyuh-actions">
+        <a href="https://github.com/vivsh/vyuh" class="vyuh-icon-button" aria-label="Vyuh on GitHub">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22">
+            <path fill="currentColor" d="M12 .5a12 12 0 0 0-3.79 23.39c.6.11.82-.26.82-.58v-2.04c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.2.08 1.84 1.24 1.84 1.24 1.07 1.83 2.8 1.3 3.49.99.11-.78.42-1.3.76-1.6-2.66-.3-5.46-1.33-5.46-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1-.32 3.3 1.23A11.47 11.47 0 0 1 12 4.3c1.02.01 2.05.14 3.01.41 2.29-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.23 1.91 1.23 3.22 0 4.61-2.8 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12 12 0 0 0 12 .5Z" />
+          </svg>
+        </a>
+        <a href="#start" class="vyuh-button vyuh-button-primary">Get Started</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="landing-hero">
+      <div class="vyuh-shell landing-hero-inner">
+        <p class="vyuh-kicker">Rust application framework</p>
+        <h1 class="vyuh-display">Vyuh, wired for real applications.</h1>
+        <p class="vyuh-copy landing-hero-copy">One framework. Every runtime path.</p>
+        <p class="vyuh-copy landing-hero-copy">Build web APIs, background tasks, commands, signals, emitters, and services on the same typed Rust application core.</p>
+        <div class="vyuh-actions" style="margin-top: 30px;">
+          <a href="#start" class="vyuh-button vyuh-button-primary">Get Started</a>
+          <a href="https://github.com/vivsh/vyuh" class="vyuh-button vyuh-button-secondary">View on GitHub</a>
+        </div>
+
+        <div id="philosophy" class="landing-proof-grid">
+          <div class="landing-proof landing-proof-ember"><div class="landing-proof-mark"><span>01</span><i>↘</i></div><strong>Ergonomic</strong><p>Direct APIs, readable handlers, and fewer rituals between intent and implementation.</p></div>
+          <div class="landing-proof landing-proof-moss"><div class="landing-proof-mark"><span>02</span><i>∞</i></div><strong>Cohesive</strong><p>Every runtime path shares one application core instead of drifting into local conventions.</p></div>
+          <div class="landing-proof landing-proof-ocean"><div class="landing-proof-mark"><span>03</span><i>↗</i></div><strong>Scalable</strong><p>Grow by composing bundles and runtime paths without repeatedly reshaping the project.</p></div>
+          <div class="landing-proof landing-proof-violet"><div class="landing-proof-mark"><span>04</span><i>◎</i></div><strong>Observable</strong><p>Registered paths and services expose metadata the framework can inspect and surface.</p></div>
+          <div class="landing-proof landing-proof-ember"><div class="landing-proof-mark"><span>05</span><i>{}</i></div><strong>Safe by type</strong><p>Data, validation, schemas, and service access stay explicit at system boundaries.</p></div>
+          <div class="landing-proof landing-proof-saffron"><div class="landing-proof-mark"><span>06</span><i>⬢</i></div><strong>Complete</strong><p>Web APIs, background work, operations, templates, assets, OpenAPI, and console live together.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="vyuh-shell landing-section">
+      <div class="landing-section-head">
+        <p class="vyuh-kicker">Subsystems</p>
+        <h2 class="vyuh-section-title">Everything you need. Built-in.</h2>
+        <p class="vyuh-copy">Vyuh gives each application concern a direct, documented place to live, so teams can grow without inventing framework glue.</p>
+        <div class="vyuh-rule"></div>
+      </div>
+      <div class="landing-feature-grid">
+        <article class="vyuh-card landing-feature"><span class="vyuh-icon-box" style="color: var(--vyuh-ember);">&lt;/&gt;</span><h3>Routes</h3><p>Extractor-driven handlers with direct, readable registration and no hidden controller layer.</p><span class="landing-feature-label" style="color: var(--vyuh-ember);">Request path</span></article>
+        <article class="vyuh-card landing-feature"><span class="vyuh-icon-box" style="color: var(--vyuh-moss);">↻</span><h3>Tasks</h3><p>Background work with app context, retries, and explicit boundaries.</p><span class="landing-feature-label" style="color: var(--vyuh-moss);">Queued work</span></article>
+        <article class="vyuh-card landing-feature"><span class="vyuh-icon-box" style="color: var(--vyuh-ocean);">~</span><h3>Signals</h3><p>Typed in-process events for domain changes and lifecycle hooks.</p><span class="landing-feature-label" style="color: var(--vyuh-ocean);">Local events</span></article>
+        <article class="vyuh-card landing-feature"><span class="vyuh-icon-box" style="color: var(--vyuh-violet);">↑</span><h3>Emitters</h3><p>Turn schedules and external notifications into typed application data.</p><span class="landing-feature-label" style="color: var(--vyuh-violet);">Outbound flow</span></article>
+        <article class="vyuh-card landing-feature"><span class="vyuh-icon-box" style="color: var(--vyuh-ember);">&gt;_</span><h3>Commands</h3><p>CLI commands with access to the same application services.</p><span class="landing-feature-label" style="color: var(--vyuh-ember);">Ops entrypoint</span></article>
+        <article class="vyuh-card landing-feature"><span class="vyuh-icon-box" style="color: var(--vyuh-saffron);">◆</span><h3>Services</h3><p>Long-running runtime components registered beside your web app.</p><span class="landing-feature-label" style="color: var(--vyuh-saffron);">Runtime process</span></article>
+      </div>
+    </section>
+
+    <section id="code" class="vyuh-shell landing-code-grid">
+      <div class="vyuh-code-window">
+        <div class="vyuh-code-toolbar">
+          <span class="vyuh-dot" style="background: #ff5f57;"></span>
+          <span class="vyuh-dot" style="background: #ffbd2e;"></span>
+          <span class="vyuh-dot" style="background: #28c840;"></span>
+          <span id="code-file" style="margin-left: 16px; color: rgba(16, 24, 39, 0.55); font-family: var(--vyuh-font-mono); font-size: 12px;">src/routes/users.rs</span>
+        </div>
+        <div class="landing-code-body">
+          <div class="landing-code-tabs" aria-label="Code examples">
+            <button class="landing-code-tab is-active" data-key="routes">Routes</button>
+            <button class="landing-code-tab" data-key="tasks">Tasks</button>
+            <button class="landing-code-tab" data-key="signals">Signals</button>
+            <button class="landing-code-tab" data-key="emitters">Emitters</button>
+            <button class="landing-code-tab" data-key="commands">Commands</button>
+            <button class="landing-code-tab" data-key="services">Services</button>
+          </div>
+          <div>
+            <div class="landing-code-mobile-tabs" aria-label="Code examples">
+              <button class="landing-code-tab is-active" data-key="routes">Routes</button>
+              <button class="landing-code-tab" data-key="tasks">Tasks</button>
+              <button class="landing-code-tab" data-key="signals">Signals</button>
+              <button class="landing-code-tab" data-key="emitters">Emitters</button>
+              <button class="landing-code-tab" data-key="commands">Commands</button>
+              <button class="landing-code-tab" data-key="services">Services</button>
+            </div>
+            <pre><code id="code-snippet"></code></pre>
+          </div>
+        </div>
+      </div>
+      <div class="landing-code-copy">
+        <p id="code-eyebrow" class="vyuh-kicker">Routes</p>
+        <h2 id="code-title">Handler-first APIs without hiding the Rust.</h2>
+        <p id="code-copy" class="vyuh-copy">Keep validation, permissions, and typed request handling visible where the behavior actually happens.</p>
+        <ul>
+          <li><span style="color: var(--vyuh-ember);">●</span><span id="code-point-a">Less boilerplate, more clarity</span></li>
+          <li><span style="color: var(--vyuh-ember);">●</span><span id="code-point-b">Compiler-verified request handling</span></li>
+          <li><span style="color: var(--vyuh-ember);">●</span><span id="code-point-c">Built for long-term maintainability</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="stack" class="vyuh-shell landing-stack">
+      <div class="vyuh-card landing-stack-card">
+        <div class="landing-section-head">
+          <p class="vyuh-kicker">Foundation</p>
+          <h2 class="vyuh-section-title">Built on the best of Rust.</h2>
+        </div>
+        <div class="landing-stack-grid">
+          <div class="landing-stack-item"><div class="landing-stack-name" style="color: var(--vyuh-violet);">axum</div><p>Web framework</p></div>
+          <div class="landing-stack-item"><div class="landing-stack-name" style="color: var(--vyuh-ocean);">SQLx</div><p>Async SQL toolkit</p></div>
+          <div class="landing-stack-item"><div class="landing-stack-name" style="color: #0ea5e9;">tokio</div><p>Async runtime</p></div>
+          <div class="landing-stack-item"><div class="landing-stack-name">serde</div><p>Serialization</p></div>
+          <div class="landing-stack-item"><div class="landing-stack-name" style="color: var(--vyuh-ember);">minijinja</div><p>Templates</p></div>
+          <div class="landing-stack-item"><div class="landing-stack-name" style="color: var(--vyuh-moss);">schemars</div><p>JSON Schema</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="start" class="vyuh-shell">
+      <div class="landing-cta">
+        <div class="landing-cta-inner">
+          <div>
+            <h2 class="vyuh-section-title">Ready to build something structured and powerful?</h2>
+            <p class="vyuh-copy">Start with a framework that keeps your project organized from the first route to the last background task.</p>
+          </div>
+          <div class="landing-cta-actions">
+            <a href="#" class="vyuh-button" style="background: var(--vyuh-ink); color: #fff;">Get Started</a>
+            <a href="https://github.com/vivsh/vyuh" class="vyuh-button vyuh-button-secondary">Star on GitHub</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const examples = {
+      routes: {
+        file: "src/routes/users.rs",
+        eyebrow: "Routes",
+        title: "Handler-first APIs without hiding the Rust.",
+        copy: "Keep validation, permissions, and typed request handling visible where the behavior actually happens.",
+        points: ["Less boilerplate, more clarity", "Compiler-verified request handling", "Built for long-term maintainability"],
+        code: `use vyuh::prelude::*;
+
+#[derive(Serialize, Deserialize, JsonSchema, Validate)]
+struct CreateUser {
+    #[validate(email)]
+    email: String,
+    name: String,
+}
+
+async fn create(
+    Permit<User>,
+    Valid(Data(input)): Valid<Data<CreateUser>>,
+) -> Result<Json<User>, Error> {
+    let user = User::create(input).await?;
+    Ok(Json(user))
+}`
+      },
+      tasks: {
+        file: "src/tasks/send_welcome.rs",
+        eyebrow: "Tasks",
+        title: "Move background work into a first-class runtime path.",
+        copy: "Tasks run with application context, explicit inputs, and the same dependency model as the web surface.",
+        points: ["Typed payloads for queued work", "Shared app state without globals", "Retry and schedule behavior stays visible"],
+        code: `use vyuh::prelude::*;
+
+#[derive(Serialize, Deserialize, JsonSchema, Validate)]
+struct WelcomeEmail {
+    #[validate(email)]
+    to: String,
+    user_id: Uuid,
+}
+
+#[bundles::task(name = "send_welcome")]
+async fn send_welcome(
+    site: Site,
+    Data(input): Data<WelcomeEmail>,
+) -> Result<TaskOutcome, Error> {
+    let mail = site.service::<Mailer>()?;
+    mail.send_template(input.user_id, &input.to).await?;
+    TaskOutcome::complete(&"sent").map_err(Error::other)
+}`
+      },
+      signals: {
+        file: "src/signals/user_events.rs",
+        eyebrow: "Signals",
+        title: "Use typed signals for domain events and lifecycle hooks.",
+        copy: "Signals keep local reactions decoupled without turning your app into a hidden event maze.",
+        points: ["Explicit event contracts", "Multiple listeners without request coupling", "Good fit for audit, indexing, and follow-up work"],
+        code: `use vyuh::prelude::*;
+
+#[derive(Clone, Serialize, Deserialize, JsonSchema, Validate)]
+struct UserCreated {
+    id: Uuid,
+    #[validate(email)]
+    email: String,
+}
+
+#[bundles::signal]
+async fn index_user(
+    site: Site,
+    Data(event): Data<UserCreated>,
+) -> Result<(), Error> {
+    let search = site.service::<SearchIndex>()?;
+    search.upsert_user(event.id, event.email).await?;
+    Ok(())
+}`
+      },
+      emitters: {
+        file: "src/emitters/audit.rs",
+        eyebrow: "Emitters",
+        title: "Emit structured messages from the same application model.",
+        copy: "Emitters make outbound data deliberate, typed, and easy to route into signals.",
+        points: ["One shape for emitted data", "Cron, periodic, and PgNotify sources", "Traceable integration points"],
+        code: `use vyuh::prelude::*;
+
+#[derive(Serialize, Deserialize, JsonSchema, Validate)]
+struct AuditSweep {
+    #[validate(length(min = 1))]
+    scope: String,
+    count: u64,
+}
+
+#[bundles::periodic(secs = 60)]
+async fn publish_audit_sweep(
+    IterCount(count): IterCount,
+) -> Data<AuditSweep> {
+    Data::new(AuditSweep {
+        scope: "users".into(),
+        count,
+    })
+}`
+      },
+      commands: {
+        file: "src/commands/reindex.rs",
+        eyebrow: "Commands",
+        title: "Give CLI commands the same app context as production paths.",
+        copy: "Commands are operational entry points, not one-off scripts that reimplement setup and wiring.",
+        points: ["Database and config already loaded", "Useful for migrations and maintenance", "Easy to document and discover"],
+        code: `use vyuh::prelude::*;
+
+#[derive(Serialize, Deserialize, JsonSchema, Validate)]
+struct Reindex {
+    #[validate(length(min = 1))]
+    tenant: String,
+}
+
+async fn reindex(
+    site: Site,
+    Valid(Data(args)): Valid<Data<Reindex>>,
+) -> Result<(), Error> {
+    let search = site.service::<SearchIndex>()?;
+    search.rebuild(args.tenant).await?;
+    Ok(())
+}`
+      },
+      services: {
+        file: "src/services/search.rs",
+        eyebrow: "Services",
+        title: "Run site-lifetime services beside the web application.",
+        copy: "Services are durable runtime components for shared clients, caches, coordinators, and workers.",
+        points: ["Clear startup and shutdown behavior", "Shared runtime and observability", "No separate mini-framework for workers"],
+        code: `use vyuh::prelude::*;
+use vyuh::services::{ServiceInstance, ServiceRef};
+
+#[derive(Default)]
+struct SearchIndex;
+
+impl vyuh::services::Service for SearchIndex {}
+
+#[bundles::service]
+async fn search_index() -> ServiceInstance<SearchIndex> {
+    SearchIndex::default().into()
+}
+
+#[bundles::route(path = "/search")]
+async fn search(
+    index: ServiceRef<SearchIndex>,
+) -> Json<SearchStats> {
+    Json(index.stats().await)
+}`
+      }
+    };
+
+    const snippet = document.querySelector("#code-snippet");
+    const file = document.querySelector("#code-file");
+    const eyebrow = document.querySelector("#code-eyebrow");
+    const title = document.querySelector("#code-title");
+    const copy = document.querySelector("#code-copy");
+    const pointA = document.querySelector("#code-point-a");
+    const pointB = document.querySelector("#code-point-b");
+    const pointC = document.querySelector("#code-point-c");
+    const tabs = document.querySelectorAll(".landing-code-tab");
+
+    function setExample(key) {
+      const example = examples[key];
+      snippet.textContent = example.code;
+      file.textContent = example.file;
+      eyebrow.textContent = example.eyebrow;
+      title.textContent = example.title;
+      copy.textContent = example.copy;
+      pointA.textContent = example.points[0];
+      pointB.textContent = example.points[1];
+      pointC.textContent = example.points[2];
+      tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.key === key));
+    }
+
+    tabs.forEach((tab) => tab.addEventListener("click", () => setExample(tab.dataset.key)));
+    setExample("routes");
+  </script>
+</body>
+</html>

@@ -1,0 +1,150 @@
+.console-body {
+  min-height: 100vh;
+  background: #f6f0e6;
+}
+
+.console-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 76px);
+}
+
+.console-sidebar {
+  border-right: 1px solid var(--vyuh-line);
+  background: rgba(255, 250, 243, 0.82);
+  padding: 24px;
+}
+
+.console-main {
+  padding: 28px;
+}
+
+.console-nav {
+  display: grid;
+  gap: 8px;
+}
+
+.console-nav a {
+  border-radius: var(--vyuh-radius-sm);
+  color: var(--vyuh-muted);
+  display: block;
+  font-weight: 850;
+  padding: 12px 14px;
+}
+
+.console-nav a:hover,
+.console-nav a[aria-current="page"] {
+  background: rgba(236, 91, 26, 0.1);
+  color: var(--vyuh-ember);
+}
+
+.console-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.console-stat {
+  padding: 18px;
+}
+
+.console-stat strong {
+  display: block;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.console-stat span {
+  color: var(--vyuh-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.console-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0 16px;
+}
+
+.console-input,
+.console-select {
+  min-height: 42px;
+  border: 1px solid var(--vyuh-line);
+  border-radius: var(--vyuh-radius-sm);
+  background: #fff;
+  color: var(--vyuh-ink);
+  font: inherit;
+  padding: 0 12px;
+}
+
+.console-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: var(--vyuh-radius-md);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: var(--vyuh-shadow-soft);
+}
+
+.console-table th,
+.console-table td {
+  border-bottom: 1px solid var(--vyuh-line);
+  padding: 14px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.console-table th {
+  color: var(--vyuh-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.console-pill {
+  display: inline-flex;
+  border-radius: 999px;
+  background: rgba(236, 91, 26, 0.1);
+  color: var(--vyuh-ember);
+  font-size: 12px;
+  font-weight: 850;
+  padding: 5px 9px;
+}
+
+.console-detail {
+  margin-top: 18px;
+  padding: 18px;
+}
+
+.console-login {
+  display: grid;
+  min-height: calc(100vh - 76px);
+  place-items: center;
+  padding: 28px;
+}
+
+.console-login-card {
+  max-width: 520px;
+  padding: 34px;
+}
+
+@media (max-width: 860px) {
+  .console-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .console-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--vyuh-line);
+  }
+
+  .console-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .console-table {
+    display: block;
+    overflow-x: auto;
+  }
+}

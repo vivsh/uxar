@@ -1,0 +1,28 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section>
+  <p class="vyuh-kicker">{{ task.status }}</p>
+  <h1 class="vyuh-section-title">{{ task.name }}</h1>
+  <p class="vyuh-copy">Task record {{ task.id }}</p>
+
+  <section class="vyuh-card console-detail">
+    <table class="console-table">
+      <tbody>
+        <tr><th>Attempts</th><td>{{ task.attempts }}</td></tr>
+        <tr><th>Priority</th><td>{{ task.priority }}</td></tr>
+        <tr><th>Identity</th><td>{{ task.identity | default(value="") }}</td></tr>
+        <tr><th>Resume topic</th><td>{{ task.resume_topic | default(value="") }}</td></tr>
+        <tr><th>Last error</th><td>{{ task.last_error | default(value="") }}</td></tr>
+        <tr><th>Created</th><td>{{ task.created_at }}</td></tr>
+        <tr><th>Updated</th><td>{{ task.updated_at }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="vyuh-code-window" style="margin-top: 24px;">
+    <div class="vyuh-code-toolbar">Payload</div>
+    <pre><code>{{ payload }}</code></pre>
+  </section>
+</section>
+{% endblock %}

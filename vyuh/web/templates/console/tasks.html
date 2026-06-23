@@ -1,0 +1,39 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section>
+  <p class="vyuh-kicker">Durable work</p>
+  <h1 class="vyuh-section-title">Tasks</h1>
+  <p class="vyuh-copy">Inspection-only task records. This UI does not claim, retry, cancel, or resume tasks.</p>
+
+  <form class="console-toolbar" method="get" action="{{ base_path }}/tasks">
+    <input class="console-input" type="search" name="q" placeholder="Search" value="{{ query.q | default(value='') }}">
+    <select class="console-select" name="status">
+      <option value="">All statuses</option>
+      {% for status in statuses %}
+      <option value="{{ status }}" {% if query.status == status %}selected{% endif %}>{{ status }}</option>
+      {% endfor %}
+    </select>
+    <button class="vyuh-button vyuh-button-primary" type="submit">Filter</button>
+  </form>
+
+  <table class="console-table">
+    <thead>
+      <tr><th>Status</th><th>Name</th><th>Attempts</th><th>Priority</th><th>Updated</th></tr>
+    </thead>
+    <tbody>
+      {% for task in page.items %}
+      <tr>
+        <td><span class="console-pill">{{ task.status }}</span></td>
+        <td><a href="{{ base_path }}/tasks/{{ task.id }}">{{ task.name }}</a></td>
+        <td>{{ task.attempts }}</td>
+        <td>{{ task.priority }}</td>
+        <td>{{ task.updated_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No tasks match this filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

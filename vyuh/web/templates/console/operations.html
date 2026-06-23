@@ -1,0 +1,38 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section>
+  <p class="vyuh-kicker">Registry</p>
+  <h1 class="vyuh-section-title">Operations</h1>
+  <p class="vyuh-copy">Routes, commands, tasks, signals, emitters, services, and generated docs registered in the current site.</p>
+
+  <form class="console-toolbar" method="get" action="{{ base_path }}/operations">
+    <input class="console-input" type="search" name="q" placeholder="Search" value="{{ query.q | default(value='') }}">
+    <select class="console-select" name="kind">
+      <option value="">All kinds</option>
+      {% for kind in kinds %}
+      <option value="{{ kind }}" {% if query.kind == kind %}selected{% endif %}>{{ kind }}</option>
+      {% endfor %}
+    </select>
+    <button class="vyuh-button vyuh-button-primary" type="submit">Filter</button>
+  </form>
+
+  <table class="console-table">
+    <thead>
+      <tr><th>Kind</th><th>Name</th><th>Path</th><th>Summary</th></tr>
+    </thead>
+    <tbody>
+      {% for op in page.items %}
+      <tr>
+        <td><span class="console-pill">{{ op.kind }}</span></td>
+        <td><a href="{{ base_path }}/operations/{{ op.id }}">{{ op.name }}</a></td>
+        <td>{{ op.path }}</td>
+        <td>{{ op.summary | default(value="") }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No operations match this filter.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

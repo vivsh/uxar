@@ -1,0 +1,28 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section>
+  <p class="vyuh-kicker">Runtime</p>
+  <h1 class="vyuh-section-title">Overview</h1>
+  <p class="vyuh-copy">Read-only operational status for this Vyuh site.</p>
+
+  <div class="console-grid" style="margin-top: 24px;">
+    <article class="vyuh-card console-stat"><strong>{{ status.site.operation_count }}</strong><span>Operations</span></article>
+    <article class="vyuh-card console-stat"><strong>{{ status.site.command_count }}</strong><span>Commands</span></article>
+    <article class="vyuh-card console-stat"><strong>{{ status.site.service_count }}</strong><span>Services</span></article>
+    <article class="vyuh-card console-stat"><strong>{{ status.site.uptime_seconds }}</strong><span>Uptime seconds</span></article>
+  </div>
+
+  <section class="vyuh-card console-detail">
+    <h2>Site</h2>
+    <table class="console-table">
+      <tbody>
+        <tr><th>Package</th><td>{{ status.site.package_name }} {{ status.site.vyuh_version }}</td></tr>
+        <tr><th>Address</th><td>{{ status.site.host }}:{{ status.site.port }}</td></tr>
+        <tr><th>Backend</th><td>{{ status.site.database_backend }}</td></tr>
+        <tr><th>Timezone</th><td>{{ status.site.timezone }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+</section>
+{% endblock %}

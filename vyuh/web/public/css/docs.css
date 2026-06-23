@@ -1,0 +1,55 @@
+:root {
+  --content-max-width: 860px;
+}
+
+body {
+  color: var(--vyuh-ink);
+  background: var(--vyuh-paper);
+  font-family: var(--vyuh-font-sans);
+}
+
+#content main {
+  line-height: 1.72;
+}
+
+#content h1,
+#content h2,
+#content h3 {
+  color: var(--vyuh-ink);
+  letter-spacing: 0;
+}
+
+#content h1 {
+  font-family: var(--vyuh-font-display);
+  font-size: 2.6rem;
+}
+
+#content a {
+  color: var(--vyuh-ember);
+}
+
+.sidebar {
+  background: #fffaf3;
+  border-right: 1px solid var(--vyuh-line);
+}
+
+.chapter li.chapter-item a.active,
+.chapter li.chapter-item a:hover {
+  color: var(--vyuh-ember);
+}
+
+pre {
+  border: 1px solid var(--vyuh-line);
+  border-radius: var(--vyuh-radius-md);
+  background: #fffaf3;
+}
+
+code {
+  font-family: var(--vyuh-font-mono);
+}
+
+blockquote {
+  border-left: 4px solid var(--vyuh-ember);
+  background: rgba(236, 91, 26, 0.08);
+  border-radius: 0 var(--vyuh-radius-sm) var(--vyuh-radius-sm) 0;
+}

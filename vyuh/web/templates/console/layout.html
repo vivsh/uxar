@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} - Vyuh Console</title>
+  <link rel="icon" href="/assets/img/favicon.svg">
+  <link rel="stylesheet" href="/assets/css/base.css">
+  <link rel="stylesheet" href="/assets/css/console.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  <script src="/assets/js/console.js" defer></script>
+</head>
+<body class="vyuh-page console-body">
+  <header class="vyuh-header">
+    <nav class="vyuh-shell vyuh-nav">
+      <a class="vyuh-brand" href="{{ base_path }}/overview">
+        <img src="/assets/img/vyuh-logo-transparent.png" alt="Vyuh logo">
+        <span>vyuh</span>
+      </a>
+      <div class="vyuh-links">
+        <a href="{{ base_path }}/operations">Operations</a>
+        <a href="{{ base_path }}/tasks">Tasks</a>
+        <a href="{{ base_path }}/api/status">API</a>
+      </div>
+      <form method="post" action="{{ base_path }}/api/logout">
+        <button class="vyuh-button vyuh-button-secondary" type="submit">Logout</button>
+      </form>
+    </nav>
+  </header>
+  <div class="console-layout">
+    <aside class="console-sidebar">
+      <p class="vyuh-kicker">Console</p>
+      <nav class="console-nav" aria-label="Console navigation">
+        <a href="{{ base_path }}/overview" {% if active == "overview" %}aria-current="page"{% endif %}>Overview</a>
+        <a href="{{ base_path }}/operations" {% if active == "operations" %}aria-current="page"{% endif %}>Operations</a>
+        <a href="{{ base_path }}/tasks" {% if active == "tasks" %}aria-current="page"{% endif %}>Tasks</a>
+      </nav>
+    </aside>
+    <main class="console-main">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>
