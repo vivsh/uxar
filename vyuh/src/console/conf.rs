@@ -21,6 +21,7 @@ pub struct ConsoleConf {
     pub enabled: bool,
     pub path: String,
     pub bootstrap_token_ttl_seconds: u64,
+    pub session_ttl_seconds: u64,
     pub print_bootstrap_url: ConsoleBootstrapMode,
     pub cookie_name: String,
     pub page_size_default: usize,
@@ -34,6 +35,7 @@ impl Default for ConsoleConf {
             enabled: false,
             path: "/_console".to_string(),
             bootstrap_token_ttl_seconds: 300,
+            session_ttl_seconds: 28_800,
             print_bootstrap_url: ConsoleBootstrapMode::LocalOnly,
             cookie_name: "vyuh_console".to_string(),
             page_size_default: 50,
@@ -56,6 +58,11 @@ impl ConsoleConf {
 
     pub fn bootstrap_token_ttl_seconds(mut self, seconds: u64) -> Self {
         self.bootstrap_token_ttl_seconds = seconds;
+        self
+    }
+
+    pub fn session_ttl_seconds(mut self, seconds: u64) -> Self {
+        self.session_ttl_seconds = seconds;
         self
     }
 
@@ -105,6 +112,13 @@ impl ConsoleConf {
         if self.bootstrap_token_ttl_seconds == 0 {
             errors.push(ConfError::InvalidValue {
                 field: "console.bootstrap_token_ttl_seconds".into(),
+                reason: "must be greater than zero".into(),
+                expected: Some("a positive duration in seconds".into()),
+            });
+        }
+        if self.session_ttl_seconds == 0 {
+            errors.push(ConfError::InvalidValue {
+                field: "console.session_ttl_seconds".into(),
                 reason: "must be greater than zero".into(),
                 expected: Some("a positive duration in seconds".into()),
             });

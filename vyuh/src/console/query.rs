@@ -46,6 +46,7 @@ impl TaskQuery {
 pub fn filter_operations<'a>(
     operations: impl Iterator<Item = &'a Operation>,
     query: &OperationQuery,
+    console_bundle_id: Option<uuid::Uuid>,
     default_limit: usize,
     max_limit: usize,
 ) -> (Vec<&'a Operation>, Option<String>) {
@@ -57,6 +58,7 @@ pub fn filter_operations<'a>(
     let owner = query.owner.as_deref();
 
     let mut filtered = operations
+        .filter(|op| !is_console_operation(op, console_bundle_id))
         .filter(|op| kind.as_ref().is_none_or(|kind| &op.kind == kind))
         .filter(|op| query.hidden.is_none_or(|hidden| op.hidden == hidden))
         .filter(|op| owner.is_none_or(|owner| op.owner.as_deref() == Some(owner)))
@@ -93,6 +95,10 @@ pub fn filter_operations<'a>(
     } else {
         (page, None)
     }
+}
+
+pub fn is_console_operation(op: &Operation, console_bundle_id: Option<uuid::Uuid>) -> bool {
+    console_bundle_id.is_some_and(|bundle_id| op.bundle_id == Some(bundle_id))
 }
 
 pub fn clamp_limit(limit: Option<usize>, default_limit: usize, max_limit: usize) -> usize {

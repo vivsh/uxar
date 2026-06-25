@@ -1,0 +1,1 @@
+Error: ConfError(Many([InvalidValue { field: "secret_key", reason: "must not be the default value in release builds", expected: Some("a custom secret key") }]))

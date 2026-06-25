@@ -1,0 +1,194 @@
+html {
+  color-scheme: light;
+}
+
+body {
+  color-scheme: light;
+  letter-spacing: $vyuh-tracking-body;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.h1,
+.h2,
+.h3,
+.h4,
+.h5,
+.h6 {
+  font-weight: $vyuh-heading-weight;
+  letter-spacing: $vyuh-tracking-heading;
+}
+
+p {
+  line-height: $vyuh-line-body;
+}
+
+strong,
+b,
+th,
+label,
+caption {
+  font-weight: $vyuh-label-weight;
+}
+
+small,
+caption {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-sm;
+}
+
+label,
+th {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-xs;
+  letter-spacing: $vyuh-tracking-label;
+  text-transform: uppercase;
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: $vyuh-font-mono;
+}
+
+pre {
+  font-size: $vyuh-text-code;
+  line-height: $vyuh-line-code;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.vyuh-kicker {
+  color: $vyuh-ember;
+  display: block;
+  font-family: $vyuh-font-mono;
+  font-size: $vyuh-text-xs;
+  letter-spacing: $vyuh-tracking-kicker;
+  text-transform: uppercase;
+}
+
+.vyuh-display {
+  color: $vyuh-ink;
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-display;
+  letter-spacing: $vyuh-tracking-display;
+  line-height: $vyuh-line-tight;
+  margin: 0;
+}
+
+.vyuh-section-title {
+  color: $vyuh-ink;
+  font-size: $vyuh-text-section;
+  letter-spacing: $vyuh-tracking-section;
+  line-height: $vyuh-line-heading;
+  margin: 0;
+}
+
+.vyuh-copy {
+  color: $vyuh-ink-soft;
+}
+
+.vyuh-button,
+.vyuh-pill,
+.vyuh-console-link {
+  font-size: $vyuh-text-sm;
+  font-weight: $vyuh-label-weight;
+}
+
+.vyuh-button {
+  line-height: $vyuh-line-tight;
+}
+
+.vyuh-pill {
+  font-size: $vyuh-text-xs;
+}
+
+.vyuh-code-window pre,
+.vyuh-schema-card pre {
+  color: #fffaf3;
+}
+
+.vyuh-schema-card pre {
+  font-size: $vyuh-text-code-compact;
+  line-height: $vyuh-line-code-compact;
+}
+
+.stylebook-brand {
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-brand;
+  line-height: $vyuh-line-tight;
+}
+
+.stylebook-section-title {
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-stylebook-section;
+  letter-spacing: $vyuh-tracking-stylebook-section;
+  line-height: $vyuh-line-stylebook-section;
+}
+
+.stylebook-doc-sample h3 {
+  font-family: $vyuh-font-display;
+}
+
+.stylebook-doc-sample code {
+  color: $vyuh-ember;
+}
+
+.landing-brand {
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-brand;
+  line-height: $vyuh-line-tight;
+}
+
+.landing-nav-links a,
+.landing-code-file {
+  font-size: $vyuh-text-sm;
+}
+
+.landing-nav-links a {
+  font-weight: $vyuh-label-weight;
+}
+
+.landing-icon-box,
+.landing-code-file {
+  font-family: $vyuh-font-mono;
+}
+
+.landing-code-file {
+  font-size: $vyuh-text-xs;
+}
+
+.landing-philosophy-item h3 {
+  font-size: 1rem;
+  line-height: $vyuh-line-heading;
+}
+
+.landing-philosophy-item p {
+  font-size: $vyuh-text-sm;
+  line-height: $vyuh-line-body;
+}
+
+.landing-philosophy-mark {
+  font-family: $vyuh-font-mono;
+  font-size: $vyuh-text-sm;
+}
+
+.landing-stack-name {
+  font-size: $vyuh-text-stack;
+}
+
+@media (max-width: 820px) {
+  .landing-brand {
+    font-size: $vyuh-text-brand-mobile;
+  }
+}

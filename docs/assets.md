@@ -103,10 +103,9 @@ vyuh/web/public/img/vyuh-logo-transparent.png -> /assets/img/vyuh-logo-transpare
 vyuh/web/templates/console/layout.html -> private Minijinja template
 ```
 
-`SiteConf.static_dir(...)` remains separate. Use configured static dirs for
-application-owned filesystem folders. Use bundled assets for files that should
-ship with a bundle and be available from debug filesystem reads or release
-embedding.
+Static serving is intentionally bundle-owned. Register application assets
+through bundle asset dirs so public files and private templates ship through the
+same debug-filesystem and release-embedding machinery.
 
 ## Templates
 
@@ -170,8 +169,8 @@ read from disk during development or served from the binary in production.
 - Invalid paths and traversal attempts are rejected.
 - Template names come from `templates/**`; public asset names come from
   `public/**`.
-- `SiteConf.static_dir(...)` does not embed files and is independent from bundle
-  assets.
+- Static files must live under registered bundle asset dirs and `public/**` to
+  be served by the runtime asset route.
 
 ## Current Limitations
 

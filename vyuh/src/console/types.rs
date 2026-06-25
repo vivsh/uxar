@@ -2,8 +2,10 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::{
-    Operation, OperationKind,
+    Operation, OperationKind, Site,
+    auth::JwtKeySource,
     callables::{ArgPart, ArgSpec, ReturnPart, ReturnSpec, TypeSchema},
+    logging::LogSink,
     tasks::{TaskRecord, TaskStatus},
 };
 
@@ -192,4 +194,300 @@ impl From<&TaskRecord> for TaskDetailOut {
 
 fn parse_json(value: &str) -> Option<serde_json::Value> {
     serde_json::from_str(value).ok()
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ConfigOut {
+    pub site: SiteConfigOut,
+    pub database: DatabaseConfigOut,
+    pub auth: AuthConfigOut,
+    pub console: ConsoleConfigOut,
+    pub tasks: TaskConfigOut,
+    pub emitters: EmitterConfigOut,
+    pub uploads: UploadConfigOut,
+    pub channels: ChannelConfigOut,
+    pub http: HttpConfigOut,
+    pub logging: LoggingConfigOut,
+}
+
+impl ConfigOut {
+    pub fn from_site(site: &Site) -> Self {
+        let conf = site.conf();
+        Self {
+            site: SiteConfigOut {
+                host: conf.host.clone(),
+                port: conf.port,
+                project_dir: conf.project_dir.clone(),
+                timezone: conf.tz.clone().unwrap_or_else(|| "UTC".to_string()),
+                log_init: conf.log_init,
+                touch_reload: conf.touch_reload.clone(),
+            },
+            database: DatabaseConfigOut {
+                backend: database_backend(),
+                min_connections: conf.database.min_connections,
+                max_connections: conf.database.max_connections,
+                lazy: conf.database.lazy,
+                url: "<redacted>".to_string(),
+            },
+            auth: AuthConfigOut {
+                access_ttl: conf.auth.access_ttl,
+                refresh_ttl: conf.auth.refresh_ttl,
+                issuer: conf.auth.issuer.clone(),
+                audience: format!("{:?}", conf.auth.audience),
+                leeway_seconds: conf.auth.leeway_seconds,
+                min_secret_len: conf.auth.min_secret_len,
+                jwt_algorithm: format!("{:?}", conf.auth.jwt.algorithm),
+                jwt_signing_key_source: key_source(&conf.auth.jwt.signing_key),
+                jwt_verifying_key_source: conf.auth.jwt.verifying_key.as_ref().map(key_source),
+                jwt_key_id: conf.auth.jwt.key_id.clone(),
+                api_keys_enabled: conf.auth.api_keys.enabled,
+                api_key_header: conf.auth.api_keys.header.clone(),
+                api_key_authorization_scheme: conf.auth.api_keys.authorization_scheme.clone(),
+                api_key_allow_query_param: conf.auth.api_keys.allow_query_param,
+                api_key_query_param: conf.auth.api_keys.query_param.clone(),
+            },
+            console: ConsoleConfigOut {
+                enabled: conf.console.enabled,
+                path: conf.console.path.clone(),
+                bootstrap_token_ttl_seconds: conf.console.bootstrap_token_ttl_seconds,
+                session_ttl_seconds: conf.console.session_ttl_seconds,
+                print_bootstrap_url: format!("{:?}", conf.console.print_bootstrap_url),
+                cookie_name: conf.console.cookie_name.clone(),
+                page_size_default: conf.console.page_size_default,
+                page_size_max: conf.console.page_size_max,
+                status_cache_ttl_seconds: conf.console.status_cache_ttl_seconds,
+            },
+            tasks: TaskConfigOut {
+                poll_interval_ms: conf.tasks.poll_interval_ms,
+                capacity: conf.tasks.capacity,
+                concurrency: conf.tasks.concurrency,
+                batch_size: conf.tasks.batch_size,
+                lease_duration_ms: conf.tasks.lease_duration_ms,
+            },
+            emitters: EmitterConfigOut {
+                notify_channel_capacity: conf.emitters.notify_channel_capacity,
+                max_in_flight_handlers: conf.emitters.max_in_flight_handlers,
+                pgnotify_reconnect_initial_ms: conf.emitters.pgnotify_reconnect_initial_ms,
+                pgnotify_reconnect_max_ms: conf.emitters.pgnotify_reconnect_max_ms,
+            },
+            uploads: UploadConfigOut {
+                dir: conf.uploads.dir.clone(),
+                base_url: conf.uploads.base_url.clone(),
+                temp_dir: conf.uploads.temp_dir.clone(),
+                max_request_bytes: conf.uploads.max_request_bytes,
+                max_file_bytes: conf.uploads.max_file_bytes,
+                max_files: conf.uploads.max_files,
+                max_fields: conf.uploads.max_fields,
+                memory_threshold_bytes: conf.uploads.memory_threshold_bytes,
+            },
+            channels: ChannelConfigOut {
+                enabled: conf.channels.enabled,
+                subscriber_queue: conf.channels.subscriber_queue,
+                command_queue: conf.channels.command_queue,
+                replay_limit: conf.channels.replay_limit,
+                retention_events: conf.channels.retention_events,
+                max_topics_per_subscribe: conf.channels.max_topics_per_subscribe,
+                max_topic_len: conf.channels.max_topic_len,
+                max_message_bytes: conf.channels.max_message_bytes,
+                long_poll_timeout_ms: conf.channels.long_poll_timeout_ms,
+                sse_keepalive_ms: conf.channels.sse_keepalive_ms,
+                slow_subscriber_policy: format!("{:?}", conf.channels.slow_subscriber_policy),
+            },
+            http: HttpConfigOut {
+                slash_policy: format!("{:?}", conf.http.slash.policy),
+                catch_panic_enabled: conf.http.catch_panic.enabled,
+                request_id_enabled: conf.http.request_id.enabled,
+                request_id_header: conf.http.request_id.header.clone(),
+                trace_enabled: conf.http.trace.enabled,
+                compression_enabled: conf.http.compression.enabled,
+                cors_enabled: conf.http.cors.enabled,
+                cors_permissive: conf.http.cors.permissive,
+                timeout_enabled: conf.http.timeout.enabled,
+                timeout_ms: conf.http.timeout.timeout_ms,
+                body_limit_enabled: conf.http.body_limit.enabled,
+                body_limit_max_bytes: conf.http.body_limit.max_bytes,
+                security_headers_enabled: conf.http.security_headers.enabled,
+            },
+            logging: LoggingConfigOut {
+                env_prefix: conf.logging.resolved_env_prefix().to_string(),
+                rules: conf.logging.rules.iter().map(LogRuleOut::from).collect(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct SiteConfigOut {
+    pub host: String,
+    pub port: u16,
+    pub project_dir: String,
+    pub timezone: String,
+    pub log_init: bool,
+    pub touch_reload: Option<String>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct DatabaseConfigOut {
+    pub backend: &'static str,
+    pub min_connections: u32,
+    pub max_connections: u32,
+    pub lazy: bool,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct AuthConfigOut {
+    pub access_ttl: i64,
+    pub refresh_ttl: i64,
+    pub issuer: Option<String>,
+    pub audience: String,
+    pub leeway_seconds: u64,
+    pub min_secret_len: usize,
+    pub jwt_algorithm: String,
+    pub jwt_signing_key_source: String,
+    pub jwt_verifying_key_source: Option<String>,
+    pub jwt_key_id: Option<String>,
+    pub api_keys_enabled: bool,
+    pub api_key_header: String,
+    pub api_key_authorization_scheme: Option<String>,
+    pub api_key_allow_query_param: bool,
+    pub api_key_query_param: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ConsoleConfigOut {
+    pub enabled: bool,
+    pub path: String,
+    pub bootstrap_token_ttl_seconds: u64,
+    pub session_ttl_seconds: u64,
+    pub print_bootstrap_url: String,
+    pub cookie_name: String,
+    pub page_size_default: usize,
+    pub page_size_max: usize,
+    pub status_cache_ttl_seconds: u64,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct TaskConfigOut {
+    pub poll_interval_ms: u32,
+    pub capacity: usize,
+    pub concurrency: usize,
+    pub batch_size: usize,
+    pub lease_duration_ms: u32,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct EmitterConfigOut {
+    pub notify_channel_capacity: usize,
+    pub max_in_flight_handlers: usize,
+    pub pgnotify_reconnect_initial_ms: u64,
+    pub pgnotify_reconnect_max_ms: u64,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct UploadConfigOut {
+    pub dir: String,
+    pub base_url: Option<String>,
+    pub temp_dir: Option<String>,
+    pub max_request_bytes: u64,
+    pub max_file_bytes: u64,
+    pub max_files: usize,
+    pub max_fields: usize,
+    pub memory_threshold_bytes: u64,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct ChannelConfigOut {
+    pub enabled: bool,
+    pub subscriber_queue: usize,
+    pub command_queue: usize,
+    pub replay_limit: usize,
+    pub retention_events: usize,
+    pub max_topics_per_subscribe: usize,
+    pub max_topic_len: usize,
+    pub max_message_bytes: usize,
+    pub long_poll_timeout_ms: u64,
+    pub sse_keepalive_ms: u64,
+    pub slow_subscriber_policy: String,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct HttpConfigOut {
+    pub slash_policy: String,
+    pub catch_panic_enabled: bool,
+    pub request_id_enabled: bool,
+    pub request_id_header: String,
+    pub trace_enabled: bool,
+    pub compression_enabled: bool,
+    pub cors_enabled: bool,
+    pub cors_permissive: bool,
+    pub timeout_enabled: bool,
+    pub timeout_ms: u64,
+    pub body_limit_enabled: bool,
+    pub body_limit_max_bytes: u64,
+    pub security_headers_enabled: bool,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct LoggingConfigOut {
+    pub env_prefix: String,
+    pub rules: Vec<LogRuleOut>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct LogRuleOut {
+    pub name: String,
+    pub sink: String,
+    pub path: Option<String>,
+    pub rotation: Option<String>,
+    pub default_filter: String,
+}
+
+impl From<&crate::logging::LogRule> for LogRuleOut {
+    fn from(rule: &crate::logging::LogRule) -> Self {
+        let (sink, path, rotation) = match &rule.sink {
+            LogSink::File { dir, rotation } => (
+                "file".to_string(),
+                Some(dir.clone()),
+                Some(format!("{:?}", rotation)),
+            ),
+            LogSink::Stdout { .. } => ("stdout".to_string(), None, None),
+            LogSink::Stderr { .. } => ("stderr".to_string(), None, None),
+        };
+        Self {
+            name: rule.name.clone(),
+            sink,
+            path,
+            rotation,
+            default_filter: rule.default_filter.clone(),
+        }
+    }
+}
+
+fn key_source(source: &JwtKeySource) -> String {
+    match source {
+        JwtKeySource::SiteSecret => "site_secret".to_string(),
+        JwtKeySource::Inline(_) => "inline_redacted".to_string(),
+        JwtKeySource::Env(name) => format!("env:{name}"),
+        JwtKeySource::File(path) => format!("file:{path}"),
+    }
+}
+
+fn database_backend() -> &'static str {
+    #[cfg(feature = "postgres")]
+    {
+        return "postgres";
+    }
+    #[cfg(all(not(feature = "postgres"), feature = "mysql"))]
+    {
+        return "mysql";
+    }
+    #[cfg(all(not(any(feature = "postgres", feature = "mysql")), feature = "sqlite"))]
+    {
+        return "sqlite";
+    }
+    #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+    {
+        "memory"
+    }
 }

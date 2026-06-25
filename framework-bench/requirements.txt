@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+asyncpg
+sse-starlette
+django
+djangorestframework
+gunicorn
+psycopg[binary]

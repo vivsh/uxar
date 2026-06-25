@@ -86,7 +86,7 @@ let bundle = bundles::bundle! {
 Equivalent direct registration:
 
 ```rust
-use vyuh::{bundles, tasks::TaskHandlerConf};
+use vyuh::{bundles, bundles::IntoBundle, tasks::TaskHandlerConf};
 
 let bundle = bundles::task(
     send_email,

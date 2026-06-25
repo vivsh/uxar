@@ -42,6 +42,16 @@ pub struct Operation {
 }
 
 impl Operation {
+    pub(crate) fn assign_bundle_id(&mut self, id: uuid::Uuid) {
+        if self.bundle_id.is_none() {
+            self.bundle_id = Some(id);
+        }
+    }
+
+    pub(crate) fn set_bundle_id(&mut self, id: uuid::Uuid) {
+        self.bundle_id = Some(id);
+    }
+
     pub(crate) fn nest(&mut self, path: &str) {
         self.path = format!("{}{}", path.trim_end_matches('/'), self.path);
     }

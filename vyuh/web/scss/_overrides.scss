@@ -1,0 +1,83 @@
+$vyuh-ink: #101827;
+$vyuh-ink-soft: rgba(16, 24, 39, 0.72);
+$vyuh-muted: #5d6875;
+$vyuh-ember: #ec5b1a;
+$vyuh-saffron: #f59e0b;
+$vyuh-paper: #fbf6ed;
+$vyuh-paper-deep: #f7ead9;
+$vyuh-clay: #e8ded0;
+$vyuh-line: rgba(16, 24, 39, 0.1);
+$vyuh-moss: #557c45;
+$vyuh-ocean: #2374ab;
+$vyuh-violet: #8b5cf6;
+$vyuh-success: #2f7d4f;
+$vyuh-warning: #a45f00;
+$vyuh-danger: #b83232;
+$vyuh-info: #2374ab;
+
+$vyuh-font-sans: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+$vyuh-font-display: "Fraunces", Georgia, serif;
+$vyuh-font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+
+$vyuh-radius-sm: 0.5rem;
+$vyuh-radius-md: 0.75rem;
+$vyuh-radius-lg: 1.125rem;
+$vyuh-shadow-soft: 0 12px 36px rgba(16, 24, 39, 0.09);
+$vyuh-shadow-lift: 0 24px 70px rgba(16, 24, 39, 0.14);
+
+$vyuh-heading-weight: 500;
+$vyuh-label-weight: 600;
+
+$vyuh-text-xs: 0.75rem;
+$vyuh-text-sm: 0.875rem;
+$vyuh-text-code: 0.8125rem;
+$vyuh-text-code-compact: 0.6875rem;
+$vyuh-text-brand: 2rem;
+$vyuh-text-brand-mobile: 1.5rem;
+$vyuh-text-stack: 1.625rem;
+$vyuh-text-section: clamp(1.75rem, 4vw, 2.5rem);
+$vyuh-text-display: clamp(3rem, 9vw, 6.5rem);
+$vyuh-text-stylebook-section: clamp(2rem, 4vw, 3.75rem);
+
+$vyuh-line-tight: 1;
+$vyuh-line-heading: 1.14;
+$vyuh-line-body: 1.72;
+$vyuh-line-code: 1.7;
+$vyuh-line-code-compact: 1.65;
+$vyuh-line-stylebook-section: 1.06;
+
+$vyuh-tracking-body: -0.01em;
+$vyuh-tracking-heading: -0.02em;
+$vyuh-tracking-section: -0.03em;
+$vyuh-tracking-display: -0.045em;
+$vyuh-tracking-label: 0.04em;
+$vyuh-tracking-kicker: 0.08em;
+$vyuh-tracking-stylebook-section: -0.04em;
+
+$primary: $vyuh-ember;
+$secondary: $vyuh-ink;
+$success: $vyuh-success;
+$info: $vyuh-info;
+$warning: $vyuh-warning;
+$danger: $vyuh-danger;
+$body-bg: $vyuh-paper;
+$body-color: $vyuh-ink;
+$font-family-sans-serif: $vyuh-font-sans;
+$font-family-monospace: $vyuh-font-mono;
+$font-weight-normal: 400;
+$font-weight-semibold: $vyuh-label-weight;
+$font-weight-bold: $vyuh-label-weight;
+$headings-font-family: $vyuh-font-sans;
+$headings-font-weight: $vyuh-heading-weight;
+$headings-line-height: $vyuh-line-heading;
+$display-font-family: $vyuh-font-display;
+$display-font-weight: $vyuh-heading-weight;
+$btn-font-weight: $vyuh-label-weight;
+$badge-font-weight: $vyuh-label-weight;
+$border-color: $vyuh-line;
+$border-radius: $vyuh-radius-sm;
+$border-radius-lg: $vyuh-radius-md;
+$box-shadow: $vyuh-shadow-soft;
+$link-color: $vyuh-ember;
+$link-decoration: none;
+$enable-negative-margins: true;

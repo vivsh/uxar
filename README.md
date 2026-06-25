@@ -41,9 +41,9 @@ The landing page and mdBook can be built into one GitHub Pages artifact:
 scripts/build-pages.sh
 ```
 
-For the `vivsh/vyuh` repository, GitHub Pages will serve the landing page at
-`https://vivsh.github.io/vyuh/` and the book at
-`https://vivsh.github.io/vyuh/docs/`.
+For the `vyuh-rs/vyuh` repository, GitHub Pages will serve the landing page at
+`https://vyuh-rs.github.io/` and the book at
+`https://vyuh-rs.github.io/docs/`.
 
 The console UI is server-rendered with Minijinja and uses the same bundled asset
 serving path as application assets, for example `/assets/css/base.css` and

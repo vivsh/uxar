@@ -40,6 +40,7 @@ pub struct ConsoleUser {
 #[derive(Debug, Clone)]
 pub(crate) struct ConsoleRuntime {
     bootstrap: Arc<Mutex<Option<BootstrapToken>>>,
+    bundle_id: Uuid,
     sessions: Arc<Mutex<HashMap<Hash, ConsoleSession>>>,
     status_cache: Arc<Mutex<Option<StatusCache>>>,
 }
@@ -64,7 +65,7 @@ struct StatusCache {
 }
 
 impl ConsoleRuntime {
-    pub(crate) fn new(ttl: Duration) -> Self {
+    pub(crate) fn new(ttl: Duration, bundle_id: Uuid) -> Self {
         let token = new_token();
         Self {
             bootstrap: Arc::new(Mutex::new(Some(BootstrapToken {
@@ -72,9 +73,14 @@ impl ConsoleRuntime {
                 expires_at: Instant::now() + ttl,
                 display_token: token,
             }))),
+            bundle_id,
             sessions: Arc::new(Mutex::new(HashMap::new())),
             status_cache: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub(crate) fn bundle_id(&self) -> Uuid {
+        self.bundle_id
     }
 
     pub(crate) fn bootstrap_token(&self) -> Option<String> {

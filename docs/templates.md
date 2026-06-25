@@ -4,18 +4,16 @@ Vyuh templates provide server-side HTML rendering through Minijinja. Templates
 are loaded when a site is built and are available through `site.templates()` or
 the `Templates` route extractor.
 
-Templates are private application resources. They can live in project template
-directories or inside bundle asset dirs under `templates/**`. They are not
-served as public assets and are not copied by `collect_static`.
+Templates are private bundle resources. They live inside registered bundle
+asset dirs under `templates/**`. They are not served as public assets and are
+not copied by `collect_static`.
 
 ## Overview
 
 The main public pieces are:
 
 - `SiteConf::templates(TemplateConf)` for template environment configuration.
-- `SiteConf::templates_dir(...)` as a convenience for adding a project template
-  directory.
-- Asset dir `templates/**` for bundle-owned templates.
+- Asset dir `templates/**` for bundle-owned template files.
 - `Site::templates()` and the `Templates` route extractor for rendering.
 - Built-in helpers and filters for assets, reverse URLs, date/time formatting,
   and common display transforms.
@@ -35,7 +33,6 @@ use vyuh::{
 };
 
 let conf = SiteConf::default().templates(TemplateConf {
-    dirs: vec!["templates".into()],
     auto_escape: TemplateAutoEscape::ByExtension,
     undefined: TemplateUndefined::Strict,
     trim_blocks: true,
@@ -47,12 +44,6 @@ let conf = SiteConf::default().templates(TemplateConf {
         datetime: "%d %b %Y, %H:%M".into(),
     },
 });
-```
-
-For the common case, `templates_dir(...)` appends to `TemplateConf::dirs`:
-
-```rust
-let conf = vyuh::SiteConf::default().templates_dir("templates");
 ```
 
 Defaults:
@@ -70,15 +61,7 @@ Defaults:
 
 ## Template Sources
 
-Project templates are loaded from `TemplateConf::dirs` relative to
-`project_dir`, unless an absolute path is supplied:
-
-```text
-templates/hello.html -> hello.html
-templates/dashboard/base.html -> dashboard/base.html
-```
-
-Bundle templates are loaded from asset dirs under `templates/**`. The
+Templates are loaded from bundle asset dirs under `templates/**`. The
 `templates/` prefix is stripped:
 
 ```text

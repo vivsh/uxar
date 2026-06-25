@@ -25,7 +25,7 @@ use crate::{
 use openapi::DocEngine;
 
 pub use error::BundleError;
-pub use openapi::OpenApiConf;
+pub use openapi::{OpenApiConf, OpenApiViewerConf};
 pub use part::{
     BundlePart, asset_dir, bundle, command, cron, periodic, pgnotify, route, service, signal, task,
 };
@@ -130,6 +130,13 @@ impl Bundle {
     /// [`with_label`]: Bundle::with_label
     pub fn label(&self) -> Option<&str> {
         self.label.as_deref()
+    }
+
+    pub(crate) fn with_owning_bundle_id(mut self) -> Self {
+        for op in self.ops.values_mut() {
+            op.set_bundle_id(self.id);
+        }
+        self
     }
 
     /// Assigns a human-readable label to this bundle, for example in logging or diagnostics.
@@ -408,6 +415,11 @@ fn validate_route_prefix(path: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::routes::{Json, RouteConf};
+
+    async fn ping() -> Json<&'static str> {
+        Json("pong")
+    }
 
     fn route_op(name: &str, path: &str, methods: routes::Methods) -> crate::callables::Operation {
         crate::callables::Operation {
@@ -435,6 +447,68 @@ mod tests {
         bundle.name_index.insert(op.name.clone(), op.id);
         bundle.ops.insert(op.id, op);
         bundle
+    }
+
+    fn non_route_part(op: crate::callables::Operation) -> part::BundlePart {
+        part::BundlePart {
+            part: part::BundlePartInner::Error(BundleError::InvalidRouteName {
+                name: "ignored".to_string(),
+                reason: "test marker".to_string(),
+            }),
+            operation: Some(op),
+        }
+    }
+
+    #[test]
+    fn route_operation_gets_origin_bundle_id_on_insertion() {
+        let bundle = crate::bundles::bundle([crate::bundles::route(
+            ping,
+            RouteConf {
+                name: "ping".into(),
+                methods: routes::Methods::GET,
+                path: "/ping".into(),
+                slash: None,
+            },
+        )]);
+        let route_id = *bundle.name_index.get("ping").unwrap();
+        let op = bundle.ops.get(&route_id).unwrap();
+
+        assert_eq!(op.bundle_id, Some(bundle.id));
+    }
+
+    #[test]
+    fn non_route_operation_gets_origin_bundle_id_on_insertion() {
+        let op = crate::callables::Operation {
+            kind: OperationKind::Signal,
+            ..route_op("note_changed", "", routes::Methods::POST)
+        };
+        let op_id = op.id;
+        let bundle = Bundle::new().add_part(non_route_part(op));
+        let op = bundle.ops.get(&op_id).unwrap();
+
+        assert_eq!(op.bundle_id, Some(bundle.id));
+    }
+
+    #[test]
+    fn merge_does_not_rewrite_child_origin_bundle_id() {
+        let child = crate::bundles::bundle([crate::bundles::route(
+            ping,
+            RouteConf {
+                name: "ping".into(),
+                methods: routes::Methods::GET,
+                path: "/ping".into(),
+                slash: None,
+            },
+        )]);
+        let child_id = child.id;
+        let route_id = *child.name_index.get("ping").unwrap();
+        let parent = Bundle::new();
+        let parent_id = parent.id;
+        let merged = parent.merge(child);
+        let op = merged.ops.get(&route_id).unwrap();
+
+        assert_eq!(op.bundle_id, Some(child_id));
+        assert_ne!(op.bundle_id, Some(parent_id));
     }
 
     #[test]

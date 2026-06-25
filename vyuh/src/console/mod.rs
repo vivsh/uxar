@@ -23,6 +23,7 @@ pub(crate) fn bundle(conf: &ConsoleConf) -> crate::bundles::Bundle {
     web_assets()
         .merge(home_routes(conf))
         .merge(routes().with_prefix(&conf.path))
+        .with_owning_bundle_id()
 }
 
 fn web_assets() -> crate::bundles::Bundle {
@@ -63,6 +64,7 @@ fn routes() -> crate::bundles::Bundle {
             Methods::GET,
             pages::overview,
         ),
+        route!("console_runtime", "/runtime", Methods::GET, pages::runtime),
         route!(
             "console_login_page",
             "/login-page",
@@ -96,6 +98,8 @@ fn routes() -> crate::bundles::Bundle {
             Methods::GET,
             pages::task_detail,
         ),
+        route!("console_conf", "/conf", Methods::GET, pages::conf),
+        route!("console_openapi", "/openapi", Methods::GET, pages::openapi),
         route!(
             "console_api_operations",
             "/api/operations",
@@ -121,12 +125,23 @@ fn routes() -> crate::bundles::Bundle {
             Methods::GET,
             api::status,
         ),
+        route!("console_api_conf", "/api/conf", Methods::GET, api::conf),
+        route!(
+            "console_api_openapi",
+            "/api/openapi",
+            Methods::GET,
+            api::openapi,
+        ),
     ])
 }
 
-pub(crate) fn runtime(conf: &ConsoleConf) -> Option<ConsoleRuntime> {
-    conf.enabled
-        .then(|| ConsoleRuntime::new(Duration::from_secs(conf.bootstrap_token_ttl_seconds)))
+pub(crate) fn runtime(conf: &ConsoleConf, bundle_id: uuid::Uuid) -> Option<ConsoleRuntime> {
+    conf.enabled.then(|| {
+        ConsoleRuntime::new(
+            Duration::from_secs(conf.bootstrap_token_ttl_seconds),
+            bundle_id,
+        )
+    })
 }
 
 pub(crate) fn maybe_print_bootstrap_url(site: &Site) {
@@ -216,12 +231,28 @@ mod tests {
             .send()
             .await
             .assert_status(StatusCode::UNAUTHORIZED);
+        client
+            .get("/_console/api/conf")
+            .send()
+            .await
+            .assert_status(StatusCode::UNAUTHORIZED);
+        client
+            .get("/_console/api/openapi")
+            .send()
+            .await
+            .assert_status(StatusCode::UNAUTHORIZED);
 
         let login = client
             .get(&format!("/_console/login?token={token}"))
             .send()
-            .await
-            .assert_ok();
+            .await;
+        assert_eq!(login.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            login
+                .header(header::LOCATION.as_str())
+                .and_then(|value| value.to_str().ok()),
+            Some("/_console")
+        );
         client
             .get(&format!("/_console/login?token={token}"))
             .send()
@@ -231,11 +262,9 @@ mod tests {
             .header(header::SET_COOKIE.as_str())
             .unwrap()
             .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_string();
+            .unwrap();
+        assert!(cookie.contains("Max-Age=28800"));
+        let cookie = cookie.split(';').next().unwrap().to_string();
 
         client
             .get("/_console/api/operations?kind=route&q=ping")
@@ -243,6 +272,29 @@ mod tests {
             .send()
             .await
             .assert_ok();
+
+        let conf = client
+            .get("/_console/api/conf")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(conf.status(), StatusCode::OK);
+        let conf = conf.text().await;
+        assert!(conf.contains("\"url\":\"<redacted>\""));
+        assert!(!conf.contains("secret_key"));
+        assert!(!conf.contains("DATABASE_URL"));
+        assert!(!conf.contains(token.as_str()));
+
+        let openapi = client
+            .get("/_console/api/openapi")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(openapi.status(), StatusCode::OK);
+        let openapi = openapi.text().await;
+        assert!(openapi.contains("\"/ping\""));
+        assert!(!openapi.contains("/_console"));
+        assert!(!openapi.contains("console_operations"));
     }
 
     #[tokio::test]
@@ -256,6 +308,11 @@ mod tests {
             .find(|op| op.name == "ping")
             .map(|op| op.id)
             .unwrap();
+        let console_operation_id = site
+            .iter_operations()
+            .find(|op| op.name == "console_operations")
+            .map(|op| op.id)
+            .unwrap();
         let token = site
             .console_runtime()
             .and_then(|runtime| runtime.bootstrap_token())
@@ -265,17 +322,21 @@ mod tests {
         let login = client
             .get(&format!("/_console/login?token={token}"))
             .send()
-            .await
-            .assert_ok();
+            .await;
+        assert_eq!(login.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            login
+                .header(header::LOCATION.as_str())
+                .and_then(|value| value.to_str().ok()),
+            Some("/_console")
+        );
         let cookie = login
             .header(header::SET_COOKIE.as_str())
             .unwrap()
             .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_string();
+            .unwrap();
+        assert!(cookie.contains("Max-Age=28800"));
+        let cookie = cookie.split(';').next().unwrap().to_string();
 
         let overview = client
             .get("/_console")
@@ -294,6 +355,21 @@ mod tests {
         assert_eq!(overview.status(), StatusCode::OK, "overview page failed");
         let overview = overview.text().await;
         assert!(overview.contains("Overview"));
+
+        let runtime = client
+            .get("/_console/runtime")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(runtime.status(), StatusCode::OK, "runtime page failed");
+        let runtime = runtime.text().await;
+        assert!(runtime.contains("Runtime"));
+        assert!(runtime.contains("aria-current=\"page\""));
+        assert!(runtime.contains("Site Runtime"));
+        assert!(runtime.contains("Process"));
+        assert!(runtime.contains("System"));
+        assert!(runtime.contains("Memory"));
+        assert!(runtime.contains("Raw API"));
 
         let operations = client
             .get("/_console/operations?kind=route&q=ping")
@@ -321,6 +397,29 @@ mod tests {
         let operations = operations.text().await;
         assert!(operations.contains("ping"));
         assert!(!operations.contains("value=\"none\""));
+        assert!(!operations.contains("console_operations"));
+        assert!(!operations.contains("console_api_status"));
+
+        let api_operations = client
+            .get("/_console/api/operations")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(
+            api_operations.status(),
+            StatusCode::OK,
+            "api operations page failed"
+        );
+        let api_operations = api_operations.text().await;
+        assert!(api_operations.contains("ping"));
+        assert!(!api_operations.contains("console_operations"));
+
+        let console_detail = client
+            .get(&format!("/_console/api/operations/{console_operation_id}"))
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(console_detail.status(), StatusCode::NOT_FOUND);
 
         let selected = client
             .get(&format!("/_console/operations?selected={ping_id}"))
@@ -346,6 +445,38 @@ mod tests {
         assert_eq!(tasks.status(), StatusCode::OK, "tasks page failed");
         let tasks = tasks.text().await;
         assert!(tasks.contains("No task records yet."));
+
+        let conf = client
+            .get("/_console/conf")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(conf.status(), StatusCode::OK, "config page failed");
+        let conf = conf.text().await;
+        assert!(conf.contains("Config"));
+        assert!(conf.contains("aria-current=\"page\""));
+        assert!(conf.contains("Authentication"));
+        assert!(conf.contains("HTTP Pipeline"));
+        assert!(conf.contains("Raw API"));
+        assert!(!conf.contains(">01<"));
+        assert!(conf.contains("&lt;redacted&gt;"));
+        assert!(!conf.contains("secret_key"));
+        assert!(!conf.contains("DATABASE_URL"));
+        assert!(!conf.contains(token.as_str()));
+
+        let openapi = client
+            .get("/_console/openapi")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(openapi.status(), StatusCode::OK, "openapi page failed");
+        let openapi = openapi.text().await;
+        assert!(openapi.contains("redoc"));
+        assert!(openapi.contains("spec-url"));
+        assert!(openapi.contains("console-redoc-blank"));
+        assert!(!openapi.contains("Raw JSON"));
+        assert!(!openapi.contains("Application routes only"));
+        assert!(!openapi.contains("console_operations"));
 
         let css = client.get("/assets/css/base.css").send().await;
         assert_eq!(css.status(), StatusCode::OK, "base.css failed");

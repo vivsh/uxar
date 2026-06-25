@@ -264,6 +264,7 @@ impl AbstractTaskStore for PgTaskStore {
                     None,
                     Some(error),
                     None,
+                    None,
                     Some(now),
                     false,
                 )

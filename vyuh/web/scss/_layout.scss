@@ -1,0 +1,150 @@
+:root {
+  --vyuh-ink: #{$vyuh-ink};
+  --vyuh-ink-soft: #{$vyuh-ink-soft};
+  --vyuh-muted: #{$vyuh-muted};
+  --vyuh-ember: #{$vyuh-ember};
+  --vyuh-saffron: #{$vyuh-saffron};
+  --vyuh-paper: #{$vyuh-paper};
+  --vyuh-paper-deep: #{$vyuh-paper-deep};
+  --vyuh-clay: #{$vyuh-clay};
+  --vyuh-line: #{$vyuh-line};
+  --vyuh-moss: #{$vyuh-moss};
+  --vyuh-ocean: #{$vyuh-ocean};
+  --vyuh-violet: #{$vyuh-violet};
+  --vyuh-success: #{$vyuh-success};
+  --vyuh-warning: #{$vyuh-warning};
+  --vyuh-danger: #{$vyuh-danger};
+  --vyuh-info: #{$vyuh-info};
+  --vyuh-radius-sm: #{$vyuh-radius-sm};
+  --vyuh-radius-md: #{$vyuh-radius-md};
+  --vyuh-radius-lg: #{$vyuh-radius-lg};
+  --vyuh-shadow-soft: #{$vyuh-shadow-soft};
+  --vyuh-shadow-lift: #{$vyuh-shadow-lift};
+  --vyuh-font-sans: #{$vyuh-font-sans};
+  --vyuh-font-display: #{$vyuh-font-display};
+  --vyuh-font-mono: #{$vyuh-font-mono};
+}
+
+body {
+  background:
+    linear-gradient(120deg, rgba($vyuh-ocean, 0.08), transparent 30%),
+    linear-gradient(240deg, rgba($vyuh-ember, 0.12), transparent 36%),
+    $vyuh-paper;
+}
+
+.stylebook-header {
+  border-bottom: 1px solid $vyuh-line;
+  background: rgba($vyuh-paper, 0.9);
+  backdrop-filter: blur(14px);
+}
+
+.stylebook-nav {
+  min-height: 76px;
+}
+
+.stylebook-brand {
+  align-items: center;
+  color: $vyuh-ink;
+  display: inline-flex;
+  gap: 0.75rem;
+
+  img {
+    height: 2.5rem;
+    width: 2.5rem;
+  }
+}
+
+.stylebook-section {
+  border-top: 1px solid $vyuh-line;
+}
+
+.stylebook-section-title {
+  color: $vyuh-ink;
+}
+
+.stylebook-panel {
+  border: 1px solid $vyuh-line;
+  border-radius: $vyuh-radius-lg;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: $vyuh-shadow-soft;
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.stylebook-rule {
+  background: $vyuh-ember;
+  border-radius: 999px;
+  height: 0.25rem;
+  width: 2.75rem;
+}
+
+.stylebook-swatch {
+  border: 1px solid $vyuh-line;
+  border-radius: $vyuh-radius-md;
+  box-shadow: $vyuh-shadow-soft;
+  min-height: 8rem;
+  overflow: hidden;
+}
+
+.stylebook-swatch-color {
+  min-height: 4.5rem;
+}
+
+.stylebook-swatch-body {
+  background: rgba(255, 255, 255, 0.78);
+  padding: 0.875rem;
+}
+
+.stylebook-swatch-ink {
+  background: $vyuh-ink;
+}
+
+.stylebook-swatch-ember {
+  background: $vyuh-ember;
+}
+
+.stylebook-swatch-saffron {
+  background: $vyuh-saffron;
+}
+
+.stylebook-swatch-paper {
+  background: $vyuh-paper-deep;
+}
+
+.stylebook-swatch-moss {
+  background: $vyuh-moss;
+}
+
+.stylebook-swatch-ocean {
+  background: $vyuh-ocean;
+}
+
+.stylebook-swatch-violet {
+  background: $vyuh-violet;
+}
+
+.stylebook-swatch-danger {
+  background: $vyuh-danger;
+}
+
+.stylebook-hero-sample {
+  border: 1px solid $vyuh-line;
+  border-radius: $vyuh-radius-lg;
+  background:
+    radial-gradient(circle at 80% 20%, rgba($vyuh-ember, 0.18), transparent 28%),
+    rgba(255, 255, 255, 0.7);
+  box-shadow: $vyuh-shadow-lift;
+  overflow: hidden;
+  padding: clamp(1.5rem, 4vw, 3rem);
+}
+
+.stylebook-doc-sample {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid $vyuh-line;
+  border-radius: $vyuh-radius-md;
+  box-shadow: $vyuh-shadow-soft;
+  padding: 1.5rem;
+
+  h3 {
+    color: $vyuh-ink;
+  }
+}

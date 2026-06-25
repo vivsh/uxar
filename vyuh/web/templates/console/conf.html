@@ -1,0 +1,191 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section class="console-document">
+  <p class="vyuh-kicker">Runtime</p>
+  <h1 class="vyuh-section-title">Config</h1>
+  <p class="vyuh-copy">Redacted runtime configuration, grouped by subsystem.</p>
+
+  <div class="console-conf-grid">
+    <article class="console-conf-section">
+      <header>
+        <h2>Site</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Address</th><td>{{ conf.site.host }}:{{ conf.site.port }}</td></tr>
+          <tr><th>Project dir</th><td><code>{{ conf.site.project_dir }}</code></td></tr>
+          <tr><th>Timezone</th><td>{{ conf.site.timezone }}</td></tr>
+          <tr><th>Log init</th><td>{{ conf.site.log_init }}</td></tr>
+          <tr><th>Touch reload</th><td>{% if conf.site.touch_reload %}<code>{{ conf.site.touch_reload }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Database</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Backend</th><td><span class="console-pill">{{ conf.database.backend }}</span></td></tr>
+          <tr><th>URL</th><td><code>{{ conf.database.url }}</code></td></tr>
+          <tr><th>Pool</th><td>{{ conf.database.min_connections }} min / {{ conf.database.max_connections }} max</td></tr>
+          <tr><th>Lazy connect</th><td>{{ conf.database.lazy }}</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Authentication</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Issuer</th><td>{% if conf.auth.issuer %}{{ conf.auth.issuer }}{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
+          <tr><th>Audience</th><td><code>{{ conf.auth.audience }}</code></td></tr>
+          <tr><th>Access TTL</th><td>{{ conf.auth.access_ttl }} seconds</td></tr>
+          <tr><th>Refresh TTL</th><td>{{ conf.auth.refresh_ttl }} seconds</td></tr>
+          <tr><th>JWT algorithm</th><td>{{ conf.auth.jwt_algorithm }}</td></tr>
+          <tr><th>Signing key</th><td><code>{{ conf.auth.jwt_signing_key_source }}</code></td></tr>
+          <tr><th>Verifying key</th><td>{% if conf.auth.jwt_verifying_key_source %}<code>{{ conf.auth.jwt_verifying_key_source }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
+          <tr><th>API keys</th><td>{{ conf.auth.api_keys_enabled }}</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Console</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Path</th><td><code>{{ conf.console.path }}</code></td></tr>
+          <tr><th>Bootstrap token TTL</th><td>{{ conf.console.bootstrap_token_ttl_seconds }} seconds</td></tr>
+          <tr><th>Session TTL</th><td>{{ conf.console.session_ttl_seconds }} seconds</td></tr>
+          <tr><th>Bootstrap print mode</th><td>{{ conf.console.print_bootstrap_url }}</td></tr>
+          <tr><th>Cookie name</th><td><code>{{ conf.console.cookie_name }}</code></td></tr>
+          <tr><th>Page size</th><td>{{ conf.console.page_size_default }} default / {{ conf.console.page_size_max }} max</td></tr>
+          <tr><th>Status cache TTL</th><td>{{ conf.console.status_cache_ttl_seconds }} seconds</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Tasks</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Poll interval</th><td>{{ conf.tasks.poll_interval_ms }} ms</td></tr>
+          <tr><th>Capacity</th><td>{{ conf.tasks.capacity }}</td></tr>
+          <tr><th>Concurrency</th><td>{{ conf.tasks.concurrency }}</td></tr>
+          <tr><th>Batch size</th><td>{{ conf.tasks.batch_size }}</td></tr>
+          <tr><th>Lease duration</th><td>{{ conf.tasks.lease_duration_ms }} ms</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Emitters</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Notify channel capacity</th><td>{{ conf.emitters.notify_channel_capacity }}</td></tr>
+          <tr><th>Max in-flight handlers</th><td>{{ conf.emitters.max_in_flight_handlers }}</td></tr>
+          <tr><th>PgNotify reconnect initial</th><td>{{ conf.emitters.pgnotify_reconnect_initial_ms }} ms</td></tr>
+          <tr><th>PgNotify reconnect max</th><td>{{ conf.emitters.pgnotify_reconnect_max_ms }} ms</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Uploads</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Directory</th><td><code>{{ conf.uploads.dir }}</code></td></tr>
+          <tr><th>Base URL</th><td>{% if conf.uploads.base_url %}<code>{{ conf.uploads.base_url }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
+          <tr><th>Temp directory</th><td>{% if conf.uploads.temp_dir %}<code>{{ conf.uploads.temp_dir }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
+          <tr><th>Max request</th><td>{{ conf.uploads.max_request_bytes }} bytes</td></tr>
+          <tr><th>Max file</th><td>{{ conf.uploads.max_file_bytes }} bytes</td></tr>
+          <tr><th>Limits</th><td>{{ conf.uploads.max_files }} files / {{ conf.uploads.max_fields }} fields</td></tr>
+          <tr><th>Memory threshold</th><td>{{ conf.uploads.memory_threshold_bytes }} bytes</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Channels</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Enabled</th><td>{{ conf.channels.enabled }}</td></tr>
+          <tr><th>Queues</th><td>{{ conf.channels.subscriber_queue }} subscriber / {{ conf.channels.command_queue }} command</td></tr>
+          <tr><th>Replay</th><td>{{ conf.channels.replay_limit }} limit / {{ conf.channels.retention_events }} retained</td></tr>
+          <tr><th>Topic limits</th><td>{{ conf.channels.max_topics_per_subscribe }} per subscribe / {{ conf.channels.max_topic_len }} chars</td></tr>
+          <tr><th>Max message</th><td>{{ conf.channels.max_message_bytes }} bytes</td></tr>
+          <tr><th>Long poll timeout</th><td>{{ conf.channels.long_poll_timeout_ms }} ms</td></tr>
+          <tr><th>SSE keepalive</th><td>{{ conf.channels.sse_keepalive_ms }} ms</td></tr>
+          <tr><th>Slow subscriber</th><td>{{ conf.channels.slow_subscriber_policy }}</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>HTTP Pipeline</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Slash policy</th><td>{{ conf.http.slash_policy }}</td></tr>
+          <tr><th>Catch panic</th><td>{{ conf.http.catch_panic_enabled }}</td></tr>
+          <tr><th>Request ID</th><td>{{ conf.http.request_id_enabled }} via <code>{{ conf.http.request_id_header }}</code></td></tr>
+          <tr><th>Trace</th><td>{{ conf.http.trace_enabled }}</td></tr>
+          <tr><th>Compression</th><td>{{ conf.http.compression_enabled }}</td></tr>
+          <tr><th>CORS</th><td>{{ conf.http.cors_enabled }}{% if conf.http.cors_permissive %} permissive{% endif %}</td></tr>
+          <tr><th>Timeout</th><td>{{ conf.http.timeout_enabled }} / {{ conf.http.timeout_ms }} ms</td></tr>
+          <tr><th>Body limit</th><td>{{ conf.http.body_limit_enabled }} / {{ conf.http.body_limit_max_bytes }} bytes</td></tr>
+          <tr><th>Security headers</th><td>{{ conf.http.security_headers_enabled }}</td></tr>
+        </tbody>
+      </table>
+    </article>
+
+    <article class="console-conf-section">
+      <header>
+        <h2>Logging</h2>
+      </header>
+      <table class="console-kv-table">
+        <tbody>
+          <tr><th>Env prefix</th><td><code>{{ conf.logging.env_prefix }}</code></td></tr>
+          {% for rule in conf.logging.rules %}
+          <tr>
+            <th>{{ rule.name }}</th>
+            <td>{{ rule.sink }} · <code>{{ rule.default_filter }}</code>{% if rule.path %} · <code>{{ rule.path }}</code>{% endif %}{% if rule.rotation %} · {{ rule.rotation }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </article>
+  </div>
+</section>
+{% endblock %}
+
+{% block inspector %}
+<section class="console-inspector">
+  <p class="vyuh-kicker">Config View</p>
+  <h2>Redacted by default</h2>
+  <p class="vyuh-copy">This page is structured for operations. Secrets and database URLs are omitted or replaced before rendering.</p>
+  <dl class="console-meta">
+    <dt>Source</dt>
+    <dd>SiteConf runtime snapshot</dd>
+    <dt>Shape</dt>
+    <dd>Grouped key/value sections</dd>
+    <dt>Raw API</dt>
+    <dd><a href="{{ base_path }}/api/conf">Open JSON</a></dd>
+  </dl>
+</section>
+{% endblock %}

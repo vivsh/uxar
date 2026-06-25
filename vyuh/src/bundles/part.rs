@@ -58,13 +58,13 @@ impl Bundle {
         // since reversal is only meaningful for HTTP routes).
         if !matches!(&part.part, BundlePartInner::Route(..)) {
             if let Some(mut op) = part.operation {
-                op.bundle_id = Some(self.id);
+                op.assign_bundle_id(self.id);
                 self.ops.insert(op.id, op);
             }
         }
         match part.part {
             BundlePartInner::Route(router, mut op) => {
-                op.bundle_id = Some(self.id);
+                op.assign_bundle_id(self.id);
                 self = self.register_route(router, op);
             }
             BundlePartInner::Emitter(em) => {

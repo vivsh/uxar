@@ -243,6 +243,7 @@ cargo run -p vyuh --no-default-features --features sqlite --example emitters_dir
 cargo run -p vyuh --no-default-features --features sqlite --example emitters_cron
 cargo run -p vyuh --no-default-features --features sqlite --example emitters_pgnotify
 cargo run -p vyuh --no-default-features --features sqlite --example emitters_pgnotify_burst_debounce
+cargo run -p vyuh --no-default-features --features sqlite --example signals_emitters
 ```
 
 - `emitters_periodic`: macro-based periodic emitter and signal handler.
@@ -251,6 +252,8 @@ cargo run -p vyuh --no-default-features --features sqlite --example emitters_pgn
 - `emitters_pgnotify`: Postgres notification emitter registration.
 - `emitters_pgnotify_burst_debounce`: PgNotify emitter with leading and
   trailing debounce.
+- `signals_emitters`: complete signal fanout plus cron, periodic, direct, and
+  Postgres-gated PgNotify emitter registration in one runnable example.
 
 ## Failure Modes
 

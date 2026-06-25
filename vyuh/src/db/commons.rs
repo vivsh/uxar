@@ -3,7 +3,6 @@
 //! This module provides database and argument type aliases based on the active backend feature.
 //! Exactly one database backend must be enabled at a time.
 
-
 #[cfg(all(feature = "postgres", feature = "mysql"))]
 compile_error!(
     "database backend features are mutually exclusive: disable either `postgres` or `mysql`"

@@ -22,7 +22,19 @@ OpenAPI generation uses these inputs:
 
 ## Registration
 
-OpenAPI is registered on a `Bundle` with `with_openapi`:
+OpenAPI is registered on a `Bundle` with `with_openapi`. By default, Vyuh
+serves only the JSON spec:
+
+```rust
+let bundle = routes.with_openapi(
+    bundles::OpenApiConf::default()
+        .title("Notes API")
+        .version("0.1.0"),
+);
+```
+
+Use `.spec(...)` to place the JSON spec under the same prefix as the API it
+describes:
 
 ```rust
 let bundle = routes.with_openapi(
@@ -31,6 +43,27 @@ let bundle = routes.with_openapi(
         .version("0.1.0")
         .description("Notes service API")
         .spec("/api/openapi.json"),
+);
+```
+
+Add `.viewer(...)` when the site should also serve an HTML documentation UI.
+Swagger UI is the default viewer:
+
+```rust
+let bundle = routes.with_openapi(
+    bundles::OpenApiConf::default()
+        .spec("/api/openapi.json")
+        .viewer("/api/docs"),
+);
+```
+
+Use `.viewer_with(...)` to choose another built-in viewer:
+
+```rust
+let bundle = routes.with_openapi(
+    bundles::OpenApiConf::default()
+        .spec("/api/openapi.json")
+        .viewer_with("/api/docs", bundles::DocViewer::Redoc),
 );
 ```
 
@@ -240,13 +273,3 @@ operations because OpenAPI 3 does not model `CONNECT`.
 - Use `PatchOp` for non-200 success statuses and documented error responses.
 - Prefer concrete request and response structs that derive `JsonSchema`.
 - Keep spec endpoints under the same prefix as the API they describe.
-
-## Current Limitations
-
-Vyuh currently supports the generated JSON spec as the release-ready OpenAPI
-surface. Built-in HTML documentation viewers are present internally but hidden
-from public Rust docs for v0 because that surface is not ready.
-
-Before documentation viewers become public, they need to use normal route
-registration, derive the correct spec URL from the final OpenAPI route path, and
-ship with stable examples and tests.

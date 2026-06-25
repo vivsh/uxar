@@ -1,0 +1,8 @@
+DEBUG = False
+SECRET_KEY = "bench"
+ROOT_URLCONF = "drf_t2.urls"
+ALLOWED_HOSTS = ["*"]
+INSTALLED_APPS = ["rest_framework"]
+MIDDLEWARE = []
+REST_FRAMEWORK = {"UNAUTHENTICATED_USER": None}
+

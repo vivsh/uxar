@@ -20,28 +20,35 @@
       <div class="vyuh-links">
         <a href="{{ base_path }}/operations">Operations</a>
         <a href="{{ base_path }}/tasks">Tasks</a>
-        <a href="{{ base_path }}/api/status">API</a>
       </div>
       <form method="post" action="{{ base_path }}/api/logout">
         <button class="vyuh-button vyuh-button-secondary" type="submit">Logout</button>
       </form>
     </nav>
   </header>
-  <div class="console-layout">
+  <div class="console-layout {% if blank_page %}console-layout-blank{% endif %}">
+    {% if not blank_page %}
     <aside class="console-sidebar">
       <p class="vyuh-kicker">Console</p>
       <nav class="console-nav" aria-label="Console navigation">
         <a href="{{ base_path }}/overview" {% if active == "overview" %}aria-current="page"{% endif %}>Overview</a>
+        <a href="{{ base_path }}/runtime" {% if active == "runtime" %}aria-current="page"{% endif %}>Runtime</a>
         <a href="{{ base_path }}/operations" {% if active == "operations" %}aria-current="page"{% endif %}>Operations</a>
         <a href="{{ base_path }}/tasks" {% if active == "tasks" %}aria-current="page"{% endif %}>Tasks</a>
+        <a href="{{ base_path }}/openapi" {% if active == "openapi" %}aria-current="page"{% endif %}>OpenAPI</a>
+        <a href="{{ base_path }}/conf" {% if active == "conf" %}aria-current="page"{% endif %}>Config</a>
       </nav>
+      {% block sidebar %}{% endblock %}
     </aside>
-    <main class="console-main">
+    {% endif %}
+    <main class="console-main {% if blank_page %}console-main-blank{% endif %}">
       {% block content %}{% endblock %}
     </main>
+    {% if not blank_page %}
     <aside class="console-right">
       {% block inspector %}{% endblock %}
     </aside>
+    {% endif %}
   </div>
 </body>
 </html>

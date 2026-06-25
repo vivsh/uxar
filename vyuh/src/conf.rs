@@ -97,12 +97,6 @@ fn default_secret_key() -> String {
     )
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StaticDir {
-    pub path: String,
-    pub url: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub struct SiteConf {
@@ -118,12 +112,9 @@ pub struct SiteConf {
     pub secret_key: String,
 
     /// absolute or relative to project_dir
-    pub static_dirs: Vec<StaticDir>,
-
-    /// absolute or relative to project_dir
     pub media_dir: Option<String>,
 
-    /// absolute or relative to project_dir
+    /// Template environment behavior. Template files are registered through bundles.
     pub templates: TemplateConf,
 
     /// absolute or relative to project_dir
@@ -163,7 +154,6 @@ impl Default for SiteConf {
             project_dir: project_dir().as_os_str().to_string_lossy().to_string(),
             database: Default::default(),
             secret_key,
-            static_dirs: vec![],
             media_dir: None,
             templates: TemplateConf::default(),
             touch_reload: None,
@@ -248,21 +238,8 @@ impl SiteConf {
         self
     }
 
-    pub fn static_dir(mut self, path: impl Into<String>, url: impl Into<String>) -> Self {
-        self.static_dirs.push(StaticDir {
-            path: path.into(),
-            url: url.into(),
-        });
-        self
-    }
-
     pub fn media_dir(mut self, dir: impl Into<String>) -> Self {
         self.media_dir = Some(dir.into());
-        self
-    }
-
-    pub fn templates_dir(mut self, dir: impl Into<String>) -> Self {
-        self.templates.dirs.push(dir.into());
         self
     }
 
@@ -439,37 +416,8 @@ impl SiteConf {
         if let Some(ref dir) = self.uploads.temp_dir {
             validate_upload_dir(&base, dir, "uploads.temp_dir", errors);
         }
-        for (idx, dir) in self.templates.dirs.iter().enumerate() {
-            validate_dir_readable(&base.join(dir), &format!("templates.dirs[{}]", idx), errors);
-        }
         if let Some(ref file) = self.touch_reload {
             validate_file_writable(&base, file, "touch_reload", errors);
-        }
-        for (idx, static_dir) in self.static_dirs.iter().enumerate() {
-            let field_path = format!("static_dirs[{}].path", idx);
-            let field_url = format!("static_dirs[{}].url", idx);
-
-            if static_dir.path.is_empty() {
-                errors.push(ConfError::RequiredField {
-                    field: field_path.clone(),
-                    reason: "cannot be empty".into(),
-                });
-            } else {
-                validate_dir_readable(&base.join(&static_dir.path), &field_path, errors);
-            }
-
-            if static_dir.url.is_empty() {
-                errors.push(ConfError::RequiredField {
-                    field: field_url,
-                    reason: "cannot be empty".into(),
-                });
-            } else if !static_dir.url.starts_with('/') {
-                errors.push(ConfError::InvalidValue {
-                    field: field_url,
-                    reason: "must start with '/'".into(),
-                    expected: Some("path starting with '/'".into()),
-                });
-            }
         }
     }
 }

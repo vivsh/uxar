@@ -18,9 +18,6 @@ use crate::{
 
 /// Available API documentation viewers.
 ///
-/// Hidden for v0 because the viewer endpoints are not release-ready. OpenAPI
-/// JSON spec generation is the supported public surface.
-#[doc(hidden)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocViewer {
     Swagger,
@@ -383,17 +380,23 @@ fn add_view_to_paths(
     let method_names = view.http_methods();
 
     if let ReferenceOr::Item(item) = path_item {
-        set_operations_for_methods(item, &method_names, operation);
+        set_operations_for_methods(item, &method_names, &view.path, operation);
     }
 
     Ok(())
 }
 
 /// Set operation for all HTTP methods in the MethodFilter.
-fn set_operations_for_methods(item: &mut PathItem, method_names: &[&str], operation: Operation) {
+fn set_operations_for_methods(
+    item: &mut PathItem,
+    method_names: &[&str],
+    path: &str,
+    operation: Operation,
+) {
     let is_multiple = method_names.len() > 1;
     for method in method_names {
         let mut op = operation.clone();
+        fill_operation_docs(&mut op, method, path);
         if is_multiple {
             op.operation_id = Some(format!(
                 "{}_{}",
@@ -413,6 +416,23 @@ fn set_operations_for_methods(item: &mut PathItem, method_names: &[&str], operat
             _ => {}
         }
     }
+}
+
+fn fill_operation_docs(op: &mut Operation, method: &str, path: &str) {
+    if op.summary.is_none() {
+        op.summary = Some(route_label(method, path));
+    }
+    if op.description.is_none() {
+        op.description = Some(route_description(method, path));
+    }
+}
+
+fn route_label(method: &str, path: &str) -> String {
+    format!("{method} {path}")
+}
+
+fn route_description(method: &str, path: &str) -> String {
+    format!("Application route registered for `{method} {path}`.")
 }
 
 /// Build operation from view metadata.
@@ -938,6 +958,22 @@ mod tests {
         assert_eq!(
             item.head.as_ref().unwrap().operation_id.as_deref(),
             Some("notes_head")
+        );
+    }
+
+    #[test]
+    fn fills_missing_docs() {
+        let op = route_op("notes", "/notes", Methods::GET);
+        let api = ApiDocGenerator::default().generate(&[&op]).unwrap();
+        let ReferenceOr::Item(item) = api.paths.paths.get("/notes").unwrap() else {
+            panic!("expected inline path item");
+        };
+        let get = item.get.as_ref().unwrap();
+
+        assert_eq!(get.summary.as_deref(), Some("GET /notes"));
+        assert_eq!(
+            get.description.as_deref(),
+            Some("Application route registered for `GET /notes`.")
         );
     }
 

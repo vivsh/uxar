@@ -1,5 +1,17 @@
 {% extends "console/layout.html" %}
 
+{% block sidebar %}
+<section class="console-sidebar-section" aria-label="Operation kinds">
+  <h2>Operation Kinds</h2>
+  <nav class="console-subnav">
+    <a href="{{ base_path }}/operations" {% if not query.kind %}aria-current="page"{% endif %}>All operations</a>
+    {% for kind in kinds %}
+    <a href="{{ base_path }}/operations?kind={{ kind }}" {% if query.kind == kind %}aria-current="page"{% endif %}>{{ kind }}</a>
+    {% endfor %}
+  </nav>
+</section>
+{% endblock %}
+
 {% block content %}
 <section class="console-document">
   <p class="vyuh-kicker">Registry</p>
@@ -17,32 +29,41 @@
     <button class="vyuh-button vyuh-button-primary" type="submit">Filter</button>
   </form>
 
-  <div class="console-resource-list">
-    <table class="console-table">
-      <thead>
-        <tr><th>Kind</th><th>Name</th><th>Path</th><th>Summary</th></tr>
-      </thead>
-      <tbody>
-        {% for op in page.items %}
-        <tr class="{% if selected_operation and selected_operation.id == op.id %}is-selected{% endif %}">
-          <td><span class="console-pill">{{ op.kind }}</span></td>
-          <td>
-            <a class="console-table-link" href="{{ base_path }}/operations?selected={{ op.id }}">{{ op.name }}</a>
-          </td>
-          <td>{{ op.path }}</td>
-          <td>{% if op.summary %}{{ op.summary }}{% endif %}</td>
-        </tr>
-        {% else %}
-        <tr><td colspan="4">No operations match this filter.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="console-operation-list">
+    {% for op in page.items %}
+    <article class="console-operation-row {% if selected_operation and selected_operation.id == op.id %}is-selected{% endif %}">
+      <a class="console-operation-link" href="{{ base_path }}/operations?selected={{ op.id }}">
+        <header>
+          <span class="console-pill">{{ op.kind }}</span>
+          <h2>{{ op.name }}</h2>
+        </header>
+        <p class="console-operation-path">
+          {% for method in op.methods %}
+          <span class="console-method">{{ method }}</span>
+          {% endfor %}
+          <code>{{ op.path }}</code>
+        </p>
+        <p>
+          {% if op.summary %}
+          {{ op.summary }}
+          {% else %}
+          No summary registered.
+          {% endif %}
+        </p>
+      </a>
+    </article>
+    {% else %}
+    <article class="console-empty">
+      <strong>No operations match this filter.</strong>
+      <span>Clear the search or choose another operation kind.</span>
+    </article>
+    {% endfor %}
   </div>
 </section>
 {% endblock %}
 
 {% block inspector %}
-<aside class="vyuh-card console-inspector">
+<aside class="console-inspector">
   {% if selected_operation %}
   <p class="vyuh-kicker">{{ selected_operation.kind }}</p>
   <h2>{{ selected_operation.name }}</h2>
@@ -67,10 +88,10 @@
     <h3>Request</h3>
     {% for arg in selected_operation.args %}
     <article class="console-schema-card">
-      <div>
+      <header>
         <strong>{{ arg.name }}</strong>
         <span>{{ arg.location }}</span>
-      </div>
+      </header>
       {% if arg.content_type %}<p>{{ arg.content_type }}</p>{% endif %}
       {% if arg.description %}<p>{{ arg.description }}</p>{% endif %}
       {% if arg.schema %}<pre>{{ arg.schema }}</pre>{% endif %}
@@ -84,10 +105,10 @@
     <h3>Response</h3>
     {% for ret in selected_operation.returns %}
     <article class="console-schema-card">
-      <div>
+      <header>
         <strong>{% if ret.status_code %}{{ ret.status_code }}{% else %}response{% endif %}</strong>
         <span>{{ ret.location }}</span>
-      </div>
+      </header>
       {% if ret.content_type %}<p>{{ ret.content_type }}</p>{% endif %}
       {% if ret.description %}<p>{{ ret.description }}</p>{% endif %}
       {% if ret.schema %}<pre>{{ ret.schema }}</pre>{% endif %}

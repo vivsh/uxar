@@ -11,7 +11,7 @@ cp -R "$ROOT/vyuh/web/landing/." "$OUT/"
 cp -R "$ROOT/vyuh/web/public/." "$OUT/public/"
 
 # Rewrite source-local paths for the hosted artifact.
-perl -0pi -e 's#\.\./public/#./public/#g; s#\.\./\.\./\.\./docs/book/book/index\.html#./docs/#g' "$OUT/index.html"
+perl -0pi -e 's#\.\./public/#./public/#g; s#\.\./\.\./\.\./docs/book/book/index\.html#./docs/#g; s#\.\./\.\./\.\./docs/book/book/philosophy\.html#./docs/philosophy.html#g' "$OUT/index.html"
 
 mdbook build "$ROOT/docs/book" --dest-dir "$OUT/docs"
 

@@ -5,7 +5,7 @@
 ///   2. Fallible fire-and-forget       (Result<(), Error>)
 ///   3. Method-based registration      (no #[bundles::task] macro)
 ///   4. Suspend/resume with enum state (Result<TaskState<T>, Error>)
-use vyuh::{bundles, prelude::*};
+use vyuh::prelude::*;
 
 // ── Input types ──────────────────────────────────────────────────────────────
 
@@ -46,7 +46,10 @@ struct PendingApproval {
 // Pattern 1: Fire-and-forget — macro with explicit name.
 #[bundles::task(name = "send_email")]
 async fn send_email(input: Data<SendEmailJob>) {
-    println!("📧 Sending email to {} — subject: {}", input.to, input.subject);
+    println!(
+        "📧 Sending email to {} — subject: {}",
+        input.to, input.subject
+    );
 }
 
 // Pattern 2: Fallible — macro without explicit name (derives from fn name).
@@ -114,7 +117,9 @@ async fn main() -> Result<(), Error> {
     };
 
     let conf = SiteConf::default();
-    let site = Site::build(conf, bundle).await.expect("Failed to build site");
+    let site = Site::build(conf, bundle)
+        .await
+        .expect("Failed to build site");
     let tasks = site.tasks();
 
     // ── Fire-and-forget tasks ─────────────────────────────────────────────
@@ -156,7 +161,12 @@ async fn main() -> Result<(), Error> {
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
     tasks
-        .resume(doc1, ApprovalDecision::Approved { approver: "carol".to_string() })
+        .resume(
+            doc1,
+            ApprovalDecision::Approved {
+                approver: "carol".to_string(),
+            },
+        )
         .await
         .expect("resume failed");
 

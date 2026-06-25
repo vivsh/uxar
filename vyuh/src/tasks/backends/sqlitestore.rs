@@ -281,13 +281,13 @@ impl AbstractTaskStore for SqliteTaskStore {
                     task_id,
                     runner_id,
                     TaskStatus::Failed,
-                    None,       // state
-                    None,       // resume_input
-                    None,       // output
-                    None,       // result
-                    Some(error),// last_error
-                    None,       // ready_at
-                    Some(now),  // completed_at
+                    None,        // state
+                    None,        // resume_input
+                    None,        // output
+                    None,        // result
+                    Some(error), // last_error
+                    None,        // ready_at
+                    Some(now),   // completed_at
                     false,
                 )
                 .await

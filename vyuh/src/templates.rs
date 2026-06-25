@@ -6,11 +6,9 @@ use crate::{
 };
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TemplateConf {
-    pub dirs: Vec<String>,
     pub auto_escape: TemplateAutoEscape,
     pub undefined: TemplateUndefined,
     pub trim_blocks: bool,
@@ -22,7 +20,6 @@ pub struct TemplateConf {
 impl Default for TemplateConf {
     fn default() -> Self {
         Self {
-            dirs: Vec::new(),
             auto_escape: TemplateAutoEscape::ByExtension,
             undefined: TemplateUndefined::Strict,
             trim_blocks: false,
@@ -141,19 +138,8 @@ impl TemplateEngine {
         names
     }
 
-    pub(crate) fn inject_templates(
-        &mut self,
-        template_dirs: &[String],
-        project_dir: &Path,
-        bundle: &Bundle,
-    ) -> Result<(), TemplateError> {
+    pub(crate) fn inject_templates(&mut self, bundle: &Bundle) -> Result<(), TemplateError> {
         let mut dir_vec: Vec<embed::Dir> = Vec::new();
-
-        for templates_dir in template_dirs {
-            let path = project_dir.join(templates_dir);
-            let dir = rust_silos::Silo::new(path.to_str().unwrap_or(""));
-            self.inject_template_dir(embed::Dir::from(dir), None)?;
-        }
 
         for asset_dir in &bundle.asset_dirs {
             dir_vec.push(asset_dir.clone());
@@ -163,17 +149,6 @@ impl TemplateEngine {
             self.inject_file(file, Some("templates/"))?;
         }
 
-        Ok(())
-    }
-
-    fn inject_template_dir(
-        &mut self,
-        dir: embed::Dir,
-        prefix: Option<&str>,
-    ) -> Result<(), TemplateError> {
-        for file in embed::DirSet::new(vec![dir]).walk() {
-            self.inject_file(file, prefix)?;
-        }
         Ok(())
     }
 
@@ -547,15 +522,18 @@ mod tests {
     }
 
     #[test]
-    fn project_templates_dir_loads_files_relative_to_that_dir() {
+    fn bundle_templates_load_from_asset_dir() {
         let dir = tempfile::tempdir().unwrap();
-        write_file(dir.path().join("hello.html").as_path(), "Hello {{ name }}");
+        write_file(
+            dir.path().join("templates/hello.html").as_path(),
+            "Hello {{ name }}",
+        );
 
+        let bundle = bundles::bundle([bundles::asset_dir(embed::Dir::new(rust_silos::Silo::new(
+            dir.path().to_str().unwrap(),
+        )))]);
         let mut engine = TemplateEngine::new();
-        let dirs = vec![dir.path().to_string_lossy().to_string()];
-        engine
-            .inject_templates(&dirs, std::path::Path::new(""), &bundles::Bundle::new())
-            .unwrap();
+        engine.inject_templates(&bundle).unwrap();
 
         assert!(engine.exists("hello.html"));
         assert_eq!(
@@ -582,9 +560,7 @@ mod tests {
             dir.path().to_str().unwrap(),
         )))]);
         let mut engine = TemplateEngine::new();
-        engine
-            .inject_templates(&[], std::path::Path::new(""), &bundle)
-            .unwrap();
+        engine.inject_templates(&bundle).unwrap();
 
         assert!(engine.exists("dashboard/base.html"));
         assert!(!engine.exists("public/dashboard/dashboard.css"));
@@ -601,23 +577,27 @@ mod tests {
 
     #[test]
     fn duplicate_template_names_are_rejected() {
-        let project = tempfile::tempdir().unwrap();
-        write_file(project.path().join("shared.html").as_path(), "project");
-
-        let assets = tempfile::tempdir().unwrap();
+        let first = tempfile::tempdir().unwrap();
         write_file(
-            assets.path().join("templates/shared.html").as_path(),
-            "asset",
+            first.path().join("templates/shared.html").as_path(),
+            "first",
         );
-        let bundle = bundles::bundle([bundles::asset_dir(embed::Dir::new(rust_silos::Silo::new(
-            assets.path().to_str().unwrap(),
-        )))]);
+        let second = tempfile::tempdir().unwrap();
+        write_file(
+            second.path().join("templates/shared.html").as_path(),
+            "second",
+        );
+        let bundle = bundles::bundle([
+            bundles::asset_dir(embed::Dir::new(rust_silos::Silo::new(
+                first.path().to_str().unwrap(),
+            ))),
+            bundles::asset_dir(embed::Dir::new(rust_silos::Silo::new(
+                second.path().to_str().unwrap(),
+            ))),
+        ]);
 
         let mut engine = TemplateEngine::new();
-        let dirs = vec![project.path().to_string_lossy().to_string()];
-        let err = engine
-            .inject_templates(&dirs, std::path::Path::new(""), &bundle)
-            .unwrap_err();
+        let err = engine.inject_templates(&bundle).unwrap_err();
 
         assert!(matches!(err, TemplateError::Duplicate(name) if name == "shared.html"));
     }
@@ -625,13 +605,16 @@ mod tests {
     #[test]
     fn invalid_template_syntax_is_reported() {
         let dir = tempfile::tempdir().unwrap();
-        write_file(dir.path().join("broken.html").as_path(), "{% if %}");
+        write_file(
+            dir.path().join("templates/broken.html").as_path(),
+            "{% if %}",
+        );
+        let bundle = bundles::bundle([bundles::asset_dir(embed::Dir::new(rust_silos::Silo::new(
+            dir.path().to_str().unwrap(),
+        )))]);
 
         let mut engine = TemplateEngine::new();
-        let dirs = vec![dir.path().to_string_lossy().to_string()];
-        let err = engine
-            .inject_templates(&dirs, std::path::Path::new(""), &bundles::Bundle::new())
-            .unwrap_err();
+        let err = engine.inject_templates(&bundle).unwrap_err();
 
         assert!(matches!(err, TemplateError::RenderError(_)));
     }

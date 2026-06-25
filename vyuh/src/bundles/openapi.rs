@@ -18,15 +18,10 @@ use super::{Bundle, BundleError};
 /// Configuration for the OpenAPI spec endpoint.
 #[derive(Clone, Debug)]
 pub struct OpenApiConf {
-    /// Hidden for v0. Viewer endpoints exist internally but are not
-    /// release-ready; prefer serving only the JSON spec.
-    #[doc(hidden)]
-    pub doc_path: Option<String>,
     /// Path where the OpenAPI JSON spec is served (e.g. `"/api/openapi.json"`).
     pub spec_path: String,
     pub meta: ApiMeta,
-    #[doc(hidden)]
-    pub viewer: DocViewer,
+    pub viewer: Option<OpenApiViewerConf>,
     /// Optional auth predicate for OpenAPI endpoints.
     /// When `Some(f)`, the request must carry a valid JWT; the extracted
     /// `AuthUser` is then passed to `f`. Returning `false` yields `403 Forbidden`.
@@ -34,13 +29,35 @@ pub struct OpenApiConf {
     pub auth: Option<fn(&AuthUser) -> bool>,
 }
 
+/// Optional OpenAPI documentation viewer declaration.
+#[derive(Clone, Debug)]
+pub struct OpenApiViewerConf {
+    pub path: String,
+    pub viewer: DocViewer,
+}
+
+impl OpenApiViewerConf {
+    pub fn new(path: impl Into<String>) -> Self {
+        Self {
+            path: path.into(),
+            viewer: DocViewer::Swagger,
+        }
+    }
+
+    pub fn with_viewer(path: impl Into<String>, viewer: DocViewer) -> Self {
+        Self {
+            path: path.into(),
+            viewer,
+        }
+    }
+}
+
 impl Default for OpenApiConf {
     fn default() -> Self {
         Self {
             spec_path: "/openapi.json".to_string(),
-            doc_path: None,
             meta: ApiMeta::default(),
-            viewer: DocViewer::Swagger,
+            viewer: None,
             auth: None,
         }
     }
@@ -53,23 +70,15 @@ impl OpenApiConf {
         self
     }
 
-    /// Enable the viewer UI at the given path.
-    ///
-    /// Hidden for v0 because built-in documentation viewers are not
-    /// release-ready. Prefer serving only the JSON spec endpoint.
-    #[doc(hidden)]
-    pub fn doc(mut self, path: impl Into<String>) -> Self {
-        self.doc_path = Some(path.into());
+    /// Enable the Swagger viewer UI at the given path.
+    pub fn viewer(mut self, path: impl Into<String>) -> Self {
+        self.viewer = Some(OpenApiViewerConf::new(path));
         self
     }
 
-    /// Set the doc viewer type (Swagger, Redoc, Rapidoc).
-    ///
-    /// Hidden for v0 because built-in documentation viewers are not
-    /// release-ready. Prefer serving only the JSON spec endpoint.
-    #[doc(hidden)]
-    pub fn viewer(mut self, viewer: DocViewer) -> Self {
-        self.viewer = viewer;
+    /// Enable a specific documentation viewer UI at the given path.
+    pub fn viewer_with(mut self, path: impl Into<String>, viewer: DocViewer) -> Self {
+        self.viewer = Some(OpenApiViewerConf::with_viewer(path, viewer));
         self
     }
 
@@ -203,10 +212,6 @@ impl DocEngine {
             *router = std::mem::take(router).route(&spec_path, spec_route);
 
             if let Some(doc_op_id) = node.doc_op_id {
-                // TODO: Built-in viewers currently bypass normal route registration.
-                // Before exposing them publicly, mount viewers through route
-                // metadata and derive the served spec URL from the final OpenAPI
-                // route path.
                 let doc_path = ops
                     .get(&doc_op_id)
                     .map(|op| op.path.clone())
@@ -255,8 +260,8 @@ impl DocEngine {
 impl Bundle {
     /// Registers an OpenAPI JSON spec endpoint for this bundle.
     ///
-    /// Two hidden `Operation` markers (kind `ApiDoc`, `hidden = true`) are inserted
-    /// into `meta_map` so that `with_prefix` updates their paths automatically.
+    /// Hidden `Operation` markers (kind `ApiDoc`, `hidden = true`) are inserted
+    /// into the operation map so that `with_prefix` updates their paths automatically.
     /// `DocEngine::setup` resolves them to final paths at startup.
     pub fn with_openapi(mut self, conf: OpenApiConf) -> Self {
         // Snapshot UUIDs of visible operations now; the ops map is the canonical store.
@@ -267,16 +272,21 @@ impl Bundle {
             .map(|op| op.id)
             .collect();
 
-        // Create hidden marker operations and capture their UUIDs.
-        let spec_op = crate::callables::Operation::from_api_doc(
+        let mut spec_op = crate::callables::Operation::from_api_doc(
             &format!("__spec__{}", conf.spec_path),
             &conf.spec_path,
         );
+        spec_op.assign_bundle_id(self.id);
         let spec_op_id = spec_op.id;
         self.ops.insert(spec_op_id, spec_op);
 
-        let doc_op_id = conf.doc_path.as_deref().map(|path| {
-            let op = crate::callables::Operation::from_api_doc(&format!("__doc__{}", path), path);
+        let viewer = conf.viewer;
+        let doc_op_id = viewer.as_ref().map(|viewer| {
+            let mut op = crate::callables::Operation::from_api_doc(
+                &format!("__doc__{}", viewer.path),
+                &viewer.path,
+            );
+            op.assign_bundle_id(self.id);
             let id = op.id;
             self.ops.insert(id, op);
             id
@@ -287,7 +297,10 @@ impl Bundle {
             doc_op_id,
             operation_ids,
             meta: conf.meta,
-            viewer: conf.viewer,
+            viewer: viewer
+                .as_ref()
+                .map(|viewer| viewer.viewer)
+                .unwrap_or(DocViewer::Swagger),
             auth: conf.auth,
         });
         self
@@ -370,5 +383,53 @@ mod tests {
         let operation_ids = &bundle.doc_engine.nodes[0].operation_ids;
 
         assert_eq!(operation_ids, &[route_id]);
+    }
+
+    #[test]
+    fn default_openapi_registers_only_json_spec_marker() {
+        let bundle = Bundle::new().with_openapi(OpenApiConf::default());
+        let node = &bundle.doc_engine.nodes[0];
+        let spec_op = bundle.ops.get(&node.spec_op_id).unwrap();
+
+        assert_eq!(spec_op.kind, OperationKind::ApiDoc);
+        assert_eq!(spec_op.path, "/openapi.json");
+        assert_eq!(spec_op.bundle_id, Some(bundle.id));
+        assert!(node.doc_op_id.is_none());
+    }
+
+    #[test]
+    fn optional_viewer_registers_hidden_viewer_marker_with_origin_bundle_id() {
+        let bundle = Bundle::new()
+            .with_openapi(OpenApiConf::default().viewer_with("/docs", DocViewer::Redoc));
+        let node = &bundle.doc_engine.nodes[0];
+        let doc_op_id = node.doc_op_id.unwrap();
+        let doc_op = bundle.ops.get(&doc_op_id).unwrap();
+
+        assert_eq!(node.viewer, DocViewer::Redoc);
+        assert_eq!(doc_op.kind, OperationKind::ApiDoc);
+        assert!(doc_op.hidden);
+        assert_eq!(doc_op.path, "/docs");
+        assert_eq!(doc_op.bundle_id, Some(bundle.id));
+    }
+
+    #[test]
+    fn prefixed_openapi_viewer_uses_final_paths_and_relative_spec_url() {
+        let bundle = Bundle::new()
+            .with_openapi(
+                OpenApiConf::default()
+                    .spec("/api/openapi.json")
+                    .viewer("/api/docs"),
+            )
+            .with_prefix("/v1");
+        let node = &bundle.doc_engine.nodes[0];
+        let spec_path = &bundle.ops.get(&node.spec_op_id).unwrap().path;
+        let doc_path = &bundle.ops.get(&node.doc_op_id.unwrap()).unwrap().path;
+
+        assert_eq!(spec_path, "/v1/api/openapi.json");
+        assert_eq!(doc_path, "/v1/api/docs");
+
+        let html = generate_viewer(doc_path, spec_path, node.viewer);
+        assert!(html.contains("openapi.json"));
+        assert!(!html.contains("/v1/api/openapi.json"));
     }
 }

@@ -37,7 +37,7 @@ mod testing_tests;
 pub mod routes;
 pub use callables::{Data, DataValue, Operation, OperationKind};
 pub use commands::CommandError;
-pub use conf::{SiteConf, StaticDir};
+pub use conf::SiteConf;
 pub use errors::{
     Error, ErrorCommandContext, ErrorContext, ErrorKind, ErrorRenderContext, ErrorRenderTarget,
     ErrorReport, ErrorRequestContext, ErrorSourceKind, ErrorView, HttpErrorRenderMode,
@@ -45,10 +45,10 @@ pub use errors::{
 pub use file_storage::{
     FileStorageError, LocalStorage, SavedFile, StorageBackend, StorageName, UploadConf,
 };
+pub use schemars;
+pub use serde;
 pub use site::{Site, SiteConfig, SiteError};
 pub use validation::{
     Valid, ValidRejection, Validate, ValidationError, ValidationReport, ValidationSchema,
 };
 pub use vyuh_macros::MultipartData;
-pub use schemars;
-pub use serde;

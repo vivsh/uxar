@@ -1,0 +1,496 @@
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    linear-gradient(120deg, rgba($vyuh-ocean, 0.08), transparent 30%),
+    linear-gradient(240deg, rgba($vyuh-ember, 0.12), transparent 36%),
+    $vyuh-paper;
+}
+
+a {
+  text-decoration: none;
+}
+
+.landing-header {
+  backdrop-filter: blur(14px);
+  background: rgba($vyuh-paper, 0.88);
+  border-bottom: 1px solid rgba($vyuh-ink, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.landing-nav {
+  min-height: 4.75rem;
+}
+
+.landing-brand {
+  align-items: center;
+  color: $vyuh-ink;
+  display: inline-flex;
+  gap: 0.75rem;
+
+  img {
+    height: 2.5rem;
+    width: 2.5rem;
+  }
+}
+
+.landing-nav-links {
+  a {
+    color: rgba($vyuh-ink, 0.76);
+
+    &:hover {
+      color: $vyuh-ember;
+    }
+  }
+}
+
+.landing-hero {
+  background:
+    radial-gradient(circle at 82% 16%, rgba($vyuh-ember, 0.18), transparent 30%),
+    radial-gradient(circle at 18% 78%, rgba($vyuh-ocean, 0.08), transparent 34%),
+    linear-gradient(120deg, rgba($vyuh-paper, 0.98), rgba($vyuh-paper-deep, 0.88) 58%, rgba($vyuh-ember, 0.1));
+  min-height: min(52rem, calc(100vh - 4.75rem));
+  overflow: hidden;
+  position: relative;
+
+  &::after {
+    background: url("../img/vyuh-logo-transparent.png") center / contain no-repeat;
+    content: "";
+    height: min(44vw, 34rem);
+    mask-image: linear-gradient(90deg, transparent, #000 44%);
+    opacity: 0.055;
+    position: absolute;
+    right: 7%;
+    top: 2.25rem;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 44%);
+    width: min(44vw, 34rem);
+  }
+}
+
+.landing-hero-inner {
+  padding-block: clamp(4rem, 8vw, 6rem) 3.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.landing-hero-copy {
+  max-width: 40rem;
+}
+
+.landing-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.landing-philosophy {
+  margin-top: clamp(3rem, 7vw, 4.5rem);
+  position: relative;
+  z-index: 2;
+}
+
+.landing-philosophy-strip {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.24);
+  border-block: 1px solid rgba($vyuh-ink, 0.1);
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.landing-philosophy-item {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1.375rem 1.25rem;
+  position: relative;
+
+  & + & {
+    border-left: 1px solid rgba($vyuh-ink, 0.1);
+  }
+
+  p {
+    color: rgba($vyuh-ink, 0.58);
+    margin: 0.35rem 0 0;
+  }
+}
+
+.landing-philosophy-mark {
+  align-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+
+.landing-tone-ember {
+  color: $vyuh-ember;
+}
+
+.landing-tone-moss {
+  color: $vyuh-moss;
+}
+
+.landing-tone-ocean {
+  color: $vyuh-ocean;
+}
+
+.landing-tone-violet {
+  color: $vyuh-violet;
+}
+
+.landing-tone-saffron {
+  color: $vyuh-saffron;
+}
+
+.landing-section {
+  padding-block: clamp(3.5rem, 7vw, 5rem);
+}
+
+.landing-section-tight {
+  padding-block: clamp(2.75rem, 5vw, 3.75rem) clamp(1.25rem, 3vw, 2rem);
+}
+
+.landing-section-head {
+  margin-inline: auto;
+  max-width: 48rem;
+  text-align: center;
+}
+
+.landing-rule {
+  background: $vyuh-ember;
+  border-radius: 999px;
+  height: 0.25rem;
+  margin: 1.125rem auto 0;
+  width: 2.75rem;
+}
+
+.landing-feature {
+  min-height: 14rem;
+  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 16px 42px rgba($vyuh-ink, 0.09);
+    transform: translateY(-3px);
+  }
+}
+
+.landing-icon-box {
+  background: #fff;
+  border: 1px solid rgba($vyuh-ink, 0.1);
+  border-radius: $vyuh-radius-sm;
+  box-shadow: 0 8px 22px rgba($vyuh-ink, 0.08);
+  display: grid;
+  height: 2.75rem;
+  place-items: center;
+  width: 2.75rem;
+}
+
+.landing-code-layout {
+  display: grid;
+  gap: clamp(2rem, 5vw, 3rem);
+  grid-template-columns: minmax(0, 1.08fr) minmax(20rem, 0.92fr);
+  padding-block: clamp(2rem, 6vw, 3.5rem) clamp(1.75rem, 4vw, 2.75rem);
+}
+
+.landing-code-toolbar {
+  align-items: center;
+  background: #fffaf3;
+  border-bottom: 1px solid rgba($vyuh-ink, 0.1);
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+}
+
+.landing-dot {
+  border-radius: 999px;
+  height: 0.75rem;
+  width: 0.75rem;
+}
+
+.landing-dot-danger {
+  background: #ff5f57;
+}
+
+.landing-dot-warning {
+  background: #ffbd2e;
+}
+
+.landing-dot-success {
+  background: #28c840;
+}
+
+.landing-code-file {
+  color: rgba($vyuh-ink, 0.55);
+  margin-left: 1rem;
+}
+
+.landing-code-body {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+}
+
+.landing-code-tabs {
+  background: #fff8ed;
+  border-right: 1px solid rgba($vyuh-ink, 0.1);
+  padding: 1rem;
+}
+
+.landing-code-mobile-tabs {
+  display: none;
+}
+
+.landing-code-tab {
+  background: transparent;
+  border: 0;
+  border-radius: $vyuh-radius-sm;
+  color: rgba($vyuh-ink, 0.68);
+  cursor: pointer;
+  display: block;
+  padding: 0.75rem 0.875rem;
+  text-align: left;
+  width: 100%;
+
+  &.is-active {
+    background: rgba($vyuh-ember, 0.1);
+    color: $vyuh-ember;
+  }
+}
+
+.landing-code-points {
+  list-style: none;
+  margin: 1.75rem 0 0;
+  padding: 0;
+
+  li {
+    align-items: baseline;
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.875rem;
+  }
+}
+
+.landing-code-bullet {
+  color: $vyuh-ember;
+}
+
+.landing-stack-card {
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+}
+
+.landing-stack-grid {
+  border: 1px solid rgba($vyuh-ink, 0.08);
+  border-radius: $vyuh-radius-sm;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-top: 1.75rem;
+  overflow: hidden;
+}
+
+.landing-stack-item {
+  background: rgba(255, 255, 255, 0.58);
+  border-right: 1px solid rgba($vyuh-ink, 0.08);
+  padding: 1.375rem;
+  text-align: center;
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  p {
+    color: rgba($vyuh-ink, 0.58);
+    margin: 0.25rem 0 0;
+  }
+}
+
+.landing-cta {
+  background: linear-gradient(90deg, #ff7a2a, #ff9c4a, #ffc06b);
+  border-radius: $vyuh-radius-md;
+  box-shadow: $vyuh-shadow-lift;
+  margin-block: 0 clamp(2.5rem, 5vw, 3.5rem);
+  overflow: hidden;
+  padding: clamp(2rem, 5vw, 3rem);
+  position: relative;
+
+  &::after {
+    background: url("../img/vyuh-logo-transparent.png") center / contain no-repeat;
+    content: "";
+    height: 9rem;
+    opacity: 0.1;
+    position: absolute;
+    right: 2rem;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 9rem;
+  }
+}
+
+.landing-cta-inner {
+  align-items: center;
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  position: relative;
+  z-index: 1;
+}
+
+.landing-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.875rem;
+  padding-right: 11rem;
+}
+
+.landing-button-ink {
+  background: $vyuh-ink;
+  color: #fff;
+}
+
+@media (max-width: 992px) {
+  .landing-stack-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .landing-philosophy-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .landing-philosophy-item {
+    border-bottom: 1px solid rgba($vyuh-ink, 0.1);
+
+    & + & {
+      border-left: 0;
+    }
+
+    &:nth-child(3n + 2),
+    &:nth-child(3n + 3) {
+      border-left: 1px solid rgba($vyuh-ink, 0.1);
+    }
+
+    &:nth-last-child(-n + 3) {
+      border-bottom: 0;
+    }
+  }
+
+  .landing-code-layout,
+  .landing-cta-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-cta-actions {
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 820px) {
+  .landing-nav {
+    min-height: 4.25rem;
+  }
+
+  .landing-brand {
+    img {
+      height: 1.75rem;
+      width: 1.75rem;
+    }
+  }
+
+  .landing-nav-links {
+    display: none !important;
+  }
+
+  .landing-hero {
+    background:
+      linear-gradient(180deg, rgba($vyuh-paper, 0.96), rgba($vyuh-paper, 0.9)),
+      $vyuh-paper;
+    min-height: auto;
+    padding-top: 0;
+
+    &::after {
+      height: 18rem;
+      left: 50%;
+      mask-image: none;
+      opacity: 0.025;
+      right: auto;
+      top: 5.75rem;
+      transform: translateX(-50%);
+      -webkit-mask-image: none;
+      width: 18rem;
+    }
+  }
+
+  .landing-hero-inner {
+    padding-block: 2.5rem;
+  }
+
+  .landing-stack-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-stack-item {
+    border-right: 0;
+  }
+
+  .landing-philosophy {
+    margin-top: 3rem;
+  }
+
+  .landing-philosophy-strip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .landing-philosophy-item {
+    border-bottom: 1px solid rgba($vyuh-ink, 0.1);
+
+    & + & {
+      border-left: 0;
+    }
+
+    &:nth-child(3n + 2),
+    &:nth-child(3n + 3) {
+      border-left: 0;
+    }
+
+    &:nth-child(2n) {
+      border-left: 1px solid rgba($vyuh-ink, 0.1);
+    }
+
+    &:nth-last-child(-n + 3) {
+      border-bottom: 1px solid rgba($vyuh-ink, 0.1);
+    }
+
+    &:nth-last-child(-n + 2) {
+      border-bottom: 0;
+    }
+  }
+
+  .landing-code-body {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-code-tabs {
+    display: none;
+  }
+
+  .landing-code-mobile-tabs {
+    background: #fff;
+    border-bottom: 1px solid rgba($vyuh-ink, 0.1);
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.75rem;
+  }
+
+  .landing-code-tab {
+    white-space: nowrap;
+  }
+}

@@ -215,7 +215,6 @@ pub async fn mock_site() -> SiteConf {
         project_dir: "/tmp/vyuh_test".to_string(),
         database: DbConf::default(),
         secret_key: "test_secret_key_minimum_32_chars!".to_string(),
-        static_dirs: vec![],
         media_dir: None,
         templates: crate::templates::TemplateConf::default(),
         touch_reload: None,

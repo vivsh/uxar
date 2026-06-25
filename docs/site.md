@@ -49,9 +49,7 @@ let conf = SiteConf::default()
     .project_dir(".")
     .database(DbConf::from_url("sqlite://app.db?max=5")?)
     .secret_key("replace-with-a-long-random-secret")
-    .templates_dir("templates")
     .templates(TemplateConf {
-        dirs: vec!["templates".into()],
         date_formats: TemplateDateFormats {
             date: "%d %b %Y".into(),
             time: "%H:%M".into(),
@@ -69,13 +67,13 @@ let conf = SiteConf::default()
         ..UploadConf::default()
     })
     .console(ConsoleConf::default().enabled(true))
-    .static_dir("public", "/static")
     .timezone("UTC");
 ```
 
-`project_dir` is the base for relative static, media, upload, template, and
-reload paths. `SiteConf::validate()` checks required fields and path readability
-before the site is built.
+`project_dir` is the base for relative media, upload, reload, auth key, and log
+paths. Static files and templates belong to bundles through asset dirs.
+`SiteConf::validate()` checks required fields and path readability before the
+site is built.
 
 With no database backend feature enabled, `SiteConf::default()` uses a shared
 in-memory SQLite database URL and tasks use `MemoryTaskStore`. This is intended

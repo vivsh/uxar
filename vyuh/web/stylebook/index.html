@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Vyuh Stylebook</title>
+  <link rel="icon" href="../public/img/favicon.svg">
+  <link rel="stylesheet" href="../public/css/stylebook.css">
+</head>
+<body>
+  <header class="stylebook-header sticky-top">
+    <nav class="container-xxl stylebook-nav d-flex align-items-center justify-content-between gap-4">
+      <a class="stylebook-brand" href="#top">
+        <img src="../public/img/vyuh-logo-transparent.png" alt="Vyuh logo">
+        <span>vyuh</span>
+      </a>
+      <div class="d-none d-lg-flex align-items-center gap-4">
+        <a href="#rules">Rules</a>
+        <a href="#palette">Palette</a>
+        <a href="#components">Components</a>
+        <a href="#product">Product</a>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="container-xxl py-5">
+      <div class="row align-items-end g-5">
+        <div class="col-lg-8">
+          <strong class="vyuh-kicker">Dev-only stylebook</strong>
+          <h1 class="vyuh-display">One visual system before every UI surface.</h1>
+        </div>
+        <div class="col-lg-4">
+          <p class="vyuh-copy mb-4">This page validates palette, typography, components, and product layouts before they move into landing, mdBook, or console.</p>
+          <div class="stylebook-rule"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="rules" class="stylebook-section py-5">
+      <div class="container-xxl">
+        <div class="row g-4">
+          <div class="col-lg-4">
+            <strong class="vyuh-kicker">Rules</strong>
+            <h2 class="vyuh-section-title">Bootstrap composes. Vyuh defines.</h2>
+          </div>
+          <div class="col-lg-8">
+            <div class="stylebook-panel">
+              <div class="row g-4">
+                <div class="col-md-4">
+                  <h3 class="h5">Allowed</h3>
+                  <p class="vyuh-copy mb-0">Use Bootstrap utilities for page composition: containers, rows, columns, gaps, flex, display, and section spacing.</p>
+                </div>
+                <div class="col-md-4">
+                  <h3 class="h5">Forbidden</h3>
+                  <p class="vyuh-copy mb-0">Do not depend on utility classes inside reusable Vyuh components. Component shape, spacing, border, shadow, and typography live in SCSS.</p>
+                </div>
+                <div class="col-md-4">
+                  <h3 class="h5">Promotion rule</h3>
+                  <p class="vyuh-copy mb-0">If a utility combination repeats or becomes required for correctness, promote it into a named semantic Vyuh class.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="palette" class="stylebook-section py-5">
+      <div class="container-xxl">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+          <div>
+            <strong class="vyuh-kicker">Palette</strong>
+            <h2 class="vyuh-section-title">Warm operational clarity.</h2>
+          </div>
+          <p class="vyuh-copy col-lg-4 mb-0">Every surface should pull from this token set rather than local color decisions.</p>
+        </div>
+        <div class="row g-3">
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-ink"></div>
+              <div class="stylebook-swatch-body"><strong>Ink</strong><p class="mb-0 text-muted">#101827</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-ember"></div>
+              <div class="stylebook-swatch-body"><strong>Ember</strong><p class="mb-0 text-muted">#ec5b1a</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-saffron"></div>
+              <div class="stylebook-swatch-body"><strong>Saffron</strong><p class="mb-0 text-muted">#f59e0b</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-paper"></div>
+              <div class="stylebook-swatch-body"><strong>Paper</strong><p class="mb-0 text-muted">#f7ead9</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-moss"></div>
+              <div class="stylebook-swatch-body"><strong>Moss</strong><p class="mb-0 text-muted">#557c45</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-ocean"></div>
+              <div class="stylebook-swatch-body"><strong>Ocean</strong><p class="mb-0 text-muted">#2374ab</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-violet"></div>
+              <div class="stylebook-swatch-body"><strong>Violet</strong><p class="mb-0 text-muted">#8b5cf6</p></div>
+            </article>
+          </div>
+          <div class="col-6 col-lg-3">
+            <article class="stylebook-swatch">
+              <div class="stylebook-swatch-color stylebook-swatch-danger"></div>
+              <div class="stylebook-swatch-body"><strong>Danger</strong><p class="mb-0 text-muted">#b83232</p></div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="typography" class="stylebook-section py-5">
+      <div class="container-xxl">
+        <div class="row g-4 align-items-start">
+          <div class="col-lg-4">
+            <strong class="vyuh-kicker">Typography</strong>
+            <h2 class="vyuh-section-title">Readable, direct, precise.</h2>
+          </div>
+          <div class="col-lg-8">
+            <div class="stylebook-panel d-grid gap-4">
+              <div>
+                <strong class="vyuh-kicker">Kicker label</strong>
+                <h3 class="vyuh-display">Display headline</h3>
+              </div>
+              <div>
+                <h3 class="vyuh-section-title">Section title</h3>
+                <p class="vyuh-copy mb-0">Body copy should be calm and legible. It should avoid the heavy, coarse rendering that made the console feel less professional.</p>
+              </div>
+              <div class="vyuh-code-window">
+                <pre><code>#[derive(Serialize, Deserialize, JsonSchema)]
+struct Operation {
+    name: String,
+    path: String,
+}</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="components" class="stylebook-section py-5">
+      <div class="container-xxl">
+        <div class="mb-4">
+          <strong class="vyuh-kicker">Core components</strong>
+          <h2 class="vyuh-section-title">Semantic classes define reusable UI.</h2>
+        </div>
+        <div class="row g-4">
+          <div class="col-lg-4">
+            <article class="vyuh-card d-grid gap-3">
+              <h3 class="h5 mb-0">Buttons</h3>
+              <div class="d-flex flex-wrap gap-3">
+                <a class="vyuh-button vyuh-button-primary" href="#components">Primary</a>
+                <a class="vyuh-button vyuh-button-secondary" href="#components">Secondary</a>
+                <button class="vyuh-icon-button" type="button" aria-label="Icon action">↗</button>
+              </div>
+            </article>
+          </div>
+          <div class="col-lg-4">
+            <article class="vyuh-card d-grid gap-3">
+              <h3 class="h5 mb-0">Form fields</h3>
+              <div class="vyuh-field">
+                <label for="stylebook-search">Search</label>
+                <input id="stylebook-search" type="search" placeholder="Filter operations">
+              </div>
+              <div class="vyuh-field">
+                <label for="stylebook-kind">Kind</label>
+                <select id="stylebook-kind">
+                  <option>Route</option>
+                  <option>Task</option>
+                  <option>Signal</option>
+                </select>
+              </div>
+            </article>
+          </div>
+          <div class="col-lg-4">
+            <article class="vyuh-card d-grid gap-3">
+              <h3 class="h5 mb-0">States</h3>
+              <div><span class="vyuh-pill">route</span></div>
+              <div class="vyuh-alert">Inspector data loaded from registered operation metadata.</div>
+              <div class="vyuh-empty">No task records yet.</div>
+            </article>
+          </div>
+          <div class="col-12">
+            <div class="vyuh-table">
+              <table class="table mb-0">
+                <caption>Runtime registry sample</caption>
+                <thead>
+                  <tr><th>Kind</th><th>Name</th><th>Path</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td><span class="vyuh-pill">route</span></td><td>list_notes</td><td>/api/notes</td><td>visible</td></tr>
+                  <tr><td><span class="vyuh-pill">task</span></td><td>send_welcome</td><td>background</td><td>queued</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="product" class="stylebook-section py-5">
+      <div class="container-xxl d-grid gap-4">
+        <div>
+          <strong class="vyuh-kicker">Product patterns</strong>
+          <h2 class="vyuh-section-title">Samples before migration.</h2>
+        </div>
+
+        <article class="stylebook-hero-sample">
+          <div class="row align-items-center g-4">
+            <div class="col-lg-7">
+              <strong class="vyuh-kicker">Landing hero</strong>
+              <h3 class="vyuh-section-title">Vyuh, wired for real applications.</h3>
+              <p class="vyuh-copy mb-4">One framework. Every runtime path.</p>
+              <div class="d-flex flex-wrap gap-3">
+                <a class="vyuh-button vyuh-button-primary" href="#product">Get Started</a>
+                <a class="vyuh-button vyuh-button-secondary" href="#product">View on GitHub</a>
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <div class="vyuh-code-window">
+                <pre><code>routes
+tasks
+signals
+emitters
+commands
+services</code></pre>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="stylebook-doc-sample">
+          <strong class="vyuh-kicker">mdBook sample</strong>
+          <h3>Build from one typed application core</h3>
+          <p>Documentation should use the same typography and code treatment as the landing and console surfaces. Inline code such as <code>Data&lt;T&gt;</code> and <code>Site</code> should remain readable.</p>
+        </article>
+
+        <article class="vyuh-console-shell">
+          <aside class="vyuh-console-sidebar">
+            <strong class="vyuh-kicker">Console</strong>
+            <nav class="d-grid gap-2">
+              <a class="vyuh-console-link" href="#product" aria-current="page">Operations</a>
+              <a class="vyuh-console-link" href="#product">Tasks</a>
+              <a class="vyuh-console-link" href="#product">Status</a>
+            </nav>
+          </aside>
+          <section class="vyuh-console-main d-grid gap-3">
+            <div>
+              <strong class="vyuh-kicker">Registry</strong>
+              <h3 class="vyuh-section-title">Operations</h3>
+            </div>
+            <article class="vyuh-operation-row" aria-selected="true">
+              <span class="vyuh-pill">Route</span>
+              <strong>List Notes</strong>
+              <code>/api/notes</code>
+            </article>
+            <article class="vyuh-operation-row" aria-selected="false">
+              <span class="vyuh-pill">Task</span>
+              <strong>Send Welcome</strong>
+              <code>Background</code>
+            </article>
+          </section>
+          <aside class="vyuh-console-detail d-grid gap-3">
+            <div>
+              <strong class="vyuh-kicker">Route</strong>
+              <h3 class="h5">List Notes</h3>
+              <p class="vyuh-copy mb-0">Inspect request and response schema details without leaving the list.</p>
+            </div>
+            <article class="vyuh-schema-card">
+              <header><strong>Request</strong><span>query</span></header>
+              <pre><code>{
+  "type": "object",
+  "properties": {
+    "q": { "type": "string" }
+  }
+}</code></pre>
+            </article>
+            <article class="vyuh-schema-card">
+              <header><strong>200</strong><span>body</span></header>
+              <pre><code>{
+  "type": "array",
+  "items": { "$ref": "#/Note" }
+}</code></pre>
+            </article>
+          </aside>
+        </article>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

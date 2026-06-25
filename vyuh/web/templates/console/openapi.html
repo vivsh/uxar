@@ -1,0 +1,8 @@
+{% extends "console/layout.html" %}
+
+{% block content %}
+<section class="console-redoc-blank" aria-label="OpenAPI documentation">
+  <redoc spec-url="{{ base_path }}/api/openapi" hide-download-button></redoc>
+</section>
+<script src="https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js"></script>
+{% endblock %}

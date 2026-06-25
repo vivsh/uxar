@@ -10,9 +10,9 @@ use crate::logging::{self, LoggingGuard};
 use crate::notifiers::CancellationNotifier;
 use crate::signals::SignalClient;
 #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
-use crate::tasks::store::AbstractTaskStore as _;
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 use crate::tasks::TaskError;
+#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
+use crate::tasks::store::AbstractTaskStore as _;
 use crate::tasks::{MemoryTaskStore, TaskClient, TaskDispatcher, TaskRunner, TaskStore};
 use crate::templates::{TemplateEngine, TemplateError, Templates};
 use crate::{services, watch};
@@ -27,7 +27,6 @@ use tokio::sync::mpsc;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
-use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 
 use std::path::Path;
@@ -219,21 +218,20 @@ impl SiteBuilder {
             None => Tz::UTC,
         };
 
-        let bundle = if self.conf.console.enabled {
-            bundle.merge(crate::console::bundle(&self.conf.console))
+        let (bundle, console_runtime) = if self.conf.console.enabled {
+            let console_bundle = crate::console::bundle(&self.conf.console);
+            let console_bundle_id = console_bundle.id();
+            (
+                bundle.merge(console_bundle),
+                crate::console::runtime(&self.conf.console, console_bundle_id),
+            )
         } else {
-            bundle
+            (bundle, None)
         };
 
         bundle.validate()?;
 
         let mut router = bundle.to_router();
-
-        for static_dir in &self.conf.static_dirs {
-            let path = project_dir.join(&static_dir.path);
-            let serve_dir = ServeDir::new(&path).append_index_html_on_directories(false);
-            router = router.nest_service(&static_dir.url, serve_dir);
-        }
 
         if !bundle.asset_dirs.is_empty() {
             let assets = crate::assets::AssetServe::from_dirs(bundle.asset_dirs.clone(), "public")
@@ -251,7 +249,7 @@ impl SiteBuilder {
             DbPool::from_conf(&self.conf.database).await?
         };
 
-        template_engine.inject_templates(&self.conf.templates.dirs, &project_dir, &bundle)?;
+        template_engine.inject_templates(&bundle)?;
 
         let authenticator =
             Authenticator::new(&self.conf.auth, &self.conf.secret_key, &project_dir)
@@ -317,7 +315,7 @@ impl SiteBuilder {
             slash_router,
             joinset: Arc::new(parking_lot::Mutex::new(tokio::task::JoinSet::new())),
             channels: LocalChannelBackend::new(self.conf.channels.clone()),
-            console_runtime: crate::console::runtime(&self.conf.console),
+            console_runtime,
             bundle,
             signal_engine,
             emitter_engine,
