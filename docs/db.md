@@ -4,12 +4,17 @@ Vyuh's database subsystem is a thin SQLx-backed layer around database pools,
 sessions, query builders, typed row scanning, typed value binding, and database
 error mapping.
 
-The default release posture is Postgres-first. MySQL and SQLite are supported by
-the core query-builder and session APIs where SQLx can express the same behavior.
-Postgres-only features such as `LISTEN`/`NOTIFY`, row locking, and `RETURNING *`
-helpers are gated by the `postgres` feature. Durable task storage is available
-for Postgres, MySQL, and SQLite, with Postgres recommended for multi-worker
-deployments.
+Vyuh has no default database backend feature. With no backend feature enabled,
+it uses SQLite-compatible SQLx aliases and a shared in-memory SQLite default
+database URL. This is useful for quick starts, docs, local experiments, and
+tests.
+
+Production applications should enable exactly one backend feature. MySQL and
+SQLite are supported by the core query-builder and session APIs where SQLx can
+express the same behavior. Postgres-only features such as `LISTEN`/`NOTIFY`, row
+locking, and `RETURNING *` helpers are gated by the `postgres` feature. Durable
+task storage is available for Postgres, MySQL, and SQLite, with Postgres
+recommended for multi-worker deployments.
 
 ## Overview
 
@@ -56,20 +61,31 @@ implementations such as `DbPool`, transactions, or mocks.
 
 ## Backend Features
 
-Exactly one database backend feature must be enabled:
+No backend feature is enabled by default:
 
 ```toml
 [dependencies]
-vyuh = { version = "0.1", default-features = false, features = ["postgres"] }
+vyuh = { version = "0.2" }
+```
+
+In this lightweight mode, `DbConf::default()` uses a shared in-memory SQLite URL
+and tasks use `MemoryTaskStore`. Do not use this mode when the application needs
+durable task storage or production database behavior.
+
+Production applications should choose exactly one backend feature:
+
+```toml
+[dependencies]
+vyuh = { version = "0.2", features = ["postgres"] }
 ```
 
 Available backend features are:
 
-- `postgres` - default; enables Postgres SQLx types and Postgres-only helpers.
+- `postgres` - enables Postgres SQLx types and Postgres-only helpers.
 - `mysql` - enables MySQL SQLx types for the common query/session surface.
 - `sqlite` - enables SQLite SQLx types for the common query/session surface.
 
-Compile-time checks reject builds with no backend or multiple backend features.
+Compile-time checks reject builds with multiple backend features.
 
 ## Configuration
 

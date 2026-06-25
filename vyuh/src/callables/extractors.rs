@@ -334,6 +334,12 @@ impl<T: IntoReturnPart> IntoReturnPart for (axum::http::StatusCode, T) {
     }
 }
 
+impl<T: IntoReturnPart> IntoReturnPart for (axum_extra::extract::CookieJar, T) {
+    fn into_return_part() -> ReturnPart {
+        T::into_return_part()
+    }
+}
+
 impl IntoReturnPart for axum::response::Html<String> {
     fn into_return_part() -> ReturnPart {
         ReturnPart::Body(TypeSchema::wrap::<String>(), "text/html".into())

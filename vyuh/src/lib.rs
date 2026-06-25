@@ -19,6 +19,7 @@ pub mod file_storage;
 pub mod logging;
 pub mod middlewares;
 pub(crate) mod notifiers;
+pub mod prelude;
 pub(crate) mod roles;
 pub(crate) mod schedulers;
 pub mod services;
@@ -49,3 +50,5 @@ pub use validation::{
     Valid, ValidRejection, Validate, ValidationError, ValidationReport, ValidationSchema,
 };
 pub use vyuh_macros::MultipartData;
+pub use schemars;
+pub use serde;

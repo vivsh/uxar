@@ -78,7 +78,9 @@ pub enum TaskError {
     Other(#[from] Box<dyn std::error::Error + Send + Sync>),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema, sqlx::Type,
+)]
 #[repr(i16)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskStatus {
@@ -164,7 +166,6 @@ pub struct TaskRecord {
     pub name: String,
     pub input: String,
     pub state: Option<String>,
-    pub resume_topic: Option<String>,
     pub resume_input: Option<String>,
     pub output: Option<String>,
     pub result: Option<String>,
@@ -230,12 +231,12 @@ pub(crate) fn sort_claimed_tasks(tasks: &mut [TaskRecord]) {
 }
 
 #[derive(Debug, Clone)]
+#[doc(hidden)]
 pub enum TaskOutcome {
     Complete {
         result: String,
     },
     Suspend {
-        topic: String,
         state: String,
         output: Option<String>,
     },
@@ -260,12 +261,10 @@ impl TaskOutcome {
     }
 
     pub fn suspend<S: Serialize, O: Serialize>(
-        topic: impl Into<String>,
         state: &S,
         output: Option<&O>,
     ) -> Result<Self, TaskError> {
         Ok(Self::Suspend {
-            topic: topic.into(),
             state: serde_json::to_string(state)?,
             output: output.map(serde_json::to_string).transpose()?,
         })
@@ -291,11 +290,11 @@ impl TaskOutcome {
         }
     }
 
-    pub fn retry_error(delay: Option<Duration>, error: &Error) -> Self {
+    pub(crate) fn retry_error(delay: Option<Duration>, error: &Error) -> Self {
         Self::retry(delay, error.display_compact())
     }
 
-    pub fn fail_error(error: &Error) -> Self {
+    pub(crate) fn fail_error(error: &Error) -> Self {
         Self::fail(error.display_compact())
     }
 }
@@ -312,51 +311,119 @@ impl callables::IntoReturnPart for TaskOutcome {
     }
 }
 
-pub struct TaskState<T>(pub Option<T>);
+/// Opaque return type for task handlers.
+///
+/// Create via static constructors: `TaskState::complete`, `TaskState::suspend`,
+/// `TaskState::sleep`, `TaskState::retry`, `TaskState::fail`.
+/// The type parameter `O` is the output payload type.
+pub struct TaskState<O = ()> {
+    inner: TaskOutcome,
+    _phantom: std::marker::PhantomData<fn() -> O>,
+}
 
-impl<T> callables::FromContextParts<TaskContext> for TaskState<T>
-where
-    T: serde::de::DeserializeOwned + Send,
-{
-    fn from_context_parts(ctx: &TaskContext) -> Result<Self, callables::CallError> {
-        let state = ctx
-            .record
-            .state
-            .as_deref()
-            .map(serde_json::from_str)
-            .transpose()
-            .map_err(|_| callables::CallError::DeserializeFailed)?;
-        Ok(Self(state))
+impl<O: Serialize> TaskState<O> {
+    pub fn complete(output: O) -> Result<Self, TaskError> {
+        Ok(Self {
+            inner: TaskOutcome::Complete {
+                result: serde_json::to_string(&output)?,
+            },
+            _phantom: std::marker::PhantomData,
+        })
+    }
+
+    pub fn suspend<S: Serialize>(output: O, state: S) -> Result<Self, TaskError> {
+        Ok(Self {
+            inner: TaskOutcome::Suspend {
+                state: serde_json::to_string(&state)?,
+                output: Some(serde_json::to_string(&output)?),
+            },
+            _phantom: std::marker::PhantomData,
+        })
+    }
+
+    pub fn sleep<S: Serialize>(state: S, delay: Duration) -> Result<Self, TaskError> {
+        Ok(Self {
+            inner: TaskOutcome::Sleep {
+                state: serde_json::to_string(&state)?,
+                delay,
+            },
+            _phantom: std::marker::PhantomData,
+        })
+    }
+
+    pub fn retry(delay: Option<Duration>, error: impl Into<String>) -> Self {
+        Self {
+            inner: TaskOutcome::Retry {
+                delay,
+                error: error.into(),
+            },
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn fail(error: impl Into<String>) -> Self {
+        Self {
+            inner: TaskOutcome::Fail {
+                error: error.into(),
+            },
+            _phantom: std::marker::PhantomData,
+        }
     }
 }
 
-impl<T> callables::IntoArgPart for TaskState<T> {
-    fn into_arg_part() -> callables::ArgPart {
-        callables::ArgPart::Ignore
+impl<O, E: From<TaskError>> callables::IntoOutput<E> for TaskState<O> {
+    fn into_output(self) -> Result<callables::DataBox, E> {
+        Ok(callables::DataBox::new(self.inner))
     }
 }
 
-pub struct TaskResume<T>(pub Option<T>);
+impl<O> callables::IntoReturnPart for TaskState<O> {
+    fn into_return_part() -> callables::ReturnPart {
+        callables::ReturnPart::Empty
+    }
+}
 
-impl<T> callables::FromContextParts<TaskContext> for TaskResume<T>
-where
-    T: serde::de::DeserializeOwned + Send,
+impl<O> TaskState<O> {
+    /// Unwrap into the underlying [`TaskOutcome`] for use by store implementors and tests.
+    pub fn into_outcome(self) -> TaskOutcome {
+        self.inner
+    }
+}
+
+/// Optional DI parameter for task handlers that need suspend/resume.
+///
+/// Inject via handler signature: `suspension: Suspension<O>`.
+/// Use `suspension.get()` to retrieve the resume value if the task was resumed.
+pub struct Suspension<T> {
+    resume_input: Option<T>,
+}
+
+impl<T: serde::de::DeserializeOwned + Send> callables::FromContextParts<TaskContext>
+    for Suspension<T>
 {
     fn from_context_parts(ctx: &TaskContext) -> Result<Self, callables::CallError> {
-        let input = ctx
+        let resume_input = ctx
             .record
             .resume_input
             .as_deref()
-            .map(serde_json::from_str)
+            .map(serde_json::from_str::<T>)
             .transpose()
             .map_err(|_| callables::CallError::DeserializeFailed)?;
-        Ok(Self(input))
+        Ok(Self { resume_input })
     }
 }
 
-impl<T> callables::IntoArgPart for TaskResume<T> {
+impl<T> callables::IntoArgPart for Suspension<T> {
     fn into_arg_part() -> callables::ArgPart {
         callables::ArgPart::Ignore
+    }
+}
+
+impl<T: Clone> Suspension<T> {
+    /// Returns the resume payload if this task execution was triggered by a resume.
+    /// Returns `None` on the first (non-resumed) execution.
+    pub fn get(&self) -> Option<T> {
+        self.resume_input.clone()
     }
 }
 
@@ -411,9 +478,14 @@ impl TaskService {
             Err(e) => return TaskOutcome::fail_error(&e),
         };
 
-        match data.downcast_ref::<TaskOutcome>() {
-            Some(output) => output.clone(),
-            None => TaskOutcome::fail("Task handler returned an unexpected output type"),
+        if let Some(output) = data.downcast_ref::<TaskOutcome>() {
+            output.clone()
+        } else if data.downcast_ref::<()>().is_some() {
+            TaskOutcome::Complete {
+                result: "null".to_string(),
+            }
+        } else {
+            TaskOutcome::fail("Task handler returned an unexpected output type")
         }
     }
 
@@ -548,8 +620,8 @@ impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskClie
         self.dispatcher.submit_with(input, conf).await
     }
 
-    pub async fn resume<T: Serialize>(&self, topic: &str, input: T) -> Result<u64, TaskError> {
-        self.dispatcher.resume(topic, input).await
+    pub async fn resume<T: Serialize>(&self, id: uuid::Uuid, input: T) -> Result<u64, TaskError> {
+        self.dispatcher.resume(id, input).await
     }
 
     pub async fn list(&self, filter: TaskListFilter) -> Result<TaskListPage, TaskError> {
@@ -632,7 +704,6 @@ impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskDisp
             name: name.to_string(),
             input,
             state: conf.state,
-            resume_topic: None,
             resume_input: None,
             output: None,
             result: None,
@@ -657,9 +728,9 @@ impl<S: crate::tasks::store::AbstractTaskStore + Send + Sync + 'static> TaskDisp
         Ok(task_id)
     }
 
-    pub async fn resume<T: Serialize>(&self, topic: &str, input: T) -> Result<u64, TaskError> {
+    pub async fn resume<T: Serialize>(&self, id: uuid::Uuid, input: T) -> Result<u64, TaskError> {
         let input = serde_json::to_string(&input)?;
-        let count = self.store.resume(topic, input).await?;
+        let count = self.store.resume(id, input).await?;
         if count > 0 {
             self.notifier.notify_waiters();
         }
@@ -701,8 +772,8 @@ mod tests {
         id: i64,
     }
 
-    async fn direct_job(input: Data<DirectJob>) -> TaskOutcome {
-        TaskOutcome::complete(&format!("direct:{}", input.id)).unwrap()
+    async fn direct_job(input: Data<DirectJob>) -> Result<TaskState<String>, crate::Error> {
+        Ok(TaskState::complete(format!("direct:{}", input.id))?)
     }
 
     #[tokio::test]

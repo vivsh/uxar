@@ -235,15 +235,15 @@ Commands do not render `ErrorReport`; command output is terminal text.
 Task retry is explicit. A task handler returning `Err(Error)` marks the task as
 failed terminally. Vyuh does not infer retry behavior from `ErrorKind`.
 
-Return `TaskOutcome::retry(...)` when work should be retried:
+Return `TaskState::retry(...)` when work should be retried:
 
 ```rust
-use vyuh::{Data, Error, tasks::TaskOutcome};
+use vyuh::{Data, Error, tasks::TaskState};
 
-async fn send_email(Data(job): Data<EmailJob>) -> Result<TaskOutcome, Error> {
+async fn send_email(Data(job): Data<EmailJob>) -> Result<TaskState<String>, Error> {
     match deliver(&job).await {
-        Ok(()) => TaskOutcome::complete(&"sent").map_err(Error::other),
-        Err(err) if err.is_transient() => Ok(TaskOutcome::retry(
+        Ok(()) => Ok(TaskState::complete("sent".to_string())?),
+        Err(err) if err.is_transient() => Ok(TaskState::retry(
             Some(std::time::Duration::from_secs(60)),
             err.to_string(),
         )),
@@ -274,4 +274,4 @@ codes when converting into `ErrorReport`:
 | `Other` | `500` |
 
 Commands do not render `ErrorReport`; they render terminal text. Tasks do not
-retry from `ErrorKind`; they use `TaskOutcome`.
+retry from `ErrorKind`; they use `TaskState::retry(...)`.

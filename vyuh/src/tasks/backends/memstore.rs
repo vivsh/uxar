@@ -119,13 +119,8 @@ impl AbstractTaskStore for MemoryTaskStore {
                 task.completed_at = Some(now);
                 task.ready_at = None;
             }
-            TaskOutcome::Suspend {
-                topic,
-                state,
-                output,
-            } => {
+            TaskOutcome::Suspend { state, output } => {
                 task.status = TaskStatus::Suspended;
-                task.resume_topic = Some(topic);
                 task.state = Some(state);
                 task.output = output;
                 task.ready_at = None;
@@ -187,14 +182,13 @@ impl AbstractTaskStore for MemoryTaskStore {
         Ok(())
     }
 
-    async fn resume(&self, topic: &str, input: String) -> Result<u64, TaskError> {
+    async fn resume(&self, id: uuid::Uuid, input: String) -> Result<u64, TaskError> {
         let mut tasks = self.tasks.write().await;
         let now = chrono::Utc::now();
         let mut count = 0;
         for task in tasks.iter_mut() {
-            if task.status == TaskStatus::Suspended && task.resume_topic.as_deref() == Some(topic) {
+            if task.id == id && task.status == TaskStatus::Suspended {
                 task.status = TaskStatus::Pending;
-                task.resume_topic = None;
                 task.resume_input = Some(input.clone());
                 task.ready_at = Some(now);
                 task.updated_at = now;

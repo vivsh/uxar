@@ -470,6 +470,10 @@ impl Dialect {
 
         #[cfg(all(feature = "sqlite", not(any(feature = "postgres", feature = "mysql"))))]
         return Self::Sqlite;
+
+        // No DB feature active — dummy mode uses SQLite placeholder syntax.
+        #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+        return Self::Sqlite;
     }
 }
 

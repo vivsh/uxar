@@ -1,3 +1,6 @@
+
+
+
 mod backends;
 pub(crate) mod store;
 pub(crate) mod tasks;
@@ -18,5 +21,6 @@ pub type TaskStore = PgTaskStore;
 pub type TaskStore = MySqlTaskStore;
 #[cfg(feature = "sqlite")]
 pub type TaskStore = SqliteTaskStore;
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
+#[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+pub type TaskStore = MemoryTaskStore;
 pub type TaskRunner = AbstractTaskRunner<TaskStore>;

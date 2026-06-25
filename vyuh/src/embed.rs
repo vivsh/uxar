@@ -67,6 +67,10 @@ impl Dir {
     pub fn get_file(&self, name: &str) -> Option<File> {
         self.inner.get_file(name).map(File::new)
     }
+
+    pub(crate) fn into_silo(self) -> Silo {
+        self.inner
+    }
 }
 
 impl From<Silo> for Dir {

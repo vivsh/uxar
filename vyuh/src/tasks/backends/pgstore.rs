@@ -41,7 +41,6 @@ impl PgTaskStore {
         runner_id: &str,
         status: TaskStatus,
         state: Option<String>,
-        resume_topic: Option<String>,
         resume_input: Option<String>,
         output: Option<String>,
         result: Option<String>,
@@ -55,25 +54,23 @@ impl PgTaskStore {
             UPDATE vyuh.tasks
             SET status = $1,
                 state = COALESCE($2, state),
-                resume_topic = $3,
-                resume_input = $4,
-                output = $5,
-                result = $6,
-                last_error = $7,
-                ready_at = $8,
-                completed_at = $9,
-                attempts = attempts + CASE WHEN $10 THEN 1 ELSE 0 END,
+                resume_input = $3,
+                output = $4,
+                result = $5,
+                last_error = $6,
+                ready_at = $7,
+                completed_at = $8,
+                attempts = attempts + CASE WHEN $9 THEN 1 ELSE 0 END,
                 locked_by = NULL,
                 leased_until = NULL,
                 updated_at = NOW()
-            WHERE id = $11
-              AND locked_by = $12
-              AND status = $13
+            WHERE id = $10
+              AND locked_by = $11
+              AND status = $12
             "#,
         )
         .bind(status)
         .bind(state)
-        .bind(resume_topic)
         .bind(resume_input)
         .bind(output)
         .bind(result)
@@ -131,7 +128,7 @@ impl AbstractTaskStore for PgTaskStore {
                 FOR UPDATE SKIP LOCKED
             )
             RETURNING
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
@@ -165,7 +162,6 @@ impl AbstractTaskStore for PgTaskStore {
                     None,
                     None,
                     None,
-                    None,
                     Some(result),
                     None,
                     None,
@@ -174,17 +170,12 @@ impl AbstractTaskStore for PgTaskStore {
                 )
                 .await
             }
-            TaskOutcome::Suspend {
-                topic,
-                state,
-                output,
-            } => {
+            TaskOutcome::Suspend { state, output } => {
                 self.update_running(
                     task_id,
                     runner_id,
                     TaskStatus::Suspended,
                     Some(state),
-                    Some(topic),
                     None,
                     output,
                     None,
@@ -201,7 +192,6 @@ impl AbstractTaskStore for PgTaskStore {
                     runner_id,
                     TaskStatus::Pending,
                     Some(state),
-                    None,
                     None,
                     None,
                     None,
@@ -272,8 +262,6 @@ impl AbstractTaskStore for PgTaskStore {
                     None,
                     None,
                     None,
-                    None,
-                    None,
                     Some(error),
                     None,
                     Some(now),
@@ -288,14 +276,14 @@ impl AbstractTaskStore for PgTaskStore {
         sqlx::query(
             r#"
             INSERT INTO vyuh.tasks (
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
                 locked_by, leased_until, ready_at, created_at, updated_at, completed_at
             )
             VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8,
-                $9, $10, $11, $12, $13, $14, $15, $16,
-                $17, $18, $19, $20, $21, $22
+                $1, $2, $3, $4, $5, $6, $7,
+                $8, $9, $10, $11, $12, $13, $14, $15,
+                $16, $17, $18, $19, $20, $21
             )
             "#,
         )
@@ -303,7 +291,6 @@ impl AbstractTaskStore for PgTaskStore {
         .bind(&record.name)
         .bind(&record.input)
         .bind(&record.state)
-        .bind(&record.resume_topic)
         .bind(&record.resume_input)
         .bind(&record.output)
         .bind(&record.result)
@@ -327,23 +314,22 @@ impl AbstractTaskStore for PgTaskStore {
         Ok(())
     }
 
-    async fn resume(&self, topic: &str, input: String) -> Result<u64, TaskError> {
+    async fn resume(&self, id: uuid::Uuid, input: String) -> Result<u64, TaskError> {
         let rows = sqlx::query(
             r#"
             UPDATE vyuh.tasks
             SET status = $1,
                 resume_input = $2,
-                resume_topic = NULL,
                 ready_at = NOW(),
                 updated_at = NOW()
-            WHERE status = $3
-              AND resume_topic = $4
+            WHERE id = $3
+              AND status = $4
             "#,
         )
         .bind(TaskStatus::Pending)
         .bind(input)
+        .bind(id)
         .bind(TaskStatus::Suspended)
-        .bind(topic)
         .execute(&self.pool)
         .await?
         .rows_affected();
@@ -354,7 +340,7 @@ impl AbstractTaskStore for PgTaskStore {
         let mut builder = QueryBuilder::<Postgres>::new(
             r#"
             SELECT
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
@@ -388,7 +374,7 @@ impl AbstractTaskStore for PgTaskStore {
         sqlx::query_as::<_, TaskRecord>(
             r#"
             SELECT
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
@@ -414,7 +400,6 @@ impl AbstractTaskStore for PgTaskStore {
                 name TEXT NOT NULL,
                 input TEXT NOT NULL,
                 state TEXT,
-                resume_topic TEXT,
                 resume_input TEXT,
                 output TEXT,
                 result TEXT,
@@ -452,16 +437,6 @@ impl AbstractTaskStore for PgTaskStore {
             CREATE INDEX IF NOT EXISTS idx_tasks_pending_priority_claim
             ON vyuh.tasks(status, priority DESC, ready_at, created_at)
             WHERE status = 0
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_tasks_suspended_topic
-            ON vyuh.tasks(resume_topic)
-            WHERE status = 2
             "#,
         )
         .execute(&self.pool)

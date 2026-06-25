@@ -758,6 +758,12 @@ impl From<std::io::Error> for Error {
     }
 }
 
+impl From<crate::tasks::TaskError> for Error {
+    fn from(err: crate::tasks::TaskError) -> Self {
+        Self::other(err)
+    }
+}
+
 impl From<CallError> for Error {
     fn from(err: CallError) -> Self {
         match err {

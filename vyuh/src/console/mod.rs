@@ -1,40 +1,127 @@
 mod api;
 mod auth;
 mod conf;
+mod pages;
 mod query;
 mod status;
 mod types;
 
 use std::time::Duration;
 
-use axum::routing::{get, post};
+use rust_silos::{Silo, embed_silo};
 
-use crate::{Site, routes::AxumRouter};
+use crate::{Site, bundles, embed, routes::Methods};
 
 pub use auth::{ConsoleRole, ConsoleUser};
 pub use conf::{ConsoleBootstrapMode, ConsoleConf};
 
 pub(crate) use auth::ConsoleRuntime;
 
-pub(crate) fn mount_if_enabled(router: AxumRouter<Site>, conf: &ConsoleConf) -> AxumRouter<Site> {
-    if !conf.enabled {
-        return router;
+const WEB_ASSETS: Silo = embed_silo!("web", force = true);
+
+pub(crate) fn bundle(conf: &ConsoleConf) -> crate::bundles::Bundle {
+    web_assets()
+        .merge(home_routes(conf))
+        .merge(routes().with_prefix(&conf.path))
+}
+
+fn web_assets() -> crate::bundles::Bundle {
+    bundles::bundle([bundles::asset_dir(embed::Dir::new(WEB_ASSETS.clone()))])
+}
+
+fn home_routes(conf: &ConsoleConf) -> crate::bundles::Bundle {
+    bundles::bundle([bundles::route(
+        pages::overview,
+        crate::routes::RouteConf {
+            name: "console_home".into(),
+            methods: Methods::GET,
+            path: conf.path.clone().into(),
+            slash: None,
+        },
+    )])
+}
+
+fn routes() -> crate::bundles::Bundle {
+    macro_rules! route {
+        ($name:literal, $path:literal, $methods:expr, $handler:path $(,)?) => {
+            bundles::route(
+                $handler,
+                crate::routes::RouteConf {
+                    name: $name.into(),
+                    methods: $methods,
+                    path: $path.into(),
+                    slash: None,
+                },
+            )
+        };
     }
 
-    let api = AxumRouter::new()
-        .route("/logout", post(api::logout))
-        .route("/session", get(api::session))
-        .route("/operations", get(api::operations))
-        .route("/operations/{id}", get(api::operation_detail))
-        .route("/tasks", get(api::tasks))
-        .route("/tasks/{id}", get(api::task_detail))
-        .route("/status", get(api::status));
-
-    let console = AxumRouter::new()
-        .route("/login", get(api::login))
-        .nest("/api", api);
-
-    router.nest(&conf.path, console)
+    bundles::bundle([
+        route!(
+            "console_overview",
+            "/overview",
+            Methods::GET,
+            pages::overview,
+        ),
+        route!(
+            "console_login_page",
+            "/login-page",
+            Methods::GET,
+            pages::login,
+        ),
+        route!("console_login", "/login", Methods::GET, api::login),
+        route!("console_logout", "/api/logout", Methods::POST, api::logout),
+        route!(
+            "console_session",
+            "/api/session",
+            Methods::GET,
+            api::session,
+        ),
+        route!(
+            "console_operations",
+            "/operations",
+            Methods::GET,
+            pages::operations,
+        ),
+        route!(
+            "console_operation_detail",
+            "/operations/{id}",
+            Methods::GET,
+            pages::operation_detail,
+        ),
+        route!("console_tasks", "/tasks", Methods::GET, pages::tasks),
+        route!(
+            "console_task_detail",
+            "/tasks/{id}",
+            Methods::GET,
+            pages::task_detail,
+        ),
+        route!(
+            "console_api_operations",
+            "/api/operations",
+            Methods::GET,
+            api::operations,
+        ),
+        route!(
+            "console_api_operation_detail",
+            "/api/operations/{id}",
+            Methods::GET,
+            api::operation_detail,
+        ),
+        route!("console_api_tasks", "/api/tasks", Methods::GET, api::tasks),
+        route!(
+            "console_api_task_detail",
+            "/api/tasks/{id}",
+            Methods::GET,
+            api::task_detail,
+        ),
+        route!(
+            "console_api_status",
+            "/api/status",
+            Methods::GET,
+            api::status,
+        ),
+    ])
 }
 
 pub(crate) fn runtime(conf: &ConsoleConf) -> Option<ConsoleRuntime> {
@@ -156,6 +243,117 @@ mod tests {
             .send()
             .await
             .assert_ok();
+    }
+
+    #[tokio::test]
+    async fn console_html_pages_and_assets_work() {
+        let conf = SiteConf::default()
+            .log_init(false)
+            .console(ConsoleConf::default().enabled(true));
+        let site = Site::build(conf, app_bundle()).await.unwrap();
+        let ping_id = site
+            .iter_operations()
+            .find(|op| op.name == "ping")
+            .map(|op| op.id)
+            .unwrap();
+        let token = site
+            .console_runtime()
+            .and_then(|runtime| runtime.bootstrap_token())
+            .unwrap();
+        let client = TestClient::new(site);
+
+        let login = client
+            .get(&format!("/_console/login?token={token}"))
+            .send()
+            .await
+            .assert_ok();
+        let cookie = login
+            .header(header::SET_COOKIE.as_str())
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string();
+
+        let overview = client
+            .get("/_console")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(overview.status(), StatusCode::OK, "home page failed");
+        let overview = overview.text().await;
+        assert!(overview.contains("Overview"));
+
+        let overview = client
+            .get("/_console/overview")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(overview.status(), StatusCode::OK, "overview page failed");
+        let overview = overview.text().await;
+        assert!(overview.contains("Overview"));
+
+        let operations = client
+            .get("/_console/operations?kind=route&q=ping")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(
+            operations.status(),
+            StatusCode::OK,
+            "operations page failed"
+        );
+        let operations = operations.text().await;
+        assert!(operations.contains("ping"));
+
+        let operations = client
+            .get("/_console/operations")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(
+            operations.status(),
+            StatusCode::OK,
+            "default operations page failed"
+        );
+        let operations = operations.text().await;
+        assert!(operations.contains("ping"));
+        assert!(!operations.contains("value=\"none\""));
+
+        let selected = client
+            .get(&format!("/_console/operations?selected={ping_id}"))
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(
+            selected.status(),
+            StatusCode::OK,
+            "selected operation page failed"
+        );
+        let selected = selected.text().await;
+        assert!(selected.contains("is-selected"));
+        assert!(selected.contains("Methods"));
+        assert!(selected.contains("Request"));
+        assert!(selected.contains("Response"));
+
+        let tasks = client
+            .get("/_console/tasks")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(tasks.status(), StatusCode::OK, "tasks page failed");
+        let tasks = tasks.text().await;
+        assert!(tasks.contains("No task records yet."));
+
+        let css = client.get("/assets/css/base.css").send().await;
+        assert_eq!(css.status(), StatusCode::OK, "base.css failed");
+        assert_eq!(
+            css.header(header::CONTENT_TYPE.as_str())
+                .and_then(|value| value.to_str().ok()),
+            Some("text/css")
+        );
     }
 
     #[tokio::test]

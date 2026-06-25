@@ -12,7 +12,8 @@ use crate::signals::SignalClient;
 #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 use crate::tasks::store::AbstractTaskStore as _;
 #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
-use crate::tasks::{TaskClient, TaskDispatcher, TaskError, TaskRunner, TaskStore};
+use crate::tasks::TaskError;
+use crate::tasks::{MemoryTaskStore, TaskClient, TaskDispatcher, TaskRunner, TaskStore};
 use crate::templates::{TemplateEngine, TemplateError, Templates};
 use crate::{services, watch};
 use axum::ServiceExt;
@@ -117,7 +118,7 @@ pub enum SiteError {
 
     #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
     #[error("Task migration error: {0}")]
-    TaskMigrationError(#[from] TaskError),
+    TaskMigrationError(#[from] crate::tasks::TaskError),
 
     #[error(transparent)]
     CommandError(#[from] crate::commands::CommandError),
@@ -133,18 +134,15 @@ impl SiteBuilder {
     }
 
     async fn start_engines(site: &Site) -> Result<(), SiteError> {
-        #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
-        {
-            if site.inner.task_engine.has_tasks() {
-                let task_runner = TaskRunner::new(site.inner.task_engine.clone());
+        if site.inner.task_engine.has_tasks() {
+            let task_runner = TaskRunner::new(site.inner.task_engine.clone());
 
-                let signal_site = site.clone();
-                let task_site = signal_site.clone();
+            let signal_site = site.clone();
+            let task_site = signal_site.clone();
 
-                site.inner.joinset.lock().spawn(async move {
-                    task_runner.run(task_site).await;
-                });
-            }
+            site.inner.joinset.lock().spawn(async move {
+                task_runner.run(task_site).await;
+            });
         }
 
         let signal_site = site.clone();
@@ -221,12 +219,28 @@ impl SiteBuilder {
             None => Tz::UTC,
         };
 
+        let bundle = if self.conf.console.enabled {
+            bundle.merge(crate::console::bundle(&self.conf.console))
+        } else {
+            bundle
+        };
+
+        bundle.validate()?;
+
         let mut router = bundle.to_router();
 
         for static_dir in &self.conf.static_dirs {
             let path = project_dir.join(&static_dir.path);
             let serve_dir = ServeDir::new(&path).append_index_html_on_directories(false);
             router = router.nest_service(&static_dir.url, serve_dir);
+        }
+
+        if !bundle.asset_dirs.is_empty() {
+            let assets = crate::assets::AssetServe::from_dirs(bundle.asset_dirs.clone(), "public")
+                .strip_url_prefix("assets")
+                .precompressed(true)
+                .with_etag(true);
+            router = router.nest_service("/assets", assets);
         }
 
         let mut template_engine = TemplateEngine::new();
@@ -244,7 +258,6 @@ impl SiteBuilder {
                 .map_err(|err| conf::ConfError::Other(format!("Auth config error: {err}")))?;
 
         bundle.doc_engine.setup(&mut router, &bundle.ops)?;
-        router = crate::console::mount_if_enabled(router, &self.conf.console);
 
         let slash_router = Arc::new(
             crate::middlewares::SlashRouter::from_operations(
@@ -256,7 +269,6 @@ impl SiteBuilder {
 
         let mut bundle = bundle.with_router_unchecked(router);
 
-        #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
         let task_config = self.conf.tasks.clone();
 
         #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
@@ -266,10 +278,11 @@ impl SiteBuilder {
             std::time::Duration::from_millis(task_config.lease_duration_ms as u64),
         );
 
-        #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
+        #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+        let task_store = MemoryTaskStore::new(task_config.batch_size);
+
         let task_registry = Arc::new(bundle.tasks.clone().with_config(task_config));
 
-        #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
         let task_dispatcher = task_registry.dispatcher(Arc::new(task_store));
 
         let signal_engine = bundle.signals.engine();
@@ -309,7 +322,6 @@ impl SiteBuilder {
             signal_engine,
             emitter_engine,
             commands: command_registry,
-            #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
             task_engine: task_dispatcher,
         };
 
@@ -334,7 +346,6 @@ struct SiteInner {
     signal_engine: crate::signals::SignalEngine,
     emitter_engine: crate::emitters::EmitterEngine,
     commands: CommandRegistry,
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
     task_engine: TaskDispatcher<TaskStore>,
     service_engine: services::ServiceEngine,
     shutdown_notifier: CancellationNotifier,
@@ -593,6 +604,10 @@ impl Site {
         self.inner.service_engine.infos()
     }
 
+    pub(crate) fn console_has_tasks(&self) -> bool {
+        self.inner.task_engine.has_tasks()
+    }
+
     pub fn file_storage(&self) -> crate::file_storage::LocalStorage {
         crate::file_storage::LocalStorage::from_conf(
             &self.inner.project_dir,
@@ -670,7 +685,6 @@ impl Site {
         router.with_state(self.clone())
     }
 
-    #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
     pub fn tasks(&self) -> TaskClient<TaskStore> {
         TaskClient::new(self.inner.task_engine.clone())
     }

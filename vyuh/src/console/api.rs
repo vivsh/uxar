@@ -1,32 +1,28 @@
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-    http::StatusCode,
-    response::IntoResponse,
-};
-use axum_extra::extract::CookieJar;
+use axum::http::StatusCode;
+use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
     Site,
     auth::BitRole,
     console::{
-        auth::{ConsoleSessionUser, expired_cookie, session_cookie},
+        auth::{ConsoleCookies, ConsoleSessionUser, expired_cookie, session_cookie},
         query::{OperationQuery, TaskQuery, filter_operations},
         types::{OperationOut, Page, SessionOut, TaskDetailOut, TaskOut},
     },
+    routes::{Json, Path, Query},
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct LoginQuery {
     token: String,
 }
 
 pub async fn login(
-    State(site): State<Site>,
+    site: Site,
     Query(query): Query<LoginQuery>,
-    jar: CookieJar,
-) -> Result<impl IntoResponse, StatusCode> {
+    ConsoleCookies(jar): ConsoleCookies,
+) -> Result<(axum_extra::extract::CookieJar, Json<serde_json::Value>), StatusCode> {
     let runtime = site.console_runtime().ok_or(StatusCode::NOT_FOUND)?;
     let conf = &site.conf().console;
     let ttl = std::time::Duration::from_secs(conf.bootstrap_token_ttl_seconds);
@@ -49,10 +45,10 @@ pub async fn login(
 }
 
 pub async fn logout(
-    State(site): State<Site>,
+    site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
-    jar: CookieJar,
-) -> impl IntoResponse {
+    ConsoleCookies(jar): ConsoleCookies,
+) -> (axum_extra::extract::CookieJar, Json<serde_json::Value>) {
     let conf = &site.conf().console;
     if let Some(cookie) = jar.get(&conf.cookie_name)
         && let Some(runtime) = site.console_runtime()
@@ -72,7 +68,7 @@ pub async fn session(ConsoleSessionUser(user): ConsoleSessionUser) -> Json<Sessi
 }
 
 pub async fn operations(
-    State(site): State<Site>,
+    site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
     Query(query): Query<OperationQuery>,
 ) -> Json<Page<OperationOut>> {
@@ -90,10 +86,11 @@ pub async fn operations(
 }
 
 pub async fn operation_detail(
-    State(site): State<Site>,
+    site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
-    Path(id): Path<uuid::Uuid>,
+    Path(id): Path<String>,
 ) -> Result<Json<OperationOut>, StatusCode> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::NOT_FOUND)?;
     site.iter_operations()
         .find(|op| op.id == id)
         .map(OperationOut::from)
@@ -103,7 +100,7 @@ pub async fn operation_detail(
 
 #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 pub async fn tasks(
-    State(site): State<Site>,
+    site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<Page<TaskOut>>, StatusCode> {
@@ -122,7 +119,7 @@ pub async fn tasks(
 
 #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
 pub async fn tasks(
-    State(_site): State<Site>,
+    _site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
     Query(_query): Query<TaskQuery>,
 ) -> Result<Json<Page<TaskOut>>, StatusCode> {
@@ -134,10 +131,11 @@ pub async fn tasks(
 
 #[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 pub async fn task_detail(
-    State(site): State<Site>,
+    site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
-    Path(id): Path<uuid::Uuid>,
+    Path(id): Path<String>,
 ) -> Result<Json<TaskDetailOut>, StatusCode> {
+    let id = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::NOT_FOUND)?;
     let record = site
         .tasks()
         .get(id)
@@ -149,15 +147,15 @@ pub async fn task_detail(
 
 #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
 pub async fn task_detail(
-    State(_site): State<Site>,
+    _site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
-    Path(_id): Path<uuid::Uuid>,
+    Path(_id): Path<String>,
 ) -> Result<Json<TaskDetailOut>, StatusCode> {
     Err(StatusCode::NOT_FOUND)
 }
 
 pub async fn status(
-    State(site): State<Site>,
+    site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
 ) -> Json<crate::console::status::StatusOut> {
     let ttl = std::time::Duration::from_secs(site.conf().console.status_cache_ttl_seconds);

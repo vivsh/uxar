@@ -23,6 +23,32 @@ handler data.
 Vyuh is usable, but not API-stable yet. Expect breaking changes before a stable
 release.
 
+## Web And Docs Assets
+
+The `vyuh/web/` directory is the shared visual source for Vyuh-owned web
+surfaces. It contains public CSS, JavaScript, images, the static landing-page
+source, and private Minijinja templates for the built-in console.
+
+The mdBook source lives in `docs/book/` and reuses the same CSS:
+
+```sh
+mdbook build docs/book
+```
+
+The landing page and mdBook can be built into one GitHub Pages artifact:
+
+```sh
+scripts/build-pages.sh
+```
+
+For the `vivsh/vyuh` repository, GitHub Pages will serve the landing page at
+`https://vivsh.github.io/vyuh/` and the book at
+`https://vivsh.github.io/vyuh/docs/`.
+
+The console UI is server-rendered with Minijinja and uses the same bundled asset
+serving path as application assets, for example `/assets/css/base.css` and
+`/assets/css/console.css`.
+
 ## The Shape
 
 Vyuh tries to make the common application path cohesive:
@@ -45,7 +71,7 @@ concept small, explicit, and in the same place as the code that needs it.
 ```rust
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use vyuh::{Data, Error, Site, SiteConf, Valid, Validate, bundles};
+use vyuh::prelude::*;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Validate)]
 struct Signup {
@@ -203,6 +229,8 @@ same thing.
 - [Logging](docs/logging.md): tracing setup, sinks, and runtime logging.
 - [Console](docs/console.md): optional JSON APIs for operations, task records,
   and runtime status.
+- [Framework comparison](docs/comparison.md): `vyuh` vs Rocket, Utoipa,
+  Actix, and FastAPI.
 
 See [docs/index.md](docs/index.md) for the full documentation index.
 
@@ -211,8 +239,21 @@ See [docs/index.md](docs/index.md) for the full documentation index.
 Vyuh is Postgres-first where database semantics matter most, but the common
 database and task surfaces support Postgres, MySQL, and SQLite.
 
-Postgres is the preferred backend for high-concurrency task workers and
-notification emitters. MySQL is supported for SQLx access and task storage.
+Vyuh has no default backend feature. With no backend feature enabled, it uses
+SQLite-compatible SQLx aliases, a shared in-memory SQLite default database URL,
+and `MemoryTaskStore` for tasks. This is useful for quick starts, docs, local
+experiments, and tests that do not need durable task storage.
+
+Production applications should enable exactly one backend feature:
+
+```toml
+vyuh = { version = "0.2", features = ["postgres"] }
+vyuh = { version = "0.2", features = ["mysql"] }
+vyuh = { version = "0.2", features = ["sqlite"] }
+```
+
+Postgres is the preferred production backend for high-concurrency task workers
+and notification emitters. MySQL is supported for SQLx access and task storage.
 SQLite is useful for local, embedded, and single-process deployments.
 
 ## Current Caveats
@@ -222,6 +263,7 @@ SQLite is useful for local, embedded, and single-process deployments.
 - Services are in-process and not durable.
 - Tasks provide durable single-task continuations, not multi-task workflow
   orchestration.
+- `MemoryTaskStore` is the no-backend default and is not durable.
 - SQLite task storage is not positioned as a high-concurrency production worker
   backend.
 - Some Postgres features, such as `LISTEN`/`NOTIFY` and `RETURNING *` helpers,

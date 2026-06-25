@@ -1,7 +1,7 @@
 # Console
 
-Vyuh console is an opt-in JSON API for operational inspection. It is disabled
-by default, isolated from application auth, and read-only in this pass.
+Vyuh console is an opt-in operational UI and JSON API for inspection. It is
+disabled by default, isolated from application auth, and read-only in this pass.
 
 Use it for inspecting registered operations, task records, and runtime status.
 Do not use it as an application admin framework or a command/task execution
@@ -14,7 +14,8 @@ surface.
 - Console roles are separate from application roles.
 - Console auth uses a console-only cookie/session. Normal app JWTs do not grant
   console access.
-- The first pass exposes JSON APIs only; frontend UI can be added later.
+- The HTML UI is server-rendered with Minijinja and progressively enhanced with
+  HTMX. JSON APIs remain available under `/api`.
 
 ## Configuration
 
@@ -75,7 +76,14 @@ All endpoints are mounted under `ConsoleConf.path`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/` | canonical status overview page |
 | `GET` | `/login?token=...` | consume bootstrap token and set console cookie |
+| `GET` | `/login-page` | show console login guidance |
+| `GET` | `/overview` | status overview page |
+| `GET` | `/operations` | operation listing page |
+| `GET` | `/operations/{id}` | operation detail page |
+| `GET` | `/tasks` | task listing page |
+| `GET` | `/tasks/{id}` | task detail page |
 | `POST` | `/api/logout` | clear console cookie |
 | `GET` | `/api/session` | inspect current console session |
 | `GET` | `/api/operations` | list/search operation metadata |
@@ -86,6 +94,21 @@ All endpoints are mounted under `ConsoleConf.path`.
 
 There are no mutating endpoints in v1. Console cannot run commands, retry or
 cancel tasks, fire signals, or control services.
+
+## Assets And Templates
+
+Console pages use the package-owned `vyuh/web/` assets:
+
+```text
+/assets/css/base.css
+/assets/css/console.css
+/assets/img/vyuh-logo-transparent.png
+/assets/js/console.js
+```
+
+The HTML templates live under `vyuh/web/templates/console/**` and are loaded
+through the same bundle asset template path used by application templates.
+Applications do not need to copy console assets to enable the built-in console.
 
 ## Operations
 
@@ -126,9 +149,9 @@ Supported filters:
 - `q`: text search across name, identity, and last error.
 - `limit` and `cursor`: offset-style pagination.
 
-`/api/tasks/{id}` returns the safe task detail shape, including status,
-attempts, priority, timing, identity, last error, and JSON payload/state/result
-fields when they parse as JSON.
+`/api/tasks/{id}` returns the safe task detail shape for one task ID, including
+status, attempts, priority, timing, identity, last error, and JSON
+payload/state/resume/output/result fields when they parse as JSON.
 
 ## Status
 

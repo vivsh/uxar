@@ -18,6 +18,8 @@ use std::{
 };
 use tower::Service;
 
+use crate::embed;
+
 // Add these deps (recommended):
 // percent-encoding = "2"
 // mime_guess = "2"
@@ -26,9 +28,11 @@ use blake3::Hasher as Blake3;
 use mime_guess::MimeGuess;
 use percent_encoding::percent_decode_str;
 
+#[derive(Clone)]
 pub struct AssetServe {
     silos: Arc<SiloSet>,
     prefix: Arc<str>,
+    url_prefix: Arc<str>,
     precompressed: bool,
     etag: bool,
     etag_cache: Arc<RwLock<HashMap<String, String>>>,
@@ -40,10 +44,21 @@ impl AssetServe {
         Self {
             silos: Arc::new(silos),
             prefix: normalize_prefix(folder).into(),
+            url_prefix: Arc::from(""),
             precompressed: false,
             etag: false,
             etag_cache: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn from_dirs(dirs: Vec<embed::Dir>, folder: &str) -> Self {
+        let silos = dirs.into_iter().map(embed::Dir::into_silo).collect();
+        Self::new(SiloSet::new(silos), folder)
+    }
+
+    pub fn strip_url_prefix(mut self, prefix: &str) -> Self {
+        self.url_prefix = normalize_prefix(prefix).into();
+        self
     }
 
     /// If enabled, will try `.br` then `.gz` variants based on Accept-Encoding.
@@ -74,6 +89,7 @@ impl Service<Request> for AssetServe {
 
         let silos = Arc::clone(&self.silos);
         let prefix = Arc::clone(&self.prefix);
+        let url_prefix = Arc::clone(&self.url_prefix);
         let precompressed = self.precompressed;
         let use_etag = self.etag;
         let cache = Arc::clone(&self.etag_cache);
@@ -97,6 +113,7 @@ impl Service<Request> for AssetServe {
             Ok(serve_file_impl(
                 &silos,
                 &prefix,
+                &url_prefix,
                 &method,
                 &raw_path,
                 precompressed,
@@ -113,6 +130,7 @@ impl Service<Request> for AssetServe {
 async fn serve_file_impl(
     silos: &SiloSet,
     prefix: &str,
+    url_prefix: &str,
     method: &Method,
     raw_path: &str,
     precompressed: bool,
@@ -130,10 +148,11 @@ async fn serve_file_impl(
     }
 
     // Decode & normalize path safely
-    let clean_rel = match clean_rel_path(raw_path) {
-        Some(p) => p,
-        None => return not_found(),
-    };
+    let clean_rel =
+        match clean_rel_path(raw_path).and_then(|path| strip_url_prefix(path, url_prefix)) {
+            Some(p) => p,
+            None => return not_found(),
+        };
 
     // Build lookup path inside silo root
     let logical_path = join_prefix(prefix, &clean_rel);
@@ -288,6 +307,16 @@ fn normalize_prefix(folder: &str) -> String {
     s.push_str(trimmed);
     s.push('/');
     s
+}
+
+fn strip_url_prefix(path: String, prefix: &str) -> Option<String> {
+    if prefix.is_empty() {
+        return Some(path);
+    }
+    path.strip_prefix(prefix)
+        .map(str::to_string)
+        .or_else(|| (path == prefix.trim_end_matches('/')).then(String::new))
+        .or(Some(path))
 }
 
 fn join_prefix(prefix: &str, rel: &str) -> String {

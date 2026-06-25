@@ -86,7 +86,7 @@ that part of the framework.
   sources.
 - [Database](db.md): SQLx-backed database access, query builders, derives,
   placeholders, and sessions.
-- [Tasks](tasks.md): durable background tasks, continuation state, topic
+- [Tasks](tasks.md): durable background tasks, continuation state, ID-based
   resume, and bounded concurrency.
 - [Commands](commands.md): site-aware CLI commands for admin, diagnostics,
   maintenance, and one-off operations.

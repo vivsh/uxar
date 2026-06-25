@@ -77,6 +77,12 @@ let conf = SiteConf::default()
 reload paths. `SiteConf::validate()` checks required fields and path readability
 before the site is built.
 
+With no database backend feature enabled, `SiteConf::default()` uses a shared
+in-memory SQLite database URL and tasks use `MemoryTaskStore`. This is intended
+for quick starts, docs, local experiments, and tests. Production applications
+should enable exactly one backend feature (`postgres`, `mysql`, or `sqlite`) and
+configure a durable database.
+
 For global HTTP behavior, see [Middlewares](middlewares.md). For Minijinja
 environment behavior and formatting helpers, see [Templates](templates.md).
 For upload storage, see [Uploads](uploads.md).

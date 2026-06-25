@@ -22,6 +22,13 @@ The main public pieces are:
 Asset dirs are part of bundle composition. A feature can register routes,
 templates, public CSS, and private resources as one bundle.
 
+Vyuh itself also uses this convention for shared framework web assets. The
+runtime crate owns `vyuh/web/`, which contains public CSS, JavaScript, images,
+landing-page source, and private console templates. When the built-in console is
+enabled, that directory is registered as an internal asset dir so the console can
+serve `/assets/css/base.css`, `/assets/css/console.css`, logos, and small helper
+scripts without requiring application projects to copy them.
+
 ## Directory Layout
 
 Use convention folders inside each asset dir:
@@ -87,6 +94,14 @@ public/images/logo.svg -> /assets/images/logo.svg
 Only `public/**` participates in runtime serving. Requests cannot reach
 `templates/**`, `sql/**`, `migrations/**`, or other private folders through the
 asset route.
+
+Built-in framework assets follow the same rule:
+
+```text
+vyuh/web/public/css/base.css -> /assets/css/base.css
+vyuh/web/public/img/vyuh-logo-transparent.png -> /assets/img/vyuh-logo-transparent.png
+vyuh/web/templates/console/layout.html -> private Minijinja template
+```
 
 `SiteConf.static_dir(...)` remains separate. Use configured static dirs for
 application-owned filesystem folders. Use bundled assets for files that should

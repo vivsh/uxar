@@ -90,12 +90,12 @@ async fn main() -> Result<(), vyuh::SiteError> {
 }
 ```
 
-Then run commands by name:
+Then run commands by name through the application binary:
 
 ```sh
-cargo run -p vyuh --no-default-features --features sqlite --example commands_macro -- greet --name Vyuh --loud
-cargo run -p vyuh --no-default-features --features sqlite --example commands_site -- help
-cargo run -p vyuh --no-default-features --features sqlite --example commands_macro -- greet --help
+cargo run -- greet --name Vyuh --loud
+cargo run -- help
+cargo run -- greet --help
 ```
 
 Built-in commands include `help`, `serve`, `health`, and `config`.
@@ -265,12 +265,11 @@ handler signatures:
 
 ## Examples
 
-- [`commands_macro.rs`](../vyuh/examples/commands/macro.rs): typed command args
-  and direct registration.
-- [`commands_site.rs`](../vyuh/examples/commands/site.rs): a command that
-  extracts `Site` and reads site configuration.
-- [`commands_reindex.rs`](../vyuh/examples/commands/reindex.rs): an
-  operational command that rebuilds an in-process search index service.
+Command handlers in this page show the supported patterns:
+
+- typed command arguments with `Data<T>`;
+- site-aware commands that extract `Site`;
+- commands that enqueue durable tasks and return quickly.
 
 ## Current Limitations
 

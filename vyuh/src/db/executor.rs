@@ -115,6 +115,9 @@ impl From<sqlx::Error> for DbError {
                     c => IntegrityKind::Other(c.unwrap_or_default().into()),
                 };
 
+                #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+                let kind = IntegrityKind::Other(db.code().unwrap_or_default().to_string());
+
                 DbError::Integrity {
                     kind,
                     constraint: db.constraint().map(|s| s.to_owned()),
@@ -184,6 +187,11 @@ impl Default for DbConf {
 
         #[cfg(all(feature = "mysql", not(any(feature = "postgres", feature = "sqlite"))))]
         let url = "mysql://localhost/test";
+
+        // Dummy mode: shared in-memory SQLite — all pool connections see the same
+        // database. Works without any external server.
+        #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+        let url = "sqlite:file::memory:?cache=shared&mode=memory";
 
         Self {
             url: url.into(),

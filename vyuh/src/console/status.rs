@@ -1,16 +1,17 @@
+use schemars::JsonSchema;
 use serde::Serialize;
 use sysinfo::{Pid, System};
 
 use crate::Site;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct StatusOut {
     pub site: SiteStatus,
     pub process: ProcessStatus,
     pub system: SystemStatus,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct SiteStatus {
     pub vyuh_version: &'static str,
     pub package_name: &'static str,
@@ -26,7 +27,7 @@ pub struct SiteStatus {
     pub service_count: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct ProcessStatus {
     pub pid: u32,
     pub executable_path: Option<String>,
@@ -39,7 +40,7 @@ pub struct ProcessStatus {
     pub open_file_count: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct SystemStatus {
     pub hostname: Option<String>,
     pub os_name: Option<String>,
@@ -58,7 +59,7 @@ pub struct SystemStatus {
     pub boot_time_seconds: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct LoadAverage {
     pub one: f64,
     pub five: f64,

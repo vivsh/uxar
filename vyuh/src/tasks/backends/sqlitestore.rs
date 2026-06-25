@@ -41,7 +41,6 @@ impl SqliteTaskStore {
         runner_id: &str,
         status: TaskStatus,
         state: Option<String>,
-        resume_topic: Option<String>,
         resume_input: Option<String>,
         output: Option<String>,
         result: Option<String>,
@@ -55,25 +54,23 @@ impl SqliteTaskStore {
             UPDATE vyuh_tasks
             SET status = ?1,
                 state = COALESCE(?2, state),
-                resume_topic = ?3,
-                resume_input = ?4,
-                output = ?5,
-                result = ?6,
-                last_error = ?7,
-                ready_at = ?8,
-                completed_at = ?9,
-                attempts = attempts + CASE WHEN ?10 THEN 1 ELSE 0 END,
+                resume_input = ?3,
+                output = ?4,
+                result = ?5,
+                last_error = ?6,
+                ready_at = ?7,
+                completed_at = ?8,
+                attempts = attempts + CASE WHEN ?9 THEN 1 ELSE 0 END,
                 locked_by = NULL,
                 leased_until = NULL,
-                updated_at = ?11
-            WHERE id = ?12
-              AND locked_by = ?13
-              AND status = ?14
+                updated_at = ?10
+            WHERE id = ?11
+              AND locked_by = ?12
+              AND status = ?13
             "#,
         )
         .bind(status)
         .bind(state)
-        .bind(resume_topic)
         .bind(resume_input)
         .bind(output)
         .bind(result)
@@ -137,7 +134,7 @@ impl AbstractTaskStore for SqliteTaskStore {
                 LIMIT ?6
             )
             RETURNING
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
@@ -171,7 +168,6 @@ impl AbstractTaskStore for SqliteTaskStore {
                     None,
                     None,
                     None,
-                    None,
                     Some(result),
                     None,
                     None,
@@ -180,17 +176,12 @@ impl AbstractTaskStore for SqliteTaskStore {
                 )
                 .await
             }
-            TaskOutcome::Suspend {
-                topic,
-                state,
-                output,
-            } => {
+            TaskOutcome::Suspend { state, output } => {
                 self.update_running(
                     task_id,
                     runner_id,
                     TaskStatus::Suspended,
                     Some(state),
-                    Some(topic),
                     None,
                     output,
                     None,
@@ -207,7 +198,6 @@ impl AbstractTaskStore for SqliteTaskStore {
                     runner_id,
                     TaskStatus::Pending,
                     Some(state),
-                    None,
                     None,
                     None,
                     None,
@@ -291,14 +281,13 @@ impl AbstractTaskStore for SqliteTaskStore {
                     task_id,
                     runner_id,
                     TaskStatus::Failed,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    Some(error),
-                    None,
-                    Some(now),
+                    None,       // state
+                    None,       // resume_input
+                    None,       // output
+                    None,       // result
+                    Some(error),// last_error
+                    None,       // ready_at
+                    Some(now),  // completed_at
                     false,
                 )
                 .await
@@ -310,14 +299,14 @@ impl AbstractTaskStore for SqliteTaskStore {
         sqlx::query(
             r#"
             INSERT INTO vyuh_tasks (
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms, last_error, identity,
                 locked_by, leased_until, ready_at, created_at, updated_at, completed_at
             )
             VALUES (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
-                ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                ?17, ?18, ?19, ?20, ?21, ?22
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7,
+                ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
+                ?16, ?17, ?18, ?19, ?20, ?21
             )
             "#,
         )
@@ -325,7 +314,6 @@ impl AbstractTaskStore for SqliteTaskStore {
         .bind(&record.name)
         .bind(&record.input)
         .bind(&record.state)
-        .bind(&record.resume_topic)
         .bind(&record.resume_input)
         .bind(&record.output)
         .bind(&record.result)
@@ -349,25 +337,24 @@ impl AbstractTaskStore for SqliteTaskStore {
         Ok(())
     }
 
-    async fn resume(&self, topic: &str, input: String) -> Result<u64, TaskError> {
+    async fn resume(&self, id: uuid::Uuid, input: String) -> Result<u64, TaskError> {
         let now = chrono::Utc::now();
         let rows = sqlx::query(
             r#"
             UPDATE vyuh_tasks
             SET status = ?1,
                 resume_input = ?2,
-                resume_topic = NULL,
                 ready_at = ?3,
                 updated_at = ?3
-            WHERE status = ?4
-              AND resume_topic = ?5
+            WHERE id = ?4
+              AND status = ?5
             "#,
         )
         .bind(TaskStatus::Pending)
         .bind(input)
         .bind(now)
+        .bind(id)
         .bind(TaskStatus::Suspended)
-        .bind(topic)
         .execute(&self.pool)
         .await?
         .rows_affected();
@@ -378,7 +365,7 @@ impl AbstractTaskStore for SqliteTaskStore {
         let mut builder = QueryBuilder::<Sqlite>::new(
             r#"
             SELECT
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
@@ -412,7 +399,7 @@ impl AbstractTaskStore for SqliteTaskStore {
         sqlx::query_as::<_, TaskRecord>(
             r#"
             SELECT
-                id, name, input, state, resume_topic, resume_input, output, result,
+                id, name, input, state, resume_input, output, result,
                 status, attempts, priority, max_attempts, retry_delay_ms, lease_duration_ms,
                 last_error, identity, locked_by, leased_until, ready_at, created_at,
                 updated_at, completed_at
@@ -434,7 +421,6 @@ impl AbstractTaskStore for SqliteTaskStore {
                 name TEXT NOT NULL,
                 input TEXT NOT NULL,
                 state TEXT,
-                resume_topic TEXT,
                 resume_input TEXT,
                 output TEXT,
                 result TEXT,
@@ -479,16 +465,6 @@ impl AbstractTaskStore for SqliteTaskStore {
             CREATE INDEX IF NOT EXISTS idx_vyuh_tasks_pending_priority_claim
             ON vyuh_tasks(status, priority DESC, ready_at, created_at)
             WHERE status = 0
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_vyuh_tasks_suspended_topic
-            ON vyuh_tasks(resume_topic)
-            WHERE status = 2
             "#,
         )
         .execute(&self.pool)

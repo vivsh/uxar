@@ -9,7 +9,6 @@ fn task_record(name: &str) -> TaskRecord {
         name: name.to_string(),
         input: r#"{"id":1}"#.to_string(),
         state: None,
-        resume_topic: None,
         resume_input: None,
         output: None,
         result: None,
@@ -101,15 +100,16 @@ where
         .commit_outcome(
             id,
             "runner-a",
-            TaskOutcome::suspend("approval:1", &"waiting", Some(&"needs approval"))?,
+            TaskOutcome::suspend(&"waiting", Some(&"needs approval"))?,
         )
         .await?;
 
     let claimed = store.claim_tasks("runner-b").await?;
     assert!(claimed.is_empty());
 
+    // Resume by task ID (no topic needed)
     let resumed = store
-        .resume("approval:1", serde_json::to_string(&"approved")?)
+        .resume(id, serde_json::to_string(&"approved")?)
         .await?;
     assert_eq!(resumed, 1);
 

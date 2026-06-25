@@ -404,4 +404,17 @@ pub async fn mock_db() -> MockDb {
             base_url: String::new(),
         }
     }
+
+    #[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
+    {
+        let pool = sqlx::SqlitePool::connect(":memory:")
+            .await
+            .expect("Failed to create in-memory sqlite database");
+
+        MockDb {
+            pool,
+            db_name: String::new(),
+            base_url: String::new(),
+        }
+    }
 }

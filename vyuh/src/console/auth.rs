@@ -18,6 +18,8 @@ use uuid::Uuid;
 use crate::{
     Site,
     auth::{BitRole, RoleType},
+    callables::IntoArgPart,
+    callables::specs::ArgPart,
     console::status::StatusOut,
 };
 
@@ -144,6 +146,8 @@ impl ConsoleRuntime {
 #[derive(Clone)]
 pub(crate) struct ConsoleSessionUser(pub ConsoleUser);
 
+pub(crate) struct ConsoleCookies(pub CookieJar);
+
 impl FromRequestParts<Site> for ConsoleSessionUser {
     type Rejection = StatusCode;
 
@@ -163,6 +167,26 @@ impl FromRequestParts<Site> for ConsoleSessionUser {
             .get_session(cookie.value())
             .map(ConsoleSessionUser)
             .ok_or(StatusCode::UNAUTHORIZED)
+    }
+}
+
+impl IntoArgPart for ConsoleSessionUser {
+    fn into_arg_part() -> ArgPart {
+        ArgPart::Ignore
+    }
+}
+
+impl FromRequestParts<Site> for ConsoleCookies {
+    type Rejection = StatusCode;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &Site) -> Result<Self, Self::Rejection> {
+        Ok(ConsoleCookies(CookieJar::from_headers(&parts.headers)))
+    }
+}
+
+impl IntoArgPart for ConsoleCookies {
+    fn into_arg_part() -> ArgPart {
+        ArgPart::Ignore
     }
 }
 

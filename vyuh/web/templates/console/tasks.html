@@ -7,7 +7,7 @@
   <p class="vyuh-copy">Inspection-only task records. This UI does not claim, retry, cancel, or resume tasks.</p>
 
   <form class="console-toolbar" method="get" action="{{ base_path }}/tasks">
-    <input class="console-input" type="search" name="q" placeholder="Search" value="{{ query.q | default(value='') }}">
+    <input class="console-input" type="search" name="q" placeholder="Search" value="{% if query.q %}{{ query.q }}{% endif %}">
     <select class="console-select" name="status">
       <option value="">All statuses</option>
       {% for status in statuses %}
@@ -31,7 +31,14 @@
         <td>{{ task.updated_at }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="5">No tasks match this filter.</td></tr>
+      <tr>
+        <td colspan="5">
+          <div class="console-empty">
+            <strong>No task records yet.</strong>
+            <span>Registered task handlers and durable task records will appear here when this site uses Vyuh tasks.</span>
+          </div>
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

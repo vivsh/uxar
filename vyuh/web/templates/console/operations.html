@@ -1,13 +1,13 @@
 {% extends "console/layout.html" %}
 
 {% block content %}
-<section>
+<section class="console-document">
   <p class="vyuh-kicker">Registry</p>
   <h1 class="vyuh-section-title">Operations</h1>
   <p class="vyuh-copy">Routes, commands, tasks, signals, emitters, services, and generated docs registered in the current site.</p>
 
   <form class="console-toolbar" method="get" action="{{ base_path }}/operations">
-    <input class="console-input" type="search" name="q" placeholder="Search" value="{{ query.q | default(value='') }}">
+    <input class="console-input" type="search" name="q" placeholder="Search" value="{% if query.q %}{{ query.q }}{% endif %}">
     <select class="console-select" name="kind">
       <option value="">All kinds</option>
       {% for kind in kinds %}
@@ -17,22 +17,89 @@
     <button class="vyuh-button vyuh-button-primary" type="submit">Filter</button>
   </form>
 
-  <table class="console-table">
-    <thead>
-      <tr><th>Kind</th><th>Name</th><th>Path</th><th>Summary</th></tr>
-    </thead>
-    <tbody>
-      {% for op in page.items %}
-      <tr>
-        <td><span class="console-pill">{{ op.kind }}</span></td>
-        <td><a href="{{ base_path }}/operations/{{ op.id }}">{{ op.name }}</a></td>
-        <td>{{ op.path }}</td>
-        <td>{{ op.summary | default(value="") }}</td>
-      </tr>
-      {% else %}
-      <tr><td colspan="4">No operations match this filter.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="console-resource-list">
+    <table class="console-table">
+      <thead>
+        <tr><th>Kind</th><th>Name</th><th>Path</th><th>Summary</th></tr>
+      </thead>
+      <tbody>
+        {% for op in page.items %}
+        <tr class="{% if selected_operation and selected_operation.id == op.id %}is-selected{% endif %}">
+          <td><span class="console-pill">{{ op.kind }}</span></td>
+          <td>
+            <a class="console-table-link" href="{{ base_path }}/operations?selected={{ op.id }}">{{ op.name }}</a>
+          </td>
+          <td>{{ op.path }}</td>
+          <td>{% if op.summary %}{{ op.summary }}{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4">No operations match this filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </section>
+{% endblock %}
+
+{% block inspector %}
+<aside class="vyuh-card console-inspector">
+  {% if selected_operation %}
+  <p class="vyuh-kicker">{{ selected_operation.kind }}</p>
+  <h2>{{ selected_operation.name }}</h2>
+  <p class="vyuh-copy">
+    {% if selected_operation.description %}
+    {{ selected_operation.description }}
+    {% elif selected_operation.summary %}
+    {{ selected_operation.summary }}
+    {% else %}
+    No description registered.
+    {% endif %}
+  </p>
+  <dl class="console-meta">
+    <dt>ID</dt><dd>{{ selected_operation.id }}</dd>
+    <dt>Path</dt><dd><code>{{ selected_operation.path }}</code></dd>
+    <dt>Methods</dt><dd>{{ selected_operation.methods | join(", ") }}</dd>
+    <dt>Owner</dt><dd>{% if selected_operation.owner %}{{ selected_operation.owner }}{% endif %}</dd>
+    <dt>Hidden</dt><dd>{{ selected_operation.hidden }}</dd>
+  </dl>
+
+  <section class="console-schema-section">
+    <h3>Request</h3>
+    {% for arg in selected_operation.args %}
+    <article class="console-schema-card">
+      <div>
+        <strong>{{ arg.name }}</strong>
+        <span>{{ arg.location }}</span>
+      </div>
+      {% if arg.content_type %}<p>{{ arg.content_type }}</p>{% endif %}
+      {% if arg.description %}<p>{{ arg.description }}</p>{% endif %}
+      {% if arg.schema %}<pre>{{ arg.schema }}</pre>{% endif %}
+    </article>
+    {% else %}
+    <p class="console-muted">No request inputs registered.</p>
+    {% endfor %}
+  </section>
+
+  <section class="console-schema-section">
+    <h3>Response</h3>
+    {% for ret in selected_operation.returns %}
+    <article class="console-schema-card">
+      <div>
+        <strong>{% if ret.status_code %}{{ ret.status_code }}{% else %}response{% endif %}</strong>
+        <span>{{ ret.location }}</span>
+      </div>
+      {% if ret.content_type %}<p>{{ ret.content_type }}</p>{% endif %}
+      {% if ret.description %}<p>{{ ret.description }}</p>{% endif %}
+      {% if ret.schema %}<pre>{{ ret.schema }}</pre>{% endif %}
+    </article>
+    {% else %}
+    <p class="console-muted">No response schema registered.</p>
+    {% endfor %}
+  </section>
+  {% else %}
+  <p class="vyuh-kicker">Inspector</p>
+  <h2>Select an operation</h2>
+  <p class="vyuh-copy">Click an operation name to inspect request and response schema details without leaving this page.</p>
+  {% endif %}
+</aside>
 {% endblock %}

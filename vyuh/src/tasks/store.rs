@@ -30,7 +30,7 @@ pub trait AbstractTaskStore {
 
     fn resume<'a>(
         &'a self,
-        topic: &'a str,
+        id: uuid::Uuid,
         input: String,
     ) -> impl Future<Output = Result<u64, TaskError>> + Send + 'a;
 
@@ -73,10 +73,10 @@ impl<T: AbstractTaskStore + ?Sized> AbstractTaskStore for Arc<T> {
 
     fn resume<'a>(
         &'a self,
-        topic: &'a str,
+        id: uuid::Uuid,
         input: String,
     ) -> impl Future<Output = Result<u64, TaskError>> + Send + 'a {
-        (**self).resume(topic, input)
+        (**self).resume(id, input)
     }
 
     fn list_tasks(

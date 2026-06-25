@@ -11,7 +11,9 @@ be registered with direct APIs or macros.
 - `vyuh/` contains the runtime framework crate.
 - `vyuh-macros/` contains procedural macros used by the runtime crate.
 - `docs/` contains subsystem-level documentation, one independent markdown file
-  per subsystem.
+  per subsystem, plus `docs/book/` for the styled mdBook entrypoint.
+- `vyuh/web/` contains package-owned shared web assets, landing-page source,
+  and built-in console templates.
 - `llms.txt` is the compact documentation routing entrypoint for LLMs and
   coding agents.
 - `vyuh/examples/<subsystem>/` contains grouped runnable examples.
@@ -38,14 +40,15 @@ The `vyuh` crate is organized around these subsystems:
   extractor integration.
 - `signals`, `emitters`, and `channels` provide in-process fanout, scheduled
   or external event sources, and client-facing live delivery.
-- `tasks` provides typed background task registration and Postgres-backed task
+- `tasks` provides typed background task registration and backend-selected task
   execution.
 - `commands` provides typed command registration and command dispatch through a
   built `Site`.
 - `apidocs` and `schema` generate OpenAPI and schema output from registered
   operations and types.
 - `assets`, `templates`, and `embed` provide embedded assets, server-side
-  templates, and private bundle resources.
+  templates, private bundle resources, and the shared web asset surface used by
+  the built-in console.
 - `logging` configures structured tracing output.
 
 ## Macro Crate
@@ -62,11 +65,17 @@ compact while feeding metadata into the runtime:
 
 ## Backend Model
 
-Exactly one database backend feature must be enabled:
+No database backend feature is enabled by default. In that lightweight mode,
+Vyuh uses SQLite-compatible SQLx aliases and a shared in-memory SQLite default
+database URL, while tasks use `MemoryTaskStore`.
 
-- `postgres` is the default and primary supported backend.
-- `mysql` and `sqlite` are intended for cross-database query surfaces.
-- Postgres-only capabilities such as LISTEN/NOTIFY and the concrete task store
+Production applications should enable exactly one database backend feature:
+
+- `postgres` is the recommended production backend for high-concurrency task
+  workers and Postgres-only capabilities.
+- `mysql` enables MySQL SQLx types and MySQL-backed task storage.
+- `sqlite` enables SQLite SQLx types and SQLite-backed task storage.
+- Postgres-only capabilities such as LISTEN/NOTIFY and `RETURNING *` helpers
   must stay behind Postgres cfg boundaries.
 
 Backend selection belongs in `vyuh/src/db/commons.rs`, where `Database`,
@@ -79,10 +88,14 @@ Backend selection belongs in `vyuh/src/db/commons.rs`, where `Database`,
 2. `Site::build` validates `SiteConf` and bundle metadata.
 3. `SiteBuilder` creates the database pool, router, template engine,
    authenticator, command registry, signal engine, emitter engine, services, and
-   Postgres task engine when available.
-4. Axum routes receive `Site` as state and handlers use typed extractors.
-5. Handlers call query builders or services and return typed responses.
-6. OpenAPI and schema metadata are produced from registered operations and
+   task engine. Database-backed builds use the selected backend task store;
+   lightweight builds use `MemoryTaskStore`.
+4. When console is enabled, Vyuh injects its internal `vyuh/web` asset dir before
+   template loading so console HTML and public assets ship with the runtime
+   crate.
+5. Axum routes receive `Site` as state and handlers use typed extractors.
+6. Handlers call query builders or services and return typed responses.
+7. OpenAPI and schema metadata are produced from registered operations and
    type metadata.
 
 ## Extension Rules

@@ -1,14 +1,16 @@
-use serde::Deserialize;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     Operation, OperationKind,
     tasks::{TaskListFilter, TaskStatus},
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct OperationQuery {
     pub kind: Option<String>,
     pub q: Option<String>,
+    pub selected: Option<String>,
     pub tag: Option<String>,
     pub owner: Option<String>,
     pub hidden: Option<bool>,
@@ -16,7 +18,7 @@ pub struct OperationQuery {
     pub cursor: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TaskQuery {
     pub status: Option<TaskStatus>,
     pub name: Option<String>,
