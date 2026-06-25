@@ -27,10 +27,8 @@ Minijinja is the only template engine in v0.
 Use `TemplateConf` when the application needs explicit environment behavior:
 
 ```rust
-use vyuh::{
-    SiteConf,
-    templates::{TemplateAutoEscape, TemplateConf, TemplateDateFormats, TemplateUndefined},
-};
+use vyuh::prelude::*;
+use vyuh::templates::{TemplateAutoEscape, TemplateConf, TemplateDateFormats, TemplateUndefined};
 
 let conf = SiteConf::default().templates(TemplateConf {
     auto_escape: TemplateAutoEscape::ByExtension,
@@ -85,7 +83,8 @@ let html = site.templates().render(
 Or extract `Templates` in a route:
 
 ```rust
-use vyuh::{bundles, routes::Html, templates::{TemplateError, Templates}};
+use vyuh::prelude::*;
+use vyuh::templates::{TemplateError, Templates};
 
 #[bundles::route(path = "/hello")]
 async fn hello(templates: Templates) -> Result<Html<String>, TemplateError> {

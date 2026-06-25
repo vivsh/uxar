@@ -63,7 +63,8 @@ Register an asset dir in a bundle:
 
 ```rust
 use rust_silos::{Silo, embed_silo};
-use vyuh::{bundles, embed};
+use vyuh::prelude::*;
+use vyuh::embed;
 
 const ASSETS: Silo = embed_silo!("assets");
 

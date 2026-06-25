@@ -46,9 +46,9 @@ HTTP-shaped JSON. It behaves like `Json<T>` for routes, but the same wrapper is
 also used by commands, tasks, signals, and emitters.
 
 ```rust
-use vyuh::routes::Data;
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct CreateNote {
     title: String,
 }
@@ -63,9 +63,9 @@ async fn create(Data(input): Data<CreateNote>) {
 `Json<T>` parses an `application/json` request body:
 
 ```rust
-use vyuh::routes::Json;
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct CreateNote {
     title: String,
 }
@@ -78,7 +78,7 @@ async fn create(Json(input): Json<CreateNote>) {
 `Json<T>` can also be returned from handlers when `T: Serialize`:
 
 ```rust
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 struct NoteOut {
     id: u64,
 }
@@ -95,9 +95,9 @@ Invalid JSON or a body that cannot deserialize into `T` returns `400`.
 `Query<T>` parses query strings:
 
 ```rust
-use vyuh::routes::Query;
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct SearchParams {
     q: String,
     page: Option<u32>,
@@ -119,9 +119,9 @@ ignored for ordinary structs, and rejected when the target type opts into
 `Path<T>` parses path captures. Use a struct when names matter:
 
 ```rust
-use vyuh::routes::Path;
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct UserPath {
     id: uuid::Uuid,
 }
@@ -135,7 +135,7 @@ async fn user_detail(Path(path): Path<UserPath>) {
 Use a tuple for positional captures:
 
 ```rust
-use vyuh::routes::Path;
+use vyuh::prelude::*;
 
 #[vyuh::bundles::route(path = "/orgs/{org}/users/{id}")]
 async fn user_in_org(Path((org, id)): Path<(String, u64)>) {
@@ -152,7 +152,7 @@ Path parse failures return `400`.
 ```rust
 use vyuh::routes::Form;
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize)]
 struct LoginForm {
     email: String,
     password: String,
@@ -172,9 +172,11 @@ only because multipart is an HTTP request shape with file streaming, temporary
 files, content types, and request limits.
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::routes::{MultipartForm, UploadedFile};
+use vyuh::MultipartData;
 
-#[derive(schemars::JsonSchema, vyuh::MultipartData)]
+#[derive(JsonSchema, MultipartData)]
 struct AvatarUpload {
     #[upload(content_types = ["image/png"], extensions = ["png"], sniff = "image")]
     avatar: UploadedFile,
@@ -203,7 +205,7 @@ behavior, MIME sniffing, and `LocalStorage`.
 signature verification usually needs the exact raw payload:
 
 ```rust
-use vyuh::routes::BodyBytes;
+use vyuh::prelude::*;
 
 async fn webhook(BodyBytes(bytes): BodyBytes) {
     // Verify the provider signature against the raw bytes before decoding.
@@ -234,7 +236,7 @@ async fn create(json: Json<CreateNote>) {
 Use `Valid<E>` when parsed input should be validated:
 
 ```rust
-use vyuh::routes::{Data, Json, Valid};
+use vyuh::prelude::*;
 
 async fn create(Valid(Json(input)): Valid<Json<CreateNote>>) {
     // input is parsed and validated.
@@ -271,7 +273,7 @@ Wrappers contribute request metadata:
 Given a DTO that derives `Validate`:
 
 ```rust
-#[derive(serde::Deserialize, schemars::JsonSchema, vyuh::Validate)]
+#[derive(Deserialize, JsonSchema, Validate)]
 struct CreateNote {
     #[validate(min_length = 3)]
     title: String,

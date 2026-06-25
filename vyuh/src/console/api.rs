@@ -97,7 +97,6 @@ fn console_bundle_id(site: &Site) -> Option<uuid::Uuid> {
     site.console_runtime().map(|runtime| runtime.bundle_id())
 }
 
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 pub async fn tasks(
     site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
@@ -116,19 +115,6 @@ pub async fn tasks(
     }))
 }
 
-#[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
-pub async fn tasks(
-    _site: Site,
-    ConsoleSessionUser(_user): ConsoleSessionUser,
-    Query(_query): Query<TaskQuery>,
-) -> Result<Json<Page<TaskOut>>, StatusCode> {
-    Ok(Json(Page {
-        items: Vec::new(),
-        next_cursor: None,
-    }))
-}
-
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 pub async fn task_detail(
     site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
@@ -142,15 +128,6 @@ pub async fn task_detail(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
     Ok(Json(TaskDetailOut::from(&record)))
-}
-
-#[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
-pub async fn task_detail(
-    _site: Site,
-    ConsoleSessionUser(_user): ConsoleSessionUser,
-    Path(_id): Path<String>,
-) -> Result<Json<TaskDetailOut>, StatusCode> {
-    Err(StatusCode::NOT_FOUND)
 }
 
 pub async fn status(

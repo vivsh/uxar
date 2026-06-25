@@ -210,7 +210,8 @@ reconciliation.
 Emitter runtime limits can be configured on `SiteConf`:
 
 ```rust
-use vyuh::{SiteConf, emitters::EmitterConf};
+use vyuh::prelude::*;
+use vyuh::emitters::EmitterConf;
 
 let conf = SiteConf::default().emitters(EmitterConf {
     notify_channel_capacity: 2048,

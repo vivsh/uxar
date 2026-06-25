@@ -37,6 +37,12 @@ struct ProjectionJob {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ProjectionOut {
+    name: String,
+    records: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 struct SignupSignal {
     user_id: i64,
     source: String,
@@ -46,6 +52,22 @@ struct SignupSignal {
 struct InvoiceSignal {
     invoice_id: i64,
     amount: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ConsoleTickSignal {
+    tick: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct PrintTickJob {
+    tick: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct TickPrintOut {
+    tick: usize,
+    message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -96,9 +118,21 @@ async fn send_receipt(Data(job): Data<ReceiptJob>) {
 }
 
 #[bundles::task(name = "rebuild_projection")]
-async fn rebuild_projection(Data(job): Data<ProjectionJob>) -> Result<(), Error> {
+async fn rebuild_projection(Data(job): Data<ProjectionJob>) -> Result<Data<ProjectionOut>, Error> {
     println!("rebuild projection '{}' full={}", job.name, job.full);
-    Ok(())
+    Ok(Data::new(ProjectionOut {
+        name: job.name.clone(),
+        records: if job.full { 250 } else { 25 },
+    }))
+}
+
+#[bundles::task(name = "print_console_tick")]
+async fn print_console_tick(Data(job): Data<PrintTickJob>) -> Data<TickPrintOut> {
+    println!("console periodic task fired at tick {}", job.tick);
+    Data::new(TickPrintOut {
+        tick: job.tick,
+        message: format!("printed tick {}", job.tick),
+    })
 }
 
 #[bundles::signal]
@@ -107,6 +141,15 @@ async fn audit_signup(Data(event): Data<SignupSignal>) {
         "signup audit: user={} source={}",
         event.user_id, event.source
     );
+}
+
+#[bundles::signal]
+async fn submit_tick_task(site: Site, Data(event): Data<ConsoleTickSignal>) -> Result<(), Error> {
+    site.tasks()
+        .submit(PrintTickJob { tick: event.tick })
+        .await
+        .map_err(Error::other)?;
+    Ok(())
 }
 
 #[bundles::signal]
@@ -135,6 +178,15 @@ async fn invoice_tick(
         invoice_id: tick as i64,
         amount: 100 + tick as i64,
     })
+}
+
+// Every five seconds this emitter emits a signal. The signal handler above
+// submits `print_console_tick`, so task records keep appearing in the console.
+#[bundles::periodic(millis = 5000)]
+async fn console_tick(
+    vyuh::emitters::IterCount(tick): vyuh::emitters::IterCount,
+) -> Data<ConsoleTickSignal> {
+    Data::new(ConsoleTickSignal { tick })
 }
 
 async fn seed_demo(site: Site, Data(args): Data<SeedArgs>) -> Result<(), Error> {
@@ -172,10 +224,13 @@ fn app_bundle() -> vyuh::bundles::Bundle {
         create_order,
         send_receipt,
         rebuild_projection,
+        print_console_tick,
         audit_signup,
+        submit_tick_task,
         audit_invoice,
         signup_tick,
         invoice_tick,
+        console_tick,
     }
     .merge(command_bundle())
 }

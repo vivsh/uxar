@@ -31,7 +31,8 @@ callable handlers.
 Service constructors return `ServiceInstance<T>`:
 
 ```rust
-use vyuh::{bundles, services::ServiceInstance};
+use vyuh::prelude::*;
+use vyuh::services::ServiceInstance;
 
 #[derive(Default)]
 struct Counter {
@@ -53,7 +54,7 @@ let bundle = bundles::bundle! {
 The direct API is equivalent:
 
 ```rust
-use vyuh::bundles;
+use vyuh::prelude::*;
 
 let bundle = bundles::bundle([bundles::service(counter)]);
 ```
@@ -67,7 +68,9 @@ Constructors run while the site is being built. They can extract
 `ServiceBuildContext` or `DbPool`:
 
 ```rust
-use vyuh::{db::DbPool, services::ServiceInstance};
+use vyuh::prelude::*;
+use vyuh::db::DbPool;
+use vyuh::services::ServiceInstance;
 
 struct SearchIndex {
     db: DbPool,
@@ -88,7 +91,8 @@ because services are part of building the site.
 Routes can extract `ServiceRef<T>`:
 
 ```rust
-use vyuh::{bundles, routes::Html, services::ServiceRef};
+use vyuh::prelude::*;
+use vyuh::services::ServiceRef;
 
 #[bundles::route(path = "/count")]
 async fn count(counter: ServiceRef<Counter>) -> Html<String> {
@@ -141,7 +145,8 @@ Consumers can then request `ServiceRef<dyn Mailer>` or
 Services may register background workers from `Service::run`:
 
 ```rust
-use vyuh::{Site, services::{Service, ServiceError, ServiceRunner}};
+use vyuh::prelude::*;
+use vyuh::services::{Service, ServiceError, ServiceRunner};
 
 impl Service for SearchIndex {
     fn run(&mut self, runner: &mut ServiceRunner) -> Result<(), ServiceError> {

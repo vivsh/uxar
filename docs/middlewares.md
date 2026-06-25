@@ -25,10 +25,8 @@ Start from defaults and enable only the transport behavior the application
 needs:
 
 ```rust
-use vyuh::{
-    SiteConf,
-    middlewares::{HttpConf, TraceConf, CompressionConf, BodyLimitConf},
-};
+use vyuh::prelude::*;
+use vyuh::middlewares::{BodyLimitConf, CompressionConf, HttpConf, TraceConf};
 
 let conf = SiteConf::default().http(HttpConf {
     trace: TraceConf { enabled: true },
@@ -61,9 +59,10 @@ Request IDs are enabled by default. Vyuh reads the configured header when it is
 present, otherwise it generates a new ID and writes it to the response:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::middlewares::{HttpConf, RequestIdConf};
 
-let conf = vyuh::SiteConf::default().http(HttpConf {
+let conf = SiteConf::default().http(HttpConf {
     request_id: RequestIdConf {
         enabled: true,
         header: "x-request-id".into(),
@@ -80,9 +79,10 @@ errors instead of tearing down the server task.
 Trace, compression, CORS, timeout, and body limit are opt-in:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::middlewares::{CorsConf, HttpConf, TimeoutConf};
 
-let conf = vyuh::SiteConf::default().http(HttpConf {
+let conf = SiteConf::default().http(HttpConf {
     cors: CorsConf {
         enabled: true,
         permissive: true,
@@ -104,9 +104,10 @@ Security headers are disabled by default because applications often need
 deployment-specific policy. Enable the built-in defaults when they fit:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::middlewares::{HttpConf, SecurityHeadersConf};
 
-let conf = vyuh::SiteConf::default().http(HttpConf {
+let conf = SiteConf::default().http(HttpConf {
     security_headers: SecurityHeadersConf {
         enabled: true,
         ..SecurityHeadersConf::default()
@@ -134,9 +135,10 @@ Slash behavior is route metadata:
 Site default:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::middlewares::{HttpConf, SlashConf, SlashPolicy};
 
-let conf = vyuh::SiteConf::default().http(HttpConf {
+let conf = SiteConf::default().http(HttpConf {
     slash: SlashConf {
         policy: SlashPolicy::Auto,
     },
@@ -147,6 +149,7 @@ let conf = vyuh::SiteConf::default().http(HttpConf {
 Bundle override:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::middlewares::SlashPolicy;
 
 let bundle = app_bundle().with_slash_policy(SlashPolicy::RedirectAppend);
@@ -155,9 +158,12 @@ let bundle = app_bundle().with_slash_policy(SlashPolicy::RedirectAppend);
 Route override with the macro:
 
 ```rust
-#[vyuh::bundles::route(path = "/docs/", slash = "redirect_append")]
-async fn docs() -> vyuh::routes::Html<&'static str> {
-    vyuh::routes::Html("docs")
+use vyuh::prelude::*;
+use vyuh::routes::Html;
+
+#[bundles::route(path = "/docs/", slash = "redirect_append")]
+async fn docs() -> Html<&'static str> {
+    Html("docs")
 }
 ```
 
@@ -165,11 +171,10 @@ Route override with direct registration:
 
 ```rust
 use std::borrow::Cow;
-use vyuh::{
-    bundles,
-    middlewares::SlashPolicy,
-    routes::{Methods, RouteConf},
-};
+use vyuh::prelude::*;
+use vyuh::bundles;
+use vyuh::middlewares::SlashPolicy;
+use vyuh::routes::{Methods, RouteConf};
 
 let route = bundles::route(
     docs,
@@ -203,10 +208,14 @@ Use site-wide middleware for global transport policy. Use bundle or route
 middleware for feature-specific behavior and OpenAPI metadata:
 
 ```rust
-let bundle = vyuh::bundles::bundle! {
+use vyuh::prelude::*;
+use vyuh::bundles;
+use vyuh::routes::layer_from;
+
+let bundle = bundles::bundle! {
     // routes
 }
-.with_middleware(vyuh::routes::layer_from(my_tower_layer));
+.with_middleware(layer_from(my_tower_layer));
 ```
 
 Direct Tower or Axum layers remain escape hatches for behavior Vyuh does not

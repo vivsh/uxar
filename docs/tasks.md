@@ -45,13 +45,13 @@ Each task record stores:
 Each wake runs the handler with the latest durable snapshot:
 
 ```text
-input + state + resume_input -> handler -> TaskState
+input + state + resume_input -> handler -> Data<T> | TaskState<T> | ()
 ```
 
-The normal application-facing return type is `TaskState<T>`. It is an opaque
-typed wrapper for task outcomes. `TaskOutcome` still exists for low-level store
-implementors, but application task handlers should return `TaskState<T>` or a
-simple `()`/`Result<(), Error>` when they do not need explicit state control.
+Return `Data<T>` or `Result<Data<T>, Error>` when a task completes with a typed
+result and does not need continuation control. Return `TaskState<T>` when the
+handler must suspend, sleep, retry, fail explicitly, or complete from a
+continuation. `TaskOutcome` still exists for low-level store implementors.
 
 Vyuh tasks are durable continuations for a single unit of work. They do not
 provide a workflow DAG engine, child task orchestration, joins, branches, or
@@ -86,7 +86,10 @@ let bundle = bundles::bundle! {
 Equivalent direct registration:
 
 ```rust
-use vyuh::{bundles, bundles::IntoBundle, tasks::TaskHandlerConf};
+use vyuh::prelude::*;
+use vyuh::bundles;
+use vyuh::bundles::IntoBundle;
+use vyuh::tasks::TaskHandlerConf;
 
 let bundle = bundles::task(
     send_email,
@@ -124,6 +127,32 @@ async fn process_data(input: Data<ProcessingJob>) -> Result<(), Error> {
     Ok(())
 }
 ```
+
+Handlers that complete with a typed result can return `Data<T>`:
+
+```rust
+use vyuh::prelude::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ReportJob {
+    account_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct Report {
+    title: String,
+}
+
+#[bundles::task]
+async fn build_report(input: Data<ReportJob>) -> Data<Report> {
+    Data::new(Report {
+        title: format!("report for {}", input.account_id),
+    })
+}
+```
+
+The fallible form is `Result<Data<T>, Error>`. On success, `T` is serialized
+into the task record `result`. On error, the task is committed as failed.
 
 Handlers that need explicit continuation control should return
 `Result<TaskState<T>, Error>`:
@@ -207,6 +236,7 @@ type.
 Use `TaskState` constructors for explicit outcomes:
 
 ```rust
+use vyuh::prelude::*;
 use std::time::Duration;
 use vyuh::tasks::TaskState;
 
@@ -287,6 +317,7 @@ Use `submit_with` when the caller needs priority, an initial delay, identity,
 retry policy, lease duration, max attempts, or initial state:
 
 ```rust
+use vyuh::prelude::*;
 use std::time::Duration;
 use vyuh::tasks::TaskOptions;
 
@@ -328,7 +359,8 @@ running tasks. Within each claim batch, eligible tasks are ordered by priority
 first.
 
 ```rust
-use vyuh::{SiteConf, tasks::TaskConf};
+use vyuh::prelude::*;
+use vyuh::tasks::TaskConf;
 
 let conf = SiteConf::default().tasks(TaskConf {
     concurrency: 4,

@@ -34,14 +34,12 @@ The main public pieces are:
 Start from `SiteConf::default()` and set only what the application needs:
 
 ```rust
-use vyuh::{
-    SiteConf,
-    db::DbConf,
-    console::ConsoleConf,
-    file_storage::UploadConf,
-    middlewares::{HttpConf, TraceConf},
-    templates::{TemplateConf, TemplateDateFormats},
-};
+use vyuh::prelude::*;
+use vyuh::db::DbConf;
+use vyuh::console::ConsoleConf;
+use vyuh::file_storage::UploadConf;
+use vyuh::middlewares::{HttpConf, TraceConf};
+use vyuh::templates::{TemplateConf, TemplateDateFormats};
 
 let conf = SiteConf::default()
     .host("127.0.0.1")
@@ -113,7 +111,7 @@ Vyuh keeps lifecycle on `Site`:
 Use `Site::run` for ordinary application binaries:
 
 ```rust
-use vyuh::{SiteConf, bundles};
+use vyuh::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<(), vyuh::SiteError> {
@@ -159,7 +157,7 @@ background engines.
 Handlers can extract `Site` directly:
 
 ```rust
-use vyuh::{Site, bundles, routes::Json};
+use vyuh::prelude::*;
 
 #[bundles::route(path = "/health")]
 async fn health(site: Site) -> Json<String> {
@@ -191,7 +189,8 @@ before they are rendered. The default response is JSON-first. See
 Applications can replace error rendering with `SiteConf::errors(...)`:
 
 ```rust
-use vyuh::{SiteConf, errors::ErrorConf, routes::IntoResponse};
+use vyuh::prelude::*;
+use vyuh::errors::ErrorConf;
 
 let conf = SiteConf::default().errors(
     ErrorConf::default().handler(|ctx, report| async move {

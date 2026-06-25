@@ -311,6 +311,57 @@ impl callables::IntoReturnPart for TaskOutcome {
     }
 }
 
+#[doc(hidden)]
+pub trait IntoTaskOutcomePart {
+    fn into_task_outcome(data: callables::DataBox) -> TaskOutcome;
+}
+
+impl IntoTaskOutcomePart for () {
+    fn into_task_outcome(data: callables::DataBox) -> TaskOutcome {
+        if data.downcast_ref::<()>().is_some() {
+            TaskOutcome::Complete {
+                result: "null".to_string(),
+            }
+        } else {
+            unexpected_output()
+        }
+    }
+}
+
+impl IntoTaskOutcomePart for TaskOutcome {
+    fn into_task_outcome(data: callables::DataBox) -> TaskOutcome {
+        match data.downcast_ref::<TaskOutcome>() {
+            Some(output) => output.clone(),
+            None => unexpected_output(),
+        }
+    }
+}
+
+impl<T: callables::DataValue> IntoTaskOutcomePart for crate::Data<T> {
+    fn into_task_outcome(data: callables::DataBox) -> TaskOutcome {
+        match data.downcast_ref::<T>() {
+            Some(value) => match TaskOutcome::complete(value) {
+                Ok(outcome) => outcome,
+                Err(err) => TaskOutcome::fail(format!("Task output serialization error: {err}")),
+            },
+            None => unexpected_output(),
+        }
+    }
+}
+
+impl<T, E> IntoTaskOutcomePart for Result<T, E>
+where
+    T: IntoTaskOutcomePart,
+{
+    fn into_task_outcome(data: callables::DataBox) -> TaskOutcome {
+        T::into_task_outcome(data)
+    }
+}
+
+fn unexpected_output() -> TaskOutcome {
+    TaskOutcome::fail("Task handler returned an unexpected output type")
+}
+
 /// Opaque return type for task handlers.
 ///
 /// Create via static constructors: `TaskState::complete`, `TaskState::suspend`,
@@ -383,6 +434,12 @@ impl<O> callables::IntoReturnPart for TaskState<O> {
     }
 }
 
+impl<O> IntoTaskOutcomePart for TaskState<O> {
+    fn into_task_outcome(data: callables::DataBox) -> TaskOutcome {
+        TaskOutcome::into_task_outcome(data)
+    }
+}
+
 impl<O> TaskState<O> {
     /// Unwrap into the underlying [`TaskOutcome`] for use by store implementors and tests.
     pub fn into_outcome(self) -> TaskOutcome {
@@ -439,6 +496,7 @@ pub struct TaskService {
     pub type_id: TypeId,
     pub type_name: String,
     pub coerce: fn(&str) -> Result<(), TaskError>,
+    output: fn(callables::DataBox) -> TaskOutcome,
     handler: TaskHandler,
 }
 
@@ -478,22 +536,18 @@ impl TaskService {
             Err(e) => return TaskOutcome::fail_error(&e),
         };
 
-        if let Some(output) = data.downcast_ref::<TaskOutcome>() {
-            output.clone()
-        } else if data.downcast_ref::<()>().is_some() {
-            TaskOutcome::Complete {
-                result: "null".to_string(),
-            }
-        } else {
-            TaskOutcome::fail("Task handler returned an unexpected output type")
-        }
+        (self.output)(data)
     }
 
     pub fn new<T, H, Args>(name: &str, handler: H) -> Self
     where
         T: callables::DataValue,
         H: callables::Specable<Args> + Send + Sync + 'static,
-        H::Output: callables::IntoOutput<Error> + callables::IntoReturnPart + Send + 'static,
+        H::Output: callables::IntoOutput<Error>
+            + callables::IntoReturnPart
+            + IntoTaskOutcomePart
+            + Send
+            + 'static,
         Args: callables::FromContext<TaskContext>
             + callables::IntoArgSpecs
             + callables::HasData<T>
@@ -510,6 +564,7 @@ impl TaskService {
             type_id: TypeId::of::<T>(),
             type_name: std::any::type_name::<T>().to_string(),
             coerce,
+            output: H::Output::into_task_outcome,
             handler: callable,
         }
     }
@@ -763,7 +818,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        Data,
+        Data, SiteError,
         tasks::{MemoryTaskStore, store::AbstractTaskStore},
     };
 
@@ -772,8 +827,86 @@ mod tests {
         id: i64,
     }
 
+    #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+    struct ReportOutput {
+        value: String,
+    }
+
     async fn direct_job(input: Data<DirectJob>) -> Result<TaskState<String>, crate::Error> {
         Ok(TaskState::complete(format!("direct:{}", input.id))?)
+    }
+
+    async fn unit_job(_input: Data<DirectJob>) {}
+
+    async fn result_unit_job(_input: Data<DirectJob>) -> Result<(), crate::Error> {
+        Ok(())
+    }
+
+    async fn data_job(input: Data<DirectJob>) -> Data<ReportOutput> {
+        Data::new(ReportOutput {
+            value: format!("data:{}", input.id),
+        })
+    }
+
+    async fn result_data_job(input: Data<DirectJob>) -> Result<Data<ReportOutput>, crate::Error> {
+        Ok(Data::new(ReportOutput {
+            value: format!("result:{}", input.id),
+        }))
+    }
+
+    async fn result_data_error(
+        _input: Data<DirectJob>,
+    ) -> Result<Data<ReportOutput>, crate::Error> {
+        Err(crate::Error::invalid("data failed"))
+    }
+
+    fn record<T: Serialize>(name: &str, input: &T) -> Result<Arc<TaskRecord>, TaskError> {
+        let now = chrono::Utc::now();
+        Ok(Arc::new(TaskRecord {
+            id: uuid::Uuid::now_v7(),
+            name: name.to_string(),
+            input: serde_json::to_string(input)?,
+            state: None,
+            resume_input: None,
+            output: None,
+            result: None,
+            status: TaskStatus::Running,
+            attempts: 0,
+            priority: 0,
+            max_attempts: None,
+            retry_delay_ms: None,
+            lease_duration_ms: None,
+            last_error: None,
+            identity: None,
+            locked_by: Some("runner-a".to_string()),
+            leased_until: None,
+            ready_at: Some(now),
+            created_at: now,
+            updated_at: now,
+            completed_at: None,
+        }))
+    }
+
+    async fn test_site() -> Result<Site, SiteError> {
+        Site::build(
+            crate::SiteConf::default().log_init(false),
+            crate::bundles::bundle([]),
+        )
+        .await
+    }
+
+    fn complete_result(outcome: TaskOutcome) -> Option<String> {
+        match outcome {
+            TaskOutcome::Complete { result } => Some(result),
+            _ => None,
+        }
+    }
+
+    fn failed_error(outcome: TaskOutcome) -> Option<String> {
+        match outcome {
+            TaskOutcome::Fail { error } => Some(error),
+            _ => None,
+        }
     }
 
     #[tokio::test]
@@ -796,6 +929,98 @@ mod tests {
         store
             .commit_outcome(task_id, "runner-a", TaskOutcome::complete(&"done")?)
             .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn task_unit_output_completes_with_null() -> Result<(), Box<dyn std::error::Error>> {
+        let service = TaskService::new("unit_job", unit_job);
+        let outcome = service
+            .execute(
+                test_site().await?,
+                record("unit_job", &DirectJob { id: 7 })?,
+            )
+            .await;
+
+        assert_eq!(complete_result(outcome).as_deref(), Some("null"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn task_result_unit_output_completes_with_null() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let service = TaskService::new("result_unit_job", result_unit_job);
+        let outcome = service
+            .execute(
+                test_site().await?,
+                record("result_unit_job", &DirectJob { id: 7 })?,
+            )
+            .await;
+
+        assert_eq!(complete_result(outcome).as_deref(), Some("null"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn task_state_output_still_controls_outcome() -> Result<(), Box<dyn std::error::Error>> {
+        let service = TaskService::new("direct_job", direct_job);
+        let outcome = service
+            .execute(
+                test_site().await?,
+                record("direct_job", &DirectJob { id: 7 })?,
+            )
+            .await;
+
+        assert_eq!(complete_result(outcome).as_deref(), Some("\"direct:7\""));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn task_data_output_completes_with_payload() -> Result<(), Box<dyn std::error::Error>> {
+        let service = TaskService::new("data_job", data_job);
+        let outcome = service
+            .execute(
+                test_site().await?,
+                record("data_job", &DirectJob { id: 7 })?,
+            )
+            .await;
+
+        assert_eq!(
+            complete_result(outcome).as_deref(),
+            Some("{\"value\":\"data:7\"}")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn task_result_data_output_completes_with_payload()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let service = TaskService::new("result_data_job", result_data_job);
+        let outcome = service
+            .execute(
+                test_site().await?,
+                record("result_data_job", &DirectJob { id: 7 })?,
+            )
+            .await;
+
+        assert_eq!(
+            complete_result(outcome).as_deref(),
+            Some("{\"value\":\"result:7\"}")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn task_result_data_error_fails_task() -> Result<(), Box<dyn std::error::Error>> {
+        let service = TaskService::new("result_data_error", result_data_error);
+        let outcome = service
+            .execute(
+                test_site().await?,
+                record("result_data_error", &DirectJob { id: 7 })?,
+            )
+            .await;
+
+        assert!(failed_error(outcome).is_some_and(|error| error.contains("data failed")));
         Ok(())
     }
 }

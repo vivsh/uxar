@@ -127,7 +127,7 @@ remaining paragraphs become the description.
 Request wrappers parse only by default:
 
 ```rust
-use vyuh::routes::Json;
+use vyuh::prelude::*;
 
 async fn create(Json(input): Json<CreateUser>) {
     // JSON was parsed, but Validate was not run.
@@ -137,9 +137,9 @@ async fn create(Json(input): Json<CreateUser>) {
 Validation is an explicit route-boundary choice:
 
 ```rust
-use vyuh::routes::{Json, Valid};
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize, schemars::JsonSchema, vyuh::Validate)]
+#[derive(Deserialize, JsonSchema, Validate)]
 struct CreateUser {
     #[validate(email)]
     email: String,

@@ -26,7 +26,8 @@ The main public pieces are:
 Configure upload limits and local storage paths on `SiteConf`:
 
 ```rust
-use vyuh::{SiteConf, file_storage::UploadConf};
+use vyuh::prelude::*;
+use vyuh::file_storage::UploadConf;
 
 let conf = SiteConf::default().uploads(UploadConf {
     dir: "media/uploads".into(),
@@ -49,9 +50,11 @@ streaming and return `413`.
 Typed multipart parsing uses `MultipartData`:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::routes::{MultipartForm, UploadedFile};
+use vyuh::MultipartData;
 
-#[derive(schemars::JsonSchema, vyuh::MultipartData)]
+#[derive(JsonSchema, MultipartData)]
 struct AvatarUpload {
     display_name: String,
     #[upload(
@@ -77,10 +80,8 @@ Use `MultipartMap` directly when the accepted fields are dynamic or when direct
 registration is clearer:
 
 ```rust
-use vyuh::{
-    Data, Error, Site,
-    routes::multipart::{FileRule, FieldRule, MultipartMap, MultipartSpec},
-};
+use vyuh::prelude::*;
+use vyuh::routes::multipart::{FileRule, FieldRule, MultipartMap, MultipartSpec};
 
 async fn upload_avatar(site: Site, form: MultipartMap) -> Result<Data<UploadOut>, Error> {
     let form = form.validate(

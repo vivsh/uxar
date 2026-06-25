@@ -3,8 +3,10 @@
 /// Covers:
 ///   1. Fire-and-forget                (no return)
 ///   2. Fallible fire-and-forget       (Result<(), Error>)
-///   3. Method-based registration      (no #[bundles::task] macro)
-///   4. Suspend/resume with enum state (Result<TaskState<T>, Error>)
+///   3. Typed completion output        (Data<T>)
+///   4. Fallible typed completion      (Result<Data<T>, Error>)
+///   5. Method-based registration      (no #[bundles::task] macro)
+///   6. Suspend/resume with enum state (Result<TaskState<T>, Error>)
 use vyuh::prelude::*;
 
 // ── Input types ──────────────────────────────────────────────────────────────
@@ -18,6 +20,30 @@ struct SendEmailJob {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 struct ProcessingJob {
     data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ReportJob {
+    account_id: i64,
+    include_details: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ReportOut {
+    account_id: i64,
+    title: String,
+    rows: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ExportJob {
+    name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+struct ExportOut {
+    name: String,
+    path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -64,7 +90,35 @@ async fn process_data(input: Data<ProcessingJob>) -> Result<(), Error> {
 // Then pass to Site::build via a separate bundle:
 //   let extra = bundles::task(process_data, tasks::TaskHandlerConf::new("process_data")).into_bundle();
 
-// Pattern 3: Suspend/resume with typed output and enum state.
+// Pattern 3: Typed completion output. The task result stores serialized ReportOut.
+#[bundles::task]
+async fn build_report(input: Data<ReportJob>) -> Data<ReportOut> {
+    println!(
+        "building report for account {} details={}",
+        input.account_id, input.include_details
+    );
+    Data::new(ReportOut {
+        account_id: input.account_id,
+        title: format!("Account {} report", input.account_id),
+        rows: if input.include_details { 25 } else { 5 },
+    })
+}
+
+// Pattern 4: Fallible typed completion output.
+#[bundles::task]
+async fn export_report(input: Data<ExportJob>) -> Result<Data<ExportOut>, Error> {
+    if input.name.trim().is_empty() {
+        return Err(Error::invalid("export name is required"));
+    }
+
+    println!("exporting report '{}'", input.name);
+    Ok(Data::new(ExportOut {
+        name: input.name.clone(),
+        path: format!("/tmp/{}.json", input.name),
+    }))
+}
+
+// Pattern 6: Suspend/resume with typed output and enum state.
 // `Suspension<T>` is injected automatically.
 // `suspension.get()` returns Some(decision) on resume, None on first run.
 #[bundles::task(name = "approve_document")]
@@ -113,6 +167,8 @@ async fn main() -> Result<(), Error> {
     let bundle = bundles::bundle! {
         send_email,
         process_data,
+        build_report,
+        export_report,
         approve_document,
     };
 
@@ -138,6 +194,22 @@ async fn main() -> Result<(), Error> {
         .await
         .expect("submit failed");
 
+    // ── Typed output tasks ───────────────────────────────────────────────
+    let report_id = tasks
+        .submit(ReportJob {
+            account_id: 42,
+            include_details: true,
+        })
+        .await
+        .expect("submit failed");
+
+    let export_id = tasks
+        .submit(ExportJob {
+            name: "account-42".to_string(),
+        })
+        .await
+        .expect("submit failed");
+
     // ── Suspend/resume tasks ──────────────────────────────────────────────
     let doc1 = tasks
         .submit(ApprovalRequest {
@@ -159,6 +231,14 @@ async fn main() -> Result<(), Error> {
 
     // Allow the task engine to run and suspend the approval tasks.
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    if let Some(record) = tasks.get(report_id).await.expect("load report task failed") {
+        println!("report result: {:?}", record.result);
+    }
+
+    if let Some(record) = tasks.get(export_id).await.expect("load export task failed") {
+        println!("export result: {:?}", record.result);
+    }
 
     tasks
         .resume(

@@ -246,7 +246,11 @@ pub fn task<T, H, Args>(handler: H, options: TaskHandlerConf) -> BundlePart
 where
     T: callables::DataValue,
     H: callables::Specable<Args> + Send + Sync + 'static,
-    H::Output: callables::IntoOutput<Error> + callables::IntoReturnPart + Send + 'static,
+    H::Output: callables::IntoOutput<Error>
+        + callables::IntoReturnPart
+        + crate::tasks::IntoTaskOutcomePart
+        + Send
+        + 'static,
     Args: callables::FromContext<crate::tasks::TaskContext>
         + callables::IntoArgSpecs
         + callables::HasData<T>

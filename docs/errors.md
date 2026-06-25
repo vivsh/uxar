@@ -50,7 +50,7 @@ you want Vyuh's default HTTP JSON envelope.
 Use `vyuh::Error` for ordinary handler failures:
 
 ```rust
-use vyuh::{Data, Error, routes::Json};
+use vyuh::prelude::*;
 
 async fn show_user(Data(input): Data<UserLookup>) -> Result<Json<UserOut>, Error> {
     let user = find_user(input.id)
@@ -100,7 +100,7 @@ Validation failures are structured reports. `Valid<E>` runs `Validate` after
 the inner data wrapper parses or extracts successfully:
 
 ```rust
-use vyuh::{Data, Error, Valid};
+use vyuh::prelude::*;
 
 async fn create(Valid(Data(input)): Valid<Data<CreateUser>>) -> Result<(), Error> {
     Ok(())
@@ -138,11 +138,8 @@ uploads return `413`, and upload validation returns `422`.
 Applications can customize JSON and HTML rendering separately:
 
 ```rust
-use vyuh::{
-    SiteConf,
-    errors::{ErrorConf, HttpErrorRenderMode},
-    routes::{Html, IntoResponse, Json},
-};
+use vyuh::prelude::*;
+use vyuh::errors::{ErrorConf, HttpErrorRenderMode};
 
 let conf = SiteConf::default().errors(
     ErrorConf::default()
@@ -211,7 +208,8 @@ logic should return `Error`.
 Customize command output separately from HTTP rendering:
 
 ```rust
-use vyuh::{SiteConf, errors::ErrorConf};
+use vyuh::prelude::*;
+use vyuh::errors::ErrorConf;
 
 let conf = SiteConf::default().errors(
     ErrorConf::default().command(|ctx, view| {
@@ -238,7 +236,7 @@ failed terminally. Vyuh does not infer retry behavior from `ErrorKind`.
 Return `TaskState::retry(...)` when work should be retried:
 
 ```rust
-use vyuh::{Data, Error, tasks::TaskState};
+use vyuh::prelude::*;
 
 async fn send_email(Data(job): Data<EmailJob>) -> Result<TaskState<String>, Error> {
     match deliver(&job).await {

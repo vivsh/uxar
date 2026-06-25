@@ -30,9 +30,8 @@ through `ChannelRef`.
 Extract `ChannelRef` and publish typed `Data<T>`:
 
 ```rust
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use vyuh::{Data, Error, channels::ChannelRef};
+use vyuh::prelude::*;
+use vyuh::channels::ChannelRef;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 struct OrderUpdated {
@@ -60,7 +59,9 @@ SSE, WebSocket, and long polling are explicit route handlers. Vyuh does not
 auto-mount channel routes.
 
 ```rust
-use vyuh::{Error, auth::AuthUser, channels::{ChannelRef, ChannelSse}};
+use vyuh::prelude::*;
+use vyuh::auth::AuthUser;
+use vyuh::channels::{ChannelRef, ChannelSse};
 
 async fn events(user: AuthUser, channels: ChannelRef) -> Result<ChannelSse, Error> {
     let topic = format!("users.{}/orders", user.key);
@@ -72,7 +73,8 @@ WebSocket routes need Axum's upgrade extractor:
 
 ```rust
 use axum::extract::ws::WebSocketUpgrade;
-use vyuh::{Error, channels::{ChannelRef, ChannelWebSocket}};
+use vyuh::prelude::*;
+use vyuh::channels::{ChannelRef, ChannelWebSocket};
 
 async fn ws(
     upgrade: WebSocketUpgrade,
@@ -85,8 +87,8 @@ async fn ws(
 Long polling accepts an optional cursor and returns JSON:
 
 ```rust
-use serde::Deserialize;
-use vyuh::{Error, channels::{ChannelCursor, ChannelLongPoll, ChannelRef}, routes::Query};
+use vyuh::prelude::*;
+use vyuh::channels::{ChannelCursor, ChannelLongPoll, ChannelRef};
 
 #[derive(Deserialize)]
 struct PollQuery {
@@ -119,7 +121,8 @@ client.
 ## Configuration
 
 ```rust
-use vyuh::{SiteConf, channels::ChannelConf};
+use vyuh::prelude::*;
+use vyuh::channels::ChannelConf;
 
 let conf = SiteConf::default().channels(ChannelConf {
     retention_events: 20_000,

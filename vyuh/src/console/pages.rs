@@ -106,7 +106,6 @@ pub async fn operation_detail(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 pub async fn tasks(
     site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
@@ -131,20 +130,6 @@ pub async fn tasks(
     render_tasks(&site, query, page).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-#[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
-pub async fn tasks(
-    site: Site,
-    ConsoleSessionUser(_user): ConsoleSessionUser,
-    Query(query): Query<TaskQuery>,
-) -> Result<Html<String>, StatusCode> {
-    let page = Page::<TaskOut> {
-        items: Vec::new(),
-        next_cursor: None,
-    };
-    render_tasks(&site, query, page).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-#[cfg(any(feature = "postgres", feature = "mysql", feature = "sqlite"))]
 pub async fn task_detail(
     site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
@@ -168,15 +153,6 @@ pub async fn task_detail(
         json!({ "task": detail, "payload": payload }),
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
-}
-
-#[cfg(not(any(feature = "postgres", feature = "mysql", feature = "sqlite")))]
-pub async fn task_detail(
-    _site: Site,
-    ConsoleSessionUser(_user): ConsoleSessionUser,
-    Path(_id): Path<String>,
-) -> Result<Html<String>, StatusCode> {
-    Err(StatusCode::NOT_FOUND)
 }
 
 pub async fn conf(

@@ -89,12 +89,14 @@ Request and response schemas come from `JsonSchema` types used in extractors and
 returns:
 
 ```rust
-#[derive(serde::Deserialize, schemars::JsonSchema)]
+use vyuh::prelude::*;
+
+#[derive(Deserialize, JsonSchema)]
 struct CreateNote {
     title: String,
 }
 
-#[derive(serde::Serialize, schemars::JsonSchema)]
+#[derive(Serialize, JsonSchema)]
 struct Note {
     id: i64,
     title: String,
@@ -123,7 +125,7 @@ async fn create(Json(input): Json<CreateNote>) {
 validation:
 
 ```rust
-#[derive(serde::Deserialize, schemars::JsonSchema, vyuh::Validate)]
+#[derive(Deserialize, JsonSchema, Validate)]
 struct CreateNote {
     #[validate(min_length = 3)]
     title: String,

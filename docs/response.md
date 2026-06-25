@@ -21,10 +21,9 @@ Use `Data<T>` when the response is application data shared with other Vyuh
 subsystems:
 
 ```rust
-use serde::Serialize;
-use vyuh::routes::Data;
+use vyuh::prelude::*;
 
-#[derive(Serialize, schemars::JsonSchema)]
+#[derive(Serialize, JsonSchema)]
 struct NoteOut {
     id: u64,
     title: String,
@@ -41,10 +40,9 @@ async fn show_data() -> Data<NoteOut> {
 Use `Json<T>` for JSON responses:
 
 ```rust
-use serde::Serialize;
-use vyuh::routes::Json;
+use vyuh::prelude::*;
 
-#[derive(Serialize, schemars::JsonSchema)]
+#[derive(Serialize, JsonSchema)]
 struct NoteOut {
     id: u64,
     title: String,
@@ -64,6 +62,7 @@ When `T: JsonSchema`, OpenAPI documents the response body as
 Use `JsonStr` only when the body is already serialized JSON:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::routes::JsonStr;
 
 async fn raw_json() -> JsonStr {
@@ -78,7 +77,7 @@ async fn raw_json() -> JsonStr {
 Use `Html<T>` for HTML responses:
 
 ```rust
-use vyuh::routes::Html;
+use vyuh::prelude::*;
 
 async fn page() -> Html<&'static str> {
     Html("<h1>Dashboard</h1>")
@@ -88,7 +87,8 @@ async fn page() -> Html<&'static str> {
 For server-side templates, prefer `Templates::html(...)`:
 
 ```rust
-use vyuh::{routes::Html, templates::{TemplateError, Templates}};
+use vyuh::prelude::*;
+use vyuh::templates::{TemplateError, Templates};
 
 async fn dashboard(templates: Templates) -> Result<Html<String>, TemplateError> {
     templates.html("dashboard.html", &serde_json::json!({ "title": "Dashboard" }))
@@ -103,7 +103,7 @@ routes from API routes.
 Return `StatusCode` when the status is the whole response:
 
 ```rust
-use vyuh::routes::StatusCode;
+use vyuh::prelude::*;
 
 async fn accepted() -> StatusCode {
     StatusCode::ACCEPTED
@@ -113,7 +113,7 @@ async fn accepted() -> StatusCode {
 Use `NoContent` or `()` for empty success responses:
 
 ```rust
-use vyuh::routes::NoContent;
+use vyuh::prelude::*;
 
 async fn delete_note() -> NoContent {
     NoContent
@@ -125,7 +125,7 @@ async fn delete_note() -> NoContent {
 Use `Redirect` for HTTP redirects:
 
 ```rust
-use vyuh::routes::Redirect;
+use vyuh::prelude::*;
 
 async fn old_path() -> Redirect {
     Redirect::permanent("/new-path")
@@ -135,7 +135,7 @@ async fn old_path() -> Redirect {
 Use `AppendHeaders` or tuple responses when a handler needs custom headers:
 
 ```rust
-use vyuh::routes::{AppendHeaders, Json};
+use vyuh::prelude::*;
 
 async fn with_headers() -> (AppendHeaders<[(&'static str, &'static str); 1]>, Json<&'static str>) {
     (AppendHeaders([("cache-control", "no-store")]), Json("ok"))
@@ -148,7 +148,7 @@ Handlers can return `Result<T, vyuh::Error>` for ordinary application
 failures:
 
 ```rust
-use vyuh::{Error, routes::Json};
+use vyuh::prelude::*;
 
 async fn show() -> Result<Json<String>, Error> {
     Err(Error::not_found("item not found"))
@@ -167,7 +167,8 @@ field-oriented `code`, `message`, and `params` entries. See [Errors](errors.md),
 Use `Response` when a route needs full control:
 
 ```rust
-use vyuh::routes::{IntoResponse, Response, StatusCode};
+use vyuh::prelude::*;
+use vyuh::routes::Response;
 
 async fn raw() -> Response {
     (StatusCode::CREATED, "created").into_response()

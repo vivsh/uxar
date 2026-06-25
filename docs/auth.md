@@ -35,10 +35,8 @@ roles. They only control access to Vyuh's optional read-only console APIs.
 Auth configuration lives on `SiteConf`. Cookies are disabled by default:
 
 ```rust
-use vyuh::{
-    SiteConf,
-    auth::{AuthConf, CookieConf},
-};
+use vyuh::prelude::*;
+use vyuh::auth::{AuthConf, CookieConf};
 
 let conf = SiteConf::default()
     .secret_key("replace-with-a-long-random-secret")
@@ -71,7 +69,8 @@ Useful `AuthConf` options:
 Use `site.auth()` to issue tokens:
 
 ```rust
-use vyuh::{Site, auth::{AuthError, AuthUser, TokenPair}, routes::Json};
+use vyuh::prelude::*;
+use vyuh::auth::{AuthError, AuthUser, TokenPair};
 
 async fn login(site: Site) -> Result<Json<TokenPair>, AuthError> {
     let user = AuthUser::new("user-123", 0);
@@ -83,7 +82,8 @@ async fn login(site: Site) -> Result<Json<TokenPair>, AuthError> {
 Extract `AuthUser` to require an access token:
 
 ```rust
-use vyuh::{auth::AuthUser, routes::Json};
+use vyuh::prelude::*;
+use vyuh::auth::AuthUser;
 
 async fn me(user: AuthUser) -> Json<String> {
     Json(user.key.to_string())
@@ -117,6 +117,7 @@ Use `JwtConf` when deployments need a different symmetric algorithm or an
 asymmetric key pair:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::auth::{AuthConf, JwtConf, JwtKeySource};
 
 let auth = AuthConf::default().jwt(JwtConf::hs512(JwtKeySource::Env(
@@ -128,6 +129,7 @@ Asymmetric deployments can sign with a private PEM and verify with a public
 PEM. Relative file paths are resolved from `SiteConf.project_dir`:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::auth::{AuthConf, JwtConf, JwtKeySource};
 
 let auth = AuthConf::default().jwt(JwtConf::rs256(
@@ -161,6 +163,7 @@ not silently accepted.
 Static role checks are useful for simple route gates:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::auth::{AuthUser, BitRole, permit};
 
 #[derive(BitRole)]
@@ -186,7 +189,8 @@ OpenAPI.
 Use handler or service logic for dynamic authorization:
 
 ```rust
-use vyuh::{Error, Site, auth::AuthUser, routes::{Json, Path}};
+use vyuh::prelude::*;
+use vyuh::auth::AuthUser;
 
 async fn edit_post(
     site: Site,
@@ -208,6 +212,7 @@ application verifies them through a hook. Vyuh does not store plaintext keys or
 own API-key tables.
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::auth::{ApiKey, ApiKeyPrincipal, ApiKeyVerifier, AuthError};
 
 struct MyVerifier;
@@ -230,6 +235,7 @@ async fn ingest(key: ApiKey) {
 Configure the verifier:
 
 ```rust
+use vyuh::prelude::*;
 use vyuh::auth::{ApiKeyConf, AuthConf};
 
 let auth = AuthConf::default().api_keys(

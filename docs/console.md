@@ -22,7 +22,8 @@ it as an application admin framework or a command/task execution surface.
 Configuration lives on `SiteConf`:
 
 ```rust
-use vyuh::{SiteConf, console::ConsoleConf};
+use vyuh::prelude::*;
+use vyuh::console::ConsoleConf;
 
 let conf = SiteConf::default().console(
     ConsoleConf::default()

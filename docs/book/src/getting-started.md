@@ -4,8 +4,6 @@ Start with a small route that accepts typed data and validates it at the handler
 boundary.
 
 ```rust
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use vyuh::prelude::*;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Validate)]

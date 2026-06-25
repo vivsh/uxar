@@ -176,9 +176,11 @@ fn should_print(conf: &ConsoleConf, host: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use axum::http::{StatusCode, header};
+    use schemars::JsonSchema;
+    use serde::{Deserialize, Serialize};
 
     use crate::{
-        Site, SiteConf, bundles,
+        Data, Site, SiteConf, bundles,
         console::ConsoleConf,
         routes::{Json, Methods, RouteConf},
         testing::TestClient,
@@ -186,6 +188,16 @@ mod tests {
 
     async fn ping() -> Json<&'static str> {
         Json("pong")
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+    struct ConsoleTaskJob {
+        message: String,
+    }
+
+    #[bundles::task(name = "console_test_task")]
+    async fn console_test_task(Data(job): Data<ConsoleTaskJob>) {
+        println!("console task test: {}", job.message);
     }
 
     fn app_bundle() -> crate::bundles::Bundle {
@@ -198,6 +210,12 @@ mod tests {
                 slash: None,
             },
         )])
+    }
+
+    fn task_app_bundle() -> crate::bundles::Bundle {
+        app_bundle().merge(bundles::bundle! {
+            console_test_task,
+        })
     }
 
     #[tokio::test]
@@ -485,6 +503,59 @@ mod tests {
                 .and_then(|value| value.to_str().ok()),
             Some("text/css")
         );
+    }
+
+    #[tokio::test]
+    async fn console_task_pages_show_submitted_tasks() {
+        let conf = SiteConf::default()
+            .log_init(false)
+            .console(ConsoleConf::default().enabled(true));
+        let site = Site::build(conf, task_app_bundle()).await.unwrap();
+        site.tasks()
+            .submit(ConsoleTaskJob {
+                message: "hello".to_string(),
+            })
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let token = site
+            .console_runtime()
+            .and_then(|runtime| runtime.bootstrap_token())
+            .unwrap();
+        let client = TestClient::new(site);
+        let login = client
+            .get(&format!("/_console/login?token={token}"))
+            .send()
+            .await;
+        let cookie = login
+            .header(header::SET_COOKIE.as_str())
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string();
+
+        let api_tasks = client
+            .get("/_console/api/tasks")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(api_tasks.status(), StatusCode::OK);
+        let api_tasks = api_tasks.text().await;
+        assert!(api_tasks.contains("console_test_task"));
+
+        let tasks = client
+            .get("/_console/tasks")
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(tasks.status(), StatusCode::OK);
+        let tasks = tasks.text().await;
+        assert!(tasks.contains("console_test_task"));
+        assert!(!tasks.contains("No task records yet."));
     }
 
     #[tokio::test]

@@ -47,12 +47,8 @@ the command handler runs.
 Define a typed argument struct and register the command as a bundle part:
 
 ```rust
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-use vyuh::{
-    Data, Error, bundles,
-    commands::CommandConf,
-};
+use vyuh::prelude::*;
+use vyuh::commands::CommandConf;
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 struct GreetArgs {
@@ -149,7 +145,7 @@ async fn greet(Data(args): Data<GreetArgs>) -> Result<(), vyuh::Error> {
 Extract `Site` when a command needs subsystem access:
 
 ```rust
-use vyuh::{Data, Site};
+use vyuh::prelude::*;
 
 async fn reindex(site: Site, Data(args): Data<ReindexArgs>) -> Result<(), vyuh::Error> {
     let db = site.db();
@@ -187,9 +183,9 @@ Wrap command data in `Valid<Data<T>>` when CLI arguments should be validated
 with the same rules used by routes:
 
 ```rust
-use vyuh::{Data, Error, Valid, Validate};
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize, serde::Serialize, schemars::JsonSchema, Validate)]
+#[derive(Deserialize, Serialize, JsonSchema, Validate)]
 struct CreateUser {
     #[validate(email)]
     email: String,

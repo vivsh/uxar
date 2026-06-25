@@ -11,7 +11,7 @@ separate steps:
 This keeps API behavior visible in the handler signature:
 
 ```rust
-use vyuh::routes::{Json, Valid};
+use vyuh::prelude::*;
 
 async fn parse_only(Json(input): Json<CreateUser>) {
     // parsed only
@@ -36,9 +36,9 @@ async fn parse_and_validate(Valid(Json(input)): Valid<Json<CreateUser>>) {
 Derive `Validate` on request DTOs and add `#[validate(...)]` attributes:
 
 ```rust
-use vyuh::Validate;
+use vyuh::prelude::*;
 
-#[derive(serde::Deserialize, schemars::JsonSchema, Validate)]
+#[derive(Deserialize, JsonSchema, Validate)]
 struct CreateUser {
     #[validate(email)]
     email: String,
@@ -74,7 +74,7 @@ match JSON Schema `minLength` and `maxLength` semantics, not UTF-8 byte length.
 `Valid<E>` is generic over request wrappers:
 
 ```rust
-use vyuh::routes::{Form, Json, Path, Query, Valid};
+use vyuh::prelude::*;
 
 async fn create(Valid(Json(input)): Valid<Json<CreateUser>>) {}
 async fn search(Valid(Query(input)): Valid<Query<SearchParams>>) {}
@@ -100,7 +100,7 @@ be checked directly from tests, services, commands, tasks, or ordinary
 application code:
 
 ```rust
-use vyuh::Validate;
+use vyuh::prelude::*;
 
 #[derive(Validate)]
 struct CreateUser {
@@ -200,13 +200,13 @@ Root-level errors are emitted under `non_field_errors`.
 Use `delegate` when a field's type has its own validation rules:
 
 ```rust
-#[derive(serde::Deserialize, schemars::JsonSchema, Validate)]
+#[derive(Deserialize, JsonSchema, Validate)]
 struct Address {
     #[validate(min_length = 2)]
     city: String,
 }
 
-#[derive(serde::Deserialize, schemars::JsonSchema, Validate)]
+#[derive(Deserialize, JsonSchema, Validate)]
 struct Signup {
     #[validate(delegate)]
     address: Address,

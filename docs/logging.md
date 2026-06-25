@@ -26,10 +26,8 @@ in release builds. Release applications should configure logging explicitly.
 Configure logging on `SiteConf`:
 
 ```rust
-use vyuh::{
-    SiteConf,
-    logging::{LogRule, LogSink, LoggingConf, Rotation},
-};
+use vyuh::prelude::*;
+use vyuh::logging::{LogRule, LogSink, LoggingConf, Rotation};
 
 let conf = SiteConf::default().logging(LoggingConf {
     env_prefix: Some("APP_LOG".into()),

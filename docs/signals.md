@@ -31,6 +31,8 @@ be lost.
 Use the macro for ordinary handlers:
 
 ```rust
+use vyuh::prelude::*;
+
 #[bundles::signal]
 async fn index_note_change(Data(event): Data<NoteChanged>) -> Result<(), vyuh::Error> {
     println!("note {} changed", event.id);
@@ -60,7 +62,7 @@ Signal data types must implement Vyuh's data bounds: they are serializable,
 deserializable, schema-capable, sendable, syncable, and `'static`.
 
 ```rust
-#[derive(Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[derive(Clone, Deserialize, Serialize, JsonSchema)]
 struct NoteChanged {
     id: i64,
 }
@@ -70,6 +72,8 @@ Handlers extract signal data with `Data<T>`. The data extractor must be the last
 handler argument.
 
 ```rust
+use vyuh::prelude::*;
+
 #[bundles::signal]
 async fn audit_note_change(site: Site, Data(event): Data<NoteChanged>) -> Result<(), vyuh::Error> {
     tracing::info!("note {} changed in {:?}", event.id, site.project_dir());
