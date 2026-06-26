@@ -4,73 +4,90 @@
 [![docs.rs](https://img.shields.io/docsrs/vyuh)](https://docs.rs/vyuh)
 [![License](https://img.shields.io/crates/l/vyuh)](LICENSE)
 
-_Vyuh_ (व्यूह, _vyoo-huh_) means "formation", "arrangement", or "structured
-configuration".
+_Vyuh_ (व्यूह, _vyoo-huh_) means "formation" or "arrangement".
 
-Vyuh is a handler-first Rust web framework built on Axum and SQLx.
+Vyuh is a handler-first Rust web framework for building typed APIs and
+application runtimes on top of Axum and SQLx.
 
-It is designed around one idea: application structure should stay visible in
-ordinary Rust code. Handler signatures describe what a route, command, task, or
-signal consumes. Bundles group related application parts. `Site` owns the
-runtime. `Data<T>` gives typed application data the same shape across
-subsystems.
+It is built for applications that need more than routing. Routes, OpenAPI,
+durable tasks, live channels, scheduled emitters, commands, services, and
+operational introspection all live in one coherent model instead of feeling
+like unrelated add-ons.
 
-Vyuh favors a narrow, explicit API over hidden framework magic. Request wrappers
-parse. `Valid<E>` validates. Auth is opt-in. Tasks retry only when the task says
-so. Services stay separate because they are site-lifetime components, not
-handler data.
+Vyuh keeps that model explicit. Handler signatures stay meaningful. Validation
+is opt-in. Auth is opt-in. Retry is explicit. Bundles compose features without
+hiding how the application is wired.
 
-Vyuh is usable, but not API-stable yet. Expect breaking changes before a stable
-release.
+Website: [vyuh-rs.github.io](https://vyuh-rs.github.io/)
+Docs: [vyuh-rs.github.io/docs](https://vyuh-rs.github.io/docs/)
 
-## Web And Docs Assets
+Vyuh is usable today, but it is not API-stable yet. Expect breaking changes
+before `1.0`.
 
-The `vyuh/web/` directory is the shared visual source for Vyuh-owned web
-surfaces. It contains public CSS, JavaScript, images, the static landing-page
-source, and private Minijinja templates for the built-in console.
+## Highlights
 
-The mdBook source lives in `docs/book/` and reuses the same CSS:
+- Typed handlers across subsystems: `Data<T>` is used consistently across
+  routes, commands, tasks, signals, and emitters.
+- OpenAPI from real application code: request data, responses, validation, and
+  auth metadata come from handler shapes and route metadata, with no per-route
+  schema wiring.
+- OpenAPI and console are effectively free: enable them once, and they follow
+  the same bundle tree, prefixes, and nesting as the rest of the application.
+- Durable tasks as continuations: tasks can complete, sleep, suspend, resume,
+  retry, and return typed results.
+- Built-in live delivery: channels support SSE, WebSocket, and long polling for
+  client-facing streams.
+- Read-only operations console: inspect routes, operations, config, tasks, and
+  runtime status from the same application.
+- Bundle-based composition: keep routes, assets, tasks, services, signals, and
+  docs together as one feature unit.
 
-```sh
-mdbook build docs/book
-```
+## How It Works
 
-The landing page and mdBook can be built into one GitHub Pages artifact:
+Two ideas drive the framework.
 
-```sh
-scripts/build-pages.sh
-```
+`Handler uniformity`
 
-For the `vyuh-rs/vyuh` repository, GitHub Pages will serve the landing page at
-`https://vyuh-rs.github.io/` and the book at
-`https://vyuh-rs.github.io/docs/`.
+The same typed wrapper, `Data<T>`, appears across the major execution paths.
+That keeps the framework mentally small.
 
-The console UI is server-rendered with Minijinja and uses the same bundled asset
-serving path as application assets, for example `/assets/css/base.css` and
-`/assets/css/console.css`.
+- Routes parse request data into handler input.
+- Commands receive typed input.
+- Tasks receive typed input and can return `Data<T>` or `TaskState<T>`.
+- Signals and emitters exchange typed data.
 
-## The Shape
+Uniformity here is practical, not forced. Services remain separate because they
+represent site-lifetime components, not handler data. Validation stays explicit
+through `Valid<E>`. Auth stays explicit through auth extractors.
 
-Vyuh tries to make the common application path cohesive:
+`Bundles as composition`
 
-- `Data<T>` is typed application data.
-- `Valid<E>` opts into validation.
-- `Site` is the runtime handle and lifecycle surface.
-- Bundles are the composition unit for features.
-- Handler signatures drive extraction, auth, validation, OpenAPI, and subsystem
-  access.
-- Macros are convenience syntax. The same routes, commands, tasks, signals,
-  emitters, services, assets, and OpenAPI wiring can be registered with the
-  direct API.
+A bundle is Vyuh's feature unit. A feature can own its routes, tasks, services,
+signals, emitters, assets, templates, and OpenAPI declaration together, then be
+merged or prefixed into a larger application.
 
-The goal is not to hide the framework. The goal is to keep each framework
-concept small, explicit, and in the same place as the code that needs it.
+That keeps application structure visible. Instead of scattering feature wiring
+across several registries and config surfaces, Vyuh keeps the moving parts near
+the code that defines them.
+
+From that model, the framework gives you typed APIs, generated OpenAPI, durable
+tasks, channels, emitters, commands, services, and the built-in console without
+forcing each subsystem into a different programming style.
 
 ## Getting Started
 
+Add the crate with one backend feature for production work:
+
+```toml
+vyuh = { version = "0.2", features = ["postgres"] }
+```
+
+For local experiments or documentation examples, Vyuh can run without a backend
+feature and will use an in-memory SQLite-compatible setup plus in-memory tasks.
+
+Start with one route, one cron emitter, and one OpenAPI declaration:
+
 ```rust
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use vyuh::prelude::*;
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Validate)]
@@ -91,7 +108,7 @@ struct UserCreated {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 struct SystemPulse {
-    project: String,
+    source: String,
 }
 
 #[bundles::route(path = "/users", method = "POST")]
@@ -104,147 +121,76 @@ async fn signup(Valid(Data(input)): Valid<Data<Signup>>) -> Result<Data<UserCrea
 }
 
 #[bundles::cron(expr = "0 */5 * * * *")]
-async fn heartbeat(site: Site) -> Data<SystemPulse> {
+async fn heartbeat() -> Data<SystemPulse> {
     Data::new(SystemPulse {
-        project: site.project_dir().display().to_string(),
+        source: "signup-service".into(),
     })
 }
 
-#[bundles::signal]
-async fn record_heartbeat(Data(pulse): Data<SystemPulse>) {
-    println!("heartbeat for {}", pulse.project);
-}
-
 #[tokio::main]
-async fn main() -> Result<(), vyuh::SiteError> {
+async fn main() -> Result<(), SiteError> {
     let app = bundles::bundle! {
         signup,
         heartbeat,
-        record_heartbeat,
     }
     .with_openapi(
         bundles::OpenApiConf::default()
             .title("Vyuh Example")
             .version("0.1.0")
-            .description("Routes, typed data, emitters, signals, and OpenAPI.")
-            .spec("/openapi.json"),
-    )
-    .with_prefix("/api");
+            .description("A route, a cron emitter, and generated OpenAPI.")
+            .spec("/openapi.json")
+            .viewer("/docs"),
+    );
 
     Site::run(SiteConf::from_env_with_files()?, app).await
 }
 ```
 
-This bundle registers a validated JSON route, a cron emitter, a signal handler,
-and an OpenAPI spec endpoint. The route parses and validates `Data<Signup>`,
-returns `Data<UserCreated>` as JSON, and contributes request, response, and
-validation metadata to OpenAPI from the handler signature. Without `Valid`,
-`Data<Signup>` would parse only.
+The route handles HTTP input. The cron handler runs on a schedule. Both are
+ordinary async functions, both return typed `Data<T>`, and both are registered
+through the same bundle.
 
-`Site::run` is the normal application entrypoint. It builds the site, runs the
-requested command, and defaults to serving HTTP when no command is supplied. Use
-`Site::serve` for server-only binaries and `Site::build` when embedding or
-testing needs the built site object.
+`Valid<Data<Signup>>` parses and validates request data at the handler
+boundary. `Data<UserCreated>` becomes the JSON response body and response
+schema. `with_openapi(...)` exposes the generated spec and docs page without
+adding per-route OpenAPI code. `Site::run(...)` is the standard application
+entrypoint.
 
-## Bundles
+Tasks, commands, signals, channels, and services follow the same bundle-driven
+model. See the getting started book for the full walkthrough.
 
-A bundle is Vyuh's feature composition unit.
+As the application grows, keep adding features as bundles instead of widening
+one central setup file.
 
-A feature can own its routes, templates, assets, services, tasks, commands,
-signals, emitters, and OpenAPI metadata together. Larger applications are built
-by merging and prefixing bundles instead of scattering feature wiring across
-unrelated global registries.
+## Common Paths
 
-```rust
-let dashboard = bundles::bundle! {
-    dashboard_routes,
-    dashboard_service,
-    rebuild_dashboard_index,
-    dashboard_assets,
-};
-
-let app = bundles::bundle! {
-    public_routes,
-    auth_routes,
-    dashboard.with_prefix("/dashboard"),
-};
-```
-
-## Philosophy
-
-Vyuh is built around simplicity and uniformity:
-
-- One typed data wrapper, `Data<T>`, is shared across routes, commands, tasks,
-  signals, and emitters.
-- Validation is explicit through `Valid<E>`, never automatic because a type
-  derives `Validate`.
-- Auth is completely opt-in; routes without auth extractors do no auth work.
-- Errors have a common application shape, then render differently for HTTP,
-  commands, and tasks.
-- Site-level subsystems are accessed through direct handles such as `site.db()`,
-  `site.tasks()`, `site.templates()`, `site.file_storage()`, and `site.auth()`.
-- Services remain distinct because they represent site-lifetime components, not
-  handler input or output.
-- Console is opt-in and read-only in its first pass, for operational inspection
-  without exposing command or task mutation APIs.
-
-This keeps the framework cohesive without pretending every subsystem is the
-same thing.
+- Build an API: routes, request wrappers, response wrappers, validation,
+  errors, and OpenAPI.
+- Add durable background work: tasks plus a database-backed task store.
+- Add live updates: signals, emitters, and channels.
+- Add operations tooling: site-aware commands and the optional console.
+- Compose features cleanly: define one bundle per domain area and merge them at
+  the top level.
 
 ## Documentation
 
-- [Site](docs/site.md): lifecycle, configuration, subsystem handles, and
-  testing.
-- [Bundles](docs/bundles.md): feature composition, prefixing, OpenAPI, and
-  validation.
-- [Routes](docs/routes.md): handler-first HTTP routes and route metadata.
-- [Request](docs/request.md): `Data`, JSON, query, path, forms, multipart, and
-  raw bodies.
-- [Response](docs/response.md): response wrappers, redirects, headers, and
-  metadata.
-- [Validation](docs/validation.md): explicit `Valid<E>`, structured errors, and
-  schema hints.
-- [Errors](docs/errors.md): application errors, rendered errors, commands, and
-  tasks.
-- [Auth](docs/auth.md): opt-in JWT, API keys, static roles, dynamic
-  permissions, and Django password hashes.
-- [OpenAPI](docs/openapi.md): generated specs from handler signatures and
-  overrides.
-- [Middlewares](docs/middlewares.md): site-wide HTTP policy and slash behavior.
-- [Database](docs/db.md): SQLx access, query helpers, sessions, and
-  transactions.
-- [Tasks](docs/tasks.md): durable single-unit background continuations.
-- [Commands](docs/commands.md): site-aware CLI commands for operations.
-- [Services](docs/services.md): site-lifetime components and workers.
-- [Templates](docs/templates.md): Minijinja configuration, helpers, and
-  formatting.
-- [Assets](docs/assets.md): embedded assets, public files, and `collect_static`.
-- [Uploads](docs/uploads.md): multipart uploads, MIME screening, and file
-  storage.
-- [Signals](docs/signals.md): typed in-process event handling.
-- [Channels](docs/channels.md): live client-facing pub/sub over SSE,
-  WebSocket, and long polling.
-- [Emitters](docs/emitters.md): cron, periodic, debounced, and notification
-  sources.
-- [Logging](docs/logging.md): tracing setup, sinks, and runtime logging.
-- [Console](docs/console.md): optional JSON APIs for operations, task records,
-  and runtime status.
-- [Framework comparison](docs/comparison.md): `vyuh` vs Rocket, Utoipa,
-  Actix, and FastAPI.
-
-See [docs/index.md](docs/index.md) for the full documentation index.
+- [Website](https://vyuh-rs.github.io/)
+- [Full docs](https://vyuh-rs.github.io/docs/)
+- [Documentation index](docs/index.md)
+- [Site and lifecycle](docs/site.md)
+- [Bundles](docs/bundles.md)
+- [OpenAPI](docs/openapi.md)
+- [Tasks](docs/tasks.md)
+- [Channels](docs/channels.md)
+- [Console](docs/console.md)
 
 ## Backend Support
 
-Vyuh is Postgres-first where database semantics matter most, but the common
-database and task surfaces support Postgres, MySQL, and SQLite.
+Vyuh supports Postgres, MySQL, and SQLite through SQLx, with Postgres as the
+preferred production backend where concurrency and notification features matter
+most.
 
-Vyuh has no default backend feature. With no backend feature enabled, it uses
-SQLite-compatible SQLx aliases, a shared in-memory SQLite default database URL,
-and `MemoryTaskStore` for tasks. This is useful for quick starts, docs, local
-experiments, and tests that do not need durable task storage.
-
-Production applications should enable exactly one backend feature:
+Enable exactly one backend feature in production:
 
 ```toml
 vyuh = { version = "0.2", features = ["postgres"] }
@@ -252,22 +198,18 @@ vyuh = { version = "0.2", features = ["mysql"] }
 vyuh = { version = "0.2", features = ["sqlite"] }
 ```
 
-Postgres is the preferred production backend for high-concurrency task workers
-and notification emitters. MySQL is supported for SQLx access and task storage.
-SQLite is useful for local, embedded, and single-process deployments.
+With no backend feature enabled, Vyuh uses SQLite-compatible aliases and an
+in-memory task store. That mode is useful for quick starts, docs, and tests,
+not for durable production workloads.
 
 ## Current Caveats
 
-- Vyuh is usable, but not API-stable yet. Expect breaking changes before a
-  stable release.
+- Vyuh is not API-stable yet.
 - Services are in-process and not durable.
-- Tasks provide durable single-task continuations, not multi-task workflow
-  orchestration.
+- Tasks are durable single-task continuations, not workflow orchestration.
 - `MemoryTaskStore` is the no-backend default and is not durable.
-- SQLite task storage is not positioned as a high-concurrency production worker
-  backend.
-- Some Postgres features, such as `LISTEN`/`NOTIFY` and `RETURNING *` helpers,
-  are intentionally Postgres-only.
+- Some features remain intentionally Postgres-only, such as `LISTEN`/`NOTIFY`
+  and selected SQL helpers.
 
 ## License
 
