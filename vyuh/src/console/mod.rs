@@ -132,6 +132,12 @@ fn routes() -> crate::bundles::Bundle {
             Methods::GET,
             api::openapi,
         ),
+        route!(
+            "console_not_found",
+            "/{*path}",
+            Methods::GET,
+            pages::not_found_page,
+        ),
     ])
 }
 
@@ -233,8 +239,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn console_local_debug_allows_direct_access() {
+        let conf = SiteConf::default()
+            .log_init(false)
+            .console(ConsoleConf::default().enabled(true));
+        let site = Site::build(conf, app_bundle()).await.unwrap();
+        let client = TestClient::new(site);
+
+        let status = client.get("/_console/api/status").send().await;
+        assert_eq!(status.status(), StatusCode::OK);
+
+        let session = client.get("/_console/api/session").send().await;
+        assert_eq!(session.status(), StatusCode::OK);
+        let session = session.text().await;
+        assert!(session.contains("local-debug"));
+
+        let missing = client.get("/_console/missing").send().await;
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+        let missing = missing.text().await;
+        assert!(missing.contains("Console page not found"));
+    }
+
+    #[tokio::test]
     async fn console_bootstrap_cookie_authenticates_api() {
         let conf = SiteConf::default()
+            .host("example.com")
             .log_init(false)
             .console(ConsoleConf::default().enabled(true));
         let site = Site::build(conf, app_bundle()).await.unwrap();
@@ -248,17 +277,20 @@ mod tests {
             .get("/_console/api/status")
             .send()
             .await
-            .assert_status(StatusCode::UNAUTHORIZED);
-        client
-            .get("/_console/api/conf")
-            .send()
-            .await
-            .assert_status(StatusCode::UNAUTHORIZED);
+            .assert_status(StatusCode::FORBIDDEN);
+        let forbidden = client.get("/_console/api/conf").send().await;
+        assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+        let forbidden = forbidden.text().await;
+        assert!(forbidden.contains("Console access denied"));
+        let forbidden_page = client.get("/_console/overview").send().await;
+        assert_eq!(forbidden_page.status(), StatusCode::FORBIDDEN);
+        let forbidden_page = forbidden_page.text().await;
+        assert!(forbidden_page.contains("Console access denied"));
         client
             .get("/_console/api/openapi")
             .send()
             .await
-            .assert_status(StatusCode::UNAUTHORIZED);
+            .assert_status(StatusCode::FORBIDDEN);
 
         let login = client
             .get(&format!("/_console/login?token={token}"))
@@ -381,13 +413,12 @@ mod tests {
             .await;
         assert_eq!(runtime.status(), StatusCode::OK, "runtime page failed");
         let runtime = runtime.text().await;
-        assert!(runtime.contains("Runtime"));
+        assert!(runtime.contains("System Info"));
         assert!(runtime.contains("aria-current=\"page\""));
-        assert!(runtime.contains("Site Runtime"));
-        assert!(runtime.contains("Process"));
-        assert!(runtime.contains("System"));
-        assert!(runtime.contains("Memory"));
-        assert!(runtime.contains("Raw API"));
+        assert!(runtime.contains("System Environment"));
+        assert!(runtime.contains("Resource Usage"));
+        assert!(runtime.contains("Build Information"));
+        assert!(runtime.contains("JSON"));
 
         let operations = client
             .get("/_console/operations?kind=route&q=ping")
@@ -450,7 +481,7 @@ mod tests {
             "selected operation page failed"
         );
         let selected = selected.text().await;
-        assert!(selected.contains("is-selected"));
+        assert!(selected.contains("aria-selected=\"true\""));
         assert!(selected.contains("Methods"));
         assert!(selected.contains("Request"));
         assert!(selected.contains("Response"));
@@ -463,6 +494,8 @@ mod tests {
         assert_eq!(tasks.status(), StatusCode::OK, "tasks page failed");
         let tasks = tasks.text().await;
         assert!(tasks.contains("No task records yet."));
+        assert!(tasks.contains("name=\"limit\""));
+        assert!(tasks.contains("100 per page"));
 
         let conf = client
             .get("/_console/conf")
@@ -471,11 +504,11 @@ mod tests {
             .await;
         assert_eq!(conf.status(), StatusCode::OK, "config page failed");
         let conf = conf.text().await;
-        assert!(conf.contains("Config"));
+        assert!(conf.contains("Configuration"));
         assert!(conf.contains("aria-current=\"page\""));
         assert!(conf.contains("Authentication"));
         assert!(conf.contains("HTTP Pipeline"));
-        assert!(conf.contains("Raw API"));
+        assert!(conf.contains("Open raw"));
         assert!(!conf.contains(">01<"));
         assert!(conf.contains("&lt;redacted&gt;"));
         assert!(!conf.contains("secret_key"));
@@ -489,9 +522,11 @@ mod tests {
             .await;
         assert_eq!(openapi.status(), StatusCode::OK, "openapi page failed");
         let openapi = openapi.text().await;
+        assert!(openapi.contains("OpenAPI"));
+        assert!(openapi.contains("vyuh-console-sidebar"));
         assert!(openapi.contains("redoc"));
         assert!(openapi.contains("spec-url"));
-        assert!(openapi.contains("console-redoc-blank"));
+        assert!(openapi.contains("is-redoc"));
         assert!(!openapi.contains("Raw JSON"));
         assert!(!openapi.contains("Application routes only"));
         assert!(!openapi.contains("console_operations"));

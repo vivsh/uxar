@@ -129,7 +129,7 @@ fn schema_json(schema: &TypeSchema) -> Option<String> {
     serde_json::to_string_pretty(schema).ok()
 }
 
-#[derive(Debug, Serialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct TaskOut {
     pub id: String,
     pub name: String,
@@ -283,11 +283,8 @@ impl ConfigOut {
             channels: ChannelConfigOut {
                 enabled: conf.channels.enabled,
                 subscriber_queue: conf.channels.subscriber_queue,
-                command_queue: conf.channels.command_queue,
                 replay_limit: conf.channels.replay_limit,
                 retention_events: conf.channels.retention_events,
-                max_topics_per_subscribe: conf.channels.max_topics_per_subscribe,
-                max_topic_len: conf.channels.max_topic_len,
                 max_message_bytes: conf.channels.max_message_bytes,
                 long_poll_timeout_ms: conf.channels.long_poll_timeout_ms,
                 sse_keepalive_ms: conf.channels.sse_keepalive_ms,
@@ -400,11 +397,8 @@ pub struct UploadConfigOut {
 pub struct ChannelConfigOut {
     pub enabled: bool,
     pub subscriber_queue: usize,
-    pub command_queue: usize,
     pub replay_limit: usize,
     pub retention_events: usize,
-    pub max_topics_per_subscribe: usize,
-    pub max_topic_len: usize,
     pub max_message_bytes: usize,
     pub long_poll_timeout_ms: u64,
     pub sse_keepalive_ms: u64,

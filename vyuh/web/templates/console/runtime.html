@@ -1,141 +1,64 @@
 {% extends "console/layout.html" %}
 
 {% block content %}
-<section class="console-document">
-  <p class="vyuh-kicker">System</p>
-  <h1 class="vyuh-section-title">Runtime</h1>
-  <p class="vyuh-copy">Current process, host, memory, CPU, and site runtime information.</p>
+<section class="vyuh-console-screen">
+  <header class="vyuh-console-topbar">
+    <div>
+      <h1>System Info</h1>
+      <p>Snapshot of the running system</p>
+    </div>
+    <div class="vyuh-console-actions">
+      <a class="vyuh-console-icon-button" href="{{ base_path }}/runtime" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
+      <label class="vyuh-console-select"><span>Auto refresh</span><select><option>Off</option><option>30s</option></select></label>
+      <a class="vyuh-console-site-button" href="{{ base_path }}/api/status">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
+    </div>
+  </header>
 
-  <div class="console-runtime-grid">
-    <article class="console-runtime-metric">
-      <span>CPU</span>
-      <strong>{{ cpu.global }}</strong>
-      <small>global usage</small>
-    </article>
-    <article class="console-runtime-metric">
-      <span>Memory</span>
-      <strong>{{ memory.used }}</strong>
-      <small>{{ memory.available }} available</small>
-    </article>
-    <article class="console-runtime-metric">
-      <span>Process</span>
-      <strong>{{ memory.process }}</strong>
-      <small>resident memory</small>
-    </article>
-    <article class="console-runtime-metric">
-      <span>Uptime</span>
-      <strong>{{ status.site.uptime_seconds }}s</strong>
-      <small>site lifetime</small>
-    </article>
+  <p class="vyuh-console-captured">Captured from the cached status collector <a href="{{ base_path }}/runtime"><svg><use href="#vyuh-icon-refresh"></use></svg>Refresh now</a></p>
+
+  <div class="vyuh-console-stat-grid is-five">
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-ember"><svg><use href="#vyuh-icon-clock"></use></svg></span><div><h3>Uptime</h3><strong>{{ status.site.uptime_seconds }}s</strong><p>Site lifetime</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-green"><svg><use href="#vyuh-icon-clipboard"></use></svg></span><div><h3>CPU Usage</h3><strong>{{ cpu.global }}</strong><p>{{ status.system.cpu_count }} cores</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-violet"><svg><use href="#vyuh-icon-cpu"></use></svg></span><div><h3>Memory Usage</h3><strong>{{ memory.used }}</strong><p>{{ memory.available }} available</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-yellow"><svg><use href="#vyuh-icon-database"></use></svg></span><div><h3>Process Memory</h3><strong>{{ memory.process }}</strong><p>Resident set</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-blue"><svg><use href="#vyuh-icon-pulse"></use></svg></span><div><h3>Load Average</h3><strong>{{ load }}</strong><p>1m / 5m / 15m</p></div></article>
   </div>
 
-  <div class="console-conf-grid">
-    <article class="console-conf-section">
-      <header>
-        <h2>Site Runtime</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Package</th><td>{{ status.site.package_name }} {{ status.site.vyuh_version }}</td></tr>
-          <tr><th>Address</th><td>{{ status.site.host }}:{{ status.site.port }}</td></tr>
-          <tr><th>Project dir</th><td><code>{{ status.site.project_dir }}</code></td></tr>
-          <tr><th>Timezone</th><td>{{ status.site.timezone }}</td></tr>
-          <tr><th>Database</th><td><span class="console-pill">{{ status.site.database_backend }}</span></td></tr>
-          <tr><th>Operations</th><td>{{ status.site.operation_count }}</td></tr>
-          <tr><th>Commands</th><td>{{ status.site.command_count }}</td></tr>
-          <tr><th>Services</th><td>{{ status.site.service_count }}</td></tr>
-          <tr>
-            <th>Features</th>
-            <td>
-              {% if status.site.features %}
-                {% for feature in status.site.features %}<span class="console-pill">{{ feature }}</span>{% endfor %}
-              {% else %}
-                <span class="console-muted">none</span>
-              {% endif %}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+  <div class="vyuh-console-info-grid">
+    <article class="vyuh-console-card">
+      <header><h2>System Environment</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Host</dt><dd>{% if status.system.hostname %}{{ status.system.hostname }}{% else %}not available{% endif %}</dd></div>
+        <div><dt>OS</dt><dd>{% if status.system.os_name %}{{ status.system.os_name }}{% else %}unknown{% endif %}{% if status.system.os_version %} {{ status.system.os_version }}{% endif %}</dd></div>
+        <div><dt>Kernel</dt><dd>{% if status.system.kernel_version %}{{ status.system.kernel_version }}{% else %}unknown{% endif %}</dd></div>
+        <div><dt>Architecture</dt><dd>{{ status.system.architecture }}</dd></div>
+        <div><dt>CPU Brand</dt><dd>{% if status.system.cpu_brand %}{{ status.system.cpu_brand }}{% else %}unknown{% endif %}</dd></div>
+        <div><dt>Time Zone</dt><dd>{{ status.site.timezone }}</dd></div>
+      </dl>
     </article>
 
-    <article class="console-conf-section">
-      <header>
-        <h2>Process</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>PID</th><td>{{ status.process.pid }}</td></tr>
-          <tr><th>Executable</th><td>{% if status.process.executable_path %}<code>{{ status.process.executable_path }}</code>{% else %}<span class="console-muted">not available</span>{% endif %}</td></tr>
-          <tr><th>Current dir</th><td>{% if status.process.current_dir %}<code>{{ status.process.current_dir }}</code>{% else %}<span class="console-muted">not available</span>{% endif %}</td></tr>
-          <tr><th>CPU</th><td>{{ cpu.process }}</td></tr>
-          <tr><th>Resident memory</th><td>{{ memory.process }}</td></tr>
-          <tr><th>Virtual memory</th><td>{{ memory.process_virtual }}</td></tr>
-          <tr><th>Threads</th><td>{% if status.process.thread_count %}{{ status.process.thread_count }}{% else %}<span class="console-muted">not available</span>{% endif %}</td></tr>
-          <tr><th>Open files</th><td>{% if status.process.open_file_count %}{{ status.process.open_file_count }}{% else %}<span class="console-muted">not available</span>{% endif %}</td></tr>
-          <tr>
-            <th>Arguments</th>
-            <td>
-              {% if status.process.argv %}
-                <ol class="console-runtime-list">
-                  {% for arg in status.process.argv %}<li><code>{{ arg }}</code></li>{% endfor %}
-                </ol>
-              {% else %}
-                <span class="console-muted">none</span>
-              {% endif %}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <article class="vyuh-console-card">
+      <header><h2>Resource Usage</h2></header>
+      <ul class="vyuh-console-resource-list">
+        <li><span class="vyuh-console-icon-mini is-green"><svg><use href="#vyuh-icon-cpu"></use></svg></span><strong>CPU Usage</strong><span class="vyuh-console-progress"><i></i></span><em>{{ cpu.global }}</em></li>
+        <li><span class="vyuh-console-icon-mini is-violet"><svg><use href="#vyuh-icon-cpu"></use></svg></span><strong>Memory Usage</strong><span class="vyuh-console-progress is-violet"><i></i></span><em>{{ memory.used }} / {{ memory.total }}</em></li>
+        <li><span class="vyuh-console-icon-mini is-yellow"><svg><use href="#vyuh-icon-database"></use></svg></span><strong>Swap Usage</strong><span class="vyuh-console-progress is-yellow"><i></i></span><em>{{ memory.swap_used }} / {{ memory.swap_total }}</em></li>
+        <li><span class="vyuh-console-icon-mini is-blue"><svg><use href="#vyuh-icon-pulse"></use></svg></span><strong>Process CPU</strong><em>{{ cpu.process }}</em></li>
+        <li><span class="vyuh-console-icon-mini is-blue"><svg><use href="#vyuh-icon-docs"></use></svg></span><strong>Open Files</strong><em>{% if status.process.open_file_count %}{{ status.process.open_file_count }}{% else %}not available{% endif %}</em></li>
+      </ul>
     </article>
 
-    <article class="console-conf-section">
-      <header>
-        <h2>System</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Hostname</th><td>{% if status.system.hostname %}{{ status.system.hostname }}{% else %}<span class="console-muted">not available</span>{% endif %}</td></tr>
-          <tr><th>OS</th><td>{% if status.system.os_name %}{{ status.system.os_name }}{% else %}<span class="console-muted">unknown</span>{% endif %}{% if status.system.os_version %} {{ status.system.os_version }}{% endif %}</td></tr>
-          <tr><th>Kernel</th><td>{% if status.system.kernel_version %}{{ status.system.kernel_version }}{% else %}<span class="console-muted">unknown</span>{% endif %}</td></tr>
-          <tr><th>Architecture</th><td>{{ status.system.architecture }}</td></tr>
-          <tr><th>CPU brand</th><td>{% if status.system.cpu_brand %}{{ status.system.cpu_brand }}{% else %}<span class="console-muted">unknown</span>{% endif %}</td></tr>
-          <tr><th>CPU count</th><td>{{ status.system.cpu_count }}</td></tr>
-          <tr><th>Load average</th><td>{{ load }}</td></tr>
-          <tr><th>Boot time</th><td>{{ status.system.boot_time_seconds }} seconds since Unix epoch</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>Memory</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Total</th><td>{{ memory.total }}</td></tr>
-          <tr><th>Used</th><td>{{ memory.used }}</td></tr>
-          <tr><th>Available</th><td>{{ memory.available }}</td></tr>
-          <tr><th>Swap total</th><td>{{ memory.swap_total }}</td></tr>
-          <tr><th>Swap used</th><td>{{ memory.swap_used }}</td></tr>
-        </tbody>
-      </table>
+    <article class="vyuh-console-card">
+      <header><h2>Build Information</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Package</dt><dd>{{ status.site.package_name }}</dd></div>
+        <div><dt>Version</dt><dd>{{ status.site.vyuh_version }}</dd></div>
+        <div><dt>Address</dt><dd>{{ status.site.host }}:{{ status.site.port }}</dd></div>
+        <div><dt>Database</dt><dd>{{ status.site.database_backend }}</dd></div>
+        <div><dt>Features</dt><dd>{% if status.site.features %}{{ status.site.features | join(", ") }}{% else %}none{% endif %}</dd></div>
+        <div><dt>Project Dir</dt><dd>{{ status.site.project_dir }}</dd></div>
+      </dl>
     </article>
   </div>
-</section>
-{% endblock %}
-
-{% block inspector %}
-<section class="console-inspector">
-  <p class="vyuh-kicker">Runtime</p>
-  <h2>Live status snapshot</h2>
-  <p class="vyuh-copy">This view uses the same cached status collector as the JSON API.</p>
-  <dl class="console-meta">
-    <dt>Cache TTL</dt>
-    <dd>{{ status.site.uptime_seconds }}s site uptime shown from the current snapshot</dd>
-    <dt>Raw API</dt>
-    <dd><a href="{{ base_path }}/api/status">Open JSON</a></dd>
-    <dt>Includes</dt>
-    <dd>Site, process, system, CPU, memory, and load data</dd>
-  </dl>
 </section>
 {% endblock %}

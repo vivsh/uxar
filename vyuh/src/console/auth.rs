@@ -7,6 +7,7 @@ use std::{
 use axum::{
     extract::{FromRequestParts, State},
     http::{StatusCode, request::Parts},
+    response::{IntoResponse, Response},
 };
 use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, SameSite};
@@ -155,24 +156,28 @@ pub(crate) struct ConsoleSessionUser(pub ConsoleUser);
 pub(crate) struct ConsoleCookies(pub CookieJar);
 
 impl FromRequestParts<Site> for ConsoleSessionUser {
-    type Rejection = StatusCode;
+    type Rejection = Response;
 
     async fn from_request_parts(parts: &mut Parts, state: &Site) -> Result<Self, Self::Rejection> {
         let State(site) = State::<Site>::from_request_parts(parts, state)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())?;
+        if local_debug_allowed(&site) {
+            return Ok(ConsoleSessionUser(local_debug_user()));
+        }
+
         let jar = CookieJar::from_headers(&parts.headers);
         let conf = &site.conf().console;
         let Some(cookie) = jar.get(&conf.cookie_name) else {
-            return Err(StatusCode::UNAUTHORIZED);
+            return Err(error_response(&site, StatusCode::FORBIDDEN));
         };
         let Some(runtime) = site.console_runtime() else {
-            return Err(StatusCode::NOT_FOUND);
+            return Err(error_response(&site, StatusCode::NOT_FOUND));
         };
         runtime
             .get_session(cookie.value())
             .map(ConsoleSessionUser)
-            .ok_or(StatusCode::UNAUTHORIZED)
+            .ok_or_else(|| error_response(&site, StatusCode::FORBIDDEN))
     }
 }
 
@@ -224,6 +229,57 @@ fn new_token() -> String {
 
 fn hash_token(token: &str) -> Hash {
     blake3::hash(token.as_bytes())
+}
+
+fn local_debug_allowed(site: &Site) -> bool {
+    cfg!(debug_assertions) && is_local_host(&site.conf().host)
+}
+
+fn is_local_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "::1")
+}
+
+fn local_debug_user() -> ConsoleUser {
+    ConsoleUser {
+        subject: "local-debug".to_string(),
+        roles: ConsoleRole::Admin.to_role_type(),
+        role_names: role_names(ConsoleRole::Admin.to_role_type()),
+    }
+}
+
+fn error_response(site: &Site, status: StatusCode) -> Response {
+    let (title, message) = error_copy(status);
+    let context = serde_json::json!({
+        "base_path": site.conf().console.path,
+        "version": env!("CARGO_PKG_VERSION"),
+        "status": status.as_u16(),
+        "title": title,
+        "message": message,
+    });
+    match site
+        .template_engine()
+        .render("console/error.html", &context)
+    {
+        Ok(body) => (status, axum::response::Html(body)).into_response(),
+        Err(_) => (status, title).into_response(),
+    }
+}
+
+fn error_copy(status: StatusCode) -> (&'static str, &'static str) {
+    match status {
+        StatusCode::NOT_FOUND => (
+            "Console page not found",
+            "The requested console page or resource does not exist.",
+        ),
+        StatusCode::FORBIDDEN => (
+            "Console access denied",
+            "This console requires an authorized console session.",
+        ),
+        _ => (
+            "Console unavailable",
+            "The console could not complete this request.",
+        ),
+    }
 }
 
 fn role_names(mask: RoleType) -> Vec<&'static str> {

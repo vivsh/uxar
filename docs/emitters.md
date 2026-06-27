@@ -26,8 +26,8 @@ Vyuh has three public emitter sources:
 - `pgnotify`: produce data from a Postgres `LISTEN`/`NOTIFY` channel.
 
 Emitter handlers return `Data<T>`. With the default signal target, the
-data type `T` must have at least one registered signal handler or signal
-dispatch logs `SignalError::NotFound`.
+emitted data type `T` is offered to registered signal handlers and channel
+subscribers. A value with no consumers is ignored.
 Handlers that can fail should return `Result<Data<T>, vyuh::Error>`.
 
 ## Macro Sugar And Direct API
@@ -267,7 +267,7 @@ cargo run -p vyuh --no-default-features --features sqlite --example signals_emit
 - PgNotify setup failure: startup fails if Postgres notification listening
   cannot be established.
 - Handler failure: the error is logged and the emitter continues running.
-- Signal target without a handler: dispatch logs `SignalError::NotFound`.
+- Signal target without a consumer: the emitted value is ignored.
 
 ## Best Practices
 

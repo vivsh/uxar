@@ -115,12 +115,29 @@ impl_context!([T1, T2, T3], T4, Tuple4);
 impl_context!([T1, T2, T3, T4], T5, Tuple5);
 impl_context!([T1, T2, T3, T4, T5], T6, Tuple6);
 
+type JsonSerializer = fn(&dyn std::any::Any) -> Result<serde_json::Value, String>;
+type SchemaName = fn() -> String;
+
 /// Type-erased data container wrapping `Arc<dyn Any>`.
-/// Enables runtime downcasting and uniform storage of heterogeneous data.
-#[derive(Debug, Clone)]
+///
+/// `DataBox` preserves downcasting for callable dispatch. When constructed from
+/// `Data<T>`, it also preserves JSON serialization and schema-name metadata so
+/// erased signal payloads can still feed channel delivery.
+#[derive(Clone)]
 pub struct DataBox {
     type_id: TypeId,
     inner: Arc<dyn std::any::Any + Send + Sync>,
+    json_serializer: Option<JsonSerializer>,
+    schema_name: Option<SchemaName>,
+}
+
+impl std::fmt::Debug for DataBox {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DataBox")
+            .field("type_id", &self.type_id)
+            .field("serializable", &self.json_serializer.is_some())
+            .finish()
+    }
 }
 
 impl DataBox {
@@ -129,14 +146,34 @@ impl DataBox {
         Self {
             inner,
             type_id: TypeId::of::<T>(),
+            json_serializer: None,
+            schema_name: None,
         }
     }
 
+    /// Wraps existing `Arc<T>` while preserving `Data<T>` wire metadata.
+    pub fn from_data_arc<T: super::specs::DataValue>(inner: Arc<T>) -> Self {
+        Self {
+            inner,
+            type_id: TypeId::of::<T>(),
+            json_serializer: Some(serialize_json::<T>),
+            schema_name: Some(schema_name::<T>),
+        }
+    }
+
+    /// Wraps a value in a type-erased container without wire metadata.
     pub fn new<T: Send + Sync + 'static>(value: T) -> Self {
         Self {
             inner: Arc::new(value),
             type_id: TypeId::of::<T>(),
+            json_serializer: None,
+            schema_name: None,
         }
+    }
+
+    /// Wraps a `DataValue` while preserving JSON and schema metadata.
+    pub fn new_data<T: super::specs::DataValue>(value: T) -> Self {
+        Self::from_data_arc(Arc::new(value))
     }
 
     pub(crate) fn into_any_arc(self) -> Arc<dyn std::any::Any + Send + Sync> {
@@ -149,14 +186,46 @@ impl DataBox {
         self.type_id
     }
 
+    /// Returns the erased payload for predicate checks and downcasting.
+    pub fn as_any(&self) -> &dyn std::any::Any {
+        self.inner.as_ref()
+    }
+
+    /// Serializes the payload when this box was created from `Data<T>`.
+    ///
+    /// Returns `None` for boxes without preserved wire metadata.
+    pub fn to_json(&self) -> Option<Result<serde_json::Value, String>> {
+        self.json_serializer
+            .map(|serializer| serializer(self.inner.as_ref()))
+    }
+
+    /// Returns the schema name when this box was created from `Data<T>`.
+    pub fn schema_name(&self) -> Option<String> {
+        self.schema_name.map(|schema_name| schema_name())
+    }
+
     /// Downcasts to `&T`, returning `None` on type mismatch.
     pub fn downcast_ref<T: 'static>(&self) -> Option<&T> {
         self.inner.downcast_ref::<T>()
     }
 
+    /// Downcasts into the original `Arc<T>`, returning `None` on type mismatch.
     pub fn downcast_arc<T: 'static + Send + Sync>(self) -> Option<Arc<T>> {
         self.inner.downcast::<T>().ok()
     }
+}
+
+fn serialize_json<T: serde::Serialize + 'static>(
+    value: &dyn std::any::Any,
+) -> Result<serde_json::Value, String> {
+    let Some(value) = value.downcast_ref::<T>() else {
+        return Err("data type mismatch".to_string());
+    };
+    serde_json::to_value(value).map_err(|err| err.to_string())
+}
+
+fn schema_name<T: schemars::JsonSchema>() -> String {
+    <T as schemars::JsonSchema>::schema_name().into_owned()
 }
 
 /// Type-erased async handler storing context and error types only.

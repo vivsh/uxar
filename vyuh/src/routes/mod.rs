@@ -1,6 +1,7 @@
 mod methods;
 pub mod middleware;
 pub mod multipart;
+mod subscriber;
 mod types;
 
 #[cfg(feature = "cors")]
@@ -34,7 +35,10 @@ pub use crate::validation::Valid;
 pub use methods::{MethodIter, Methods};
 pub use middleware::{Middleware, RawLayer, layer_from};
 pub use multipart::{JsonPart, MultipartForm, MultipartMap, UploadedFile, UploadedText};
+pub use subscriber::{ChannelAttach, Subscriber};
 pub use types::{BodyBytes, Form, Json, JsonStr, Path, Query, RouteConf};
+
+pub use crate::channels::{POLL, SSE, WS};
 
 /// Explicit Axum escape hatch for applications that need raw Axum extractors.
 pub mod axum_extractors {

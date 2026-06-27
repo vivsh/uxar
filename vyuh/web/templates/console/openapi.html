@@ -1,8 +1,21 @@
 {% extends "console/layout.html" %}
 
 {% block content %}
-<section class="console-redoc-blank" aria-label="OpenAPI documentation">
-  <redoc spec-url="{{ base_path }}/api/openapi" hide-download-button></redoc>
+<section class="vyuh-console-screen">
+  <header class="vyuh-console-topbar">
+    <div>
+      <h1>OpenAPI</h1>
+      <p>Application route documentation rendered inside the Vyuh console.</p>
+    </div>
+    <div class="vyuh-console-actions">
+      <a class="vyuh-console-icon-button" href="{{ base_path }}/openapi" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
+      <a class="vyuh-console-site-button" href="{{ base_path }}/api/openapi">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
+    </div>
+  </header>
+
+  <article class="vyuh-console-card is-redoc">
+    <redoc spec-url="{{ base_path }}/api/openapi" hide-download-button></redoc>
+  </article>
 </section>
 <script src="https://cdn.jsdelivr.net/npm/redoc@2/bundles/redoc.standalone.js"></script>
 {% endblock %}

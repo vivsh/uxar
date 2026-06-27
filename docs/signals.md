@@ -5,14 +5,15 @@ They are fire-and-forget: Vyuh does not guarantee delivery, ordering,
 durability, retries, or handler completion. Use tasks when work must be durable
 or observable as a unit of background execution.
 
-Use signals for lightweight local fanout after application events. Do not use
-signals for durable queues, client delivery, scheduled polling, or work that
-must be retried.
+Use signals for lightweight local fanout after application events. Channels can
+also consume emitted signal payloads for client-facing live delivery over
+WebSocket, SSE, or long polling. Do not use signals for durable queues,
+scheduled polling, or work that must be retried.
 
 ## Overview
 
 A signal is dispatched by Rust data type. Every handler registered for that data
-type is eligible to run when the signal is submitted.
+type is eligible to run when the signal is emitted.
 
 Signals are useful for lightweight local fan-out:
 
@@ -20,8 +21,8 @@ Signals are useful for lightweight local fan-out:
 - notify several local handlers after an emitter produces data,
 - split non-critical side effects out of request handlers.
 
-Signals are not a queue. If the process exits, pending and scheduled signals can
-be lost.
+Signals are not a queue. If the process exits, pending emitted signals can be
+lost.
 
 ## Macro Sugar And Direct API
 
@@ -85,29 +86,23 @@ async fn audit_note_change(site: Site, Data(event): Data<NoteChanged>) -> Result
 Handler logic should return `vyuh::Error` when it can fail. Vyuh logs handler
 errors and continues dispatching later handlers.
 
-## Submitting Signals
+## Emitting Signals
 
-Application code submits signals through the site-scoped signal client:
-
-```rust
-site.signals().submit(NoteChanged { id: 42 })?;
-```
-
-`submit` validates that at least one handler exists for the data type, then
-queues dispatch on the site runtime and returns. Handler errors are logged and
-are not returned to the submitter.
-
-## Scheduling Signals
-
-Signals can be scheduled for delayed in-process dispatch:
+Application code emits signals through the site-scoped signal client:
 
 ```rust
-site.signals()
-    .schedule(NoteChanged { id: 42 }, std::time::Duration::from_secs(5))?;
+site.signals().emit(NoteChanged { id: 42 })?;
 ```
 
-Scheduled signals are cancelled when the site shuts down. They are not persisted
-and are not retried.
+`emit` queues dispatch on the site runtime and returns. It is fire-and-forget:
+emitting a payload with no handlers or channel subscribers is still `Ok(())`.
+Handler errors are logged and are not returned to the emitter.
+
+## Delayed Signals
+
+`SignalClient` intentionally has no delayed emit API. Use emitters for scheduled
+event production, and use tasks when delayed work must be durable, observable,
+or retryable.
 
 ## Bundles
 
@@ -116,7 +111,7 @@ and direct `bundles::signal(...)` registration produce the same kind of bundle
 part.
 
 When bundles are merged, handlers for the same data type are appended. A single
-submitted value can therefore fan out to multiple handlers.
+emitted value can therefore fan out to multiple handlers.
 
 See [Bundles](bundles.md) for `BundlePart`, `bundle!`, cross-module bundle
 organization, validation, composition behavior, and the general patch API.
@@ -135,22 +130,18 @@ Run the signal examples in increasing complexity:
 cargo run -p vyuh --no-default-features --features sqlite --example signals_simple
 cargo run -p vyuh --no-default-features --features sqlite --example signals_macroless
 cargo run -p vyuh --no-default-features --features sqlite --example signals_multiple_handlers
-cargo run -p vyuh --no-default-features --features sqlite --example signals_scheduled
 ```
 
-- `signals_simple`: macro handler registration and immediate submit API.
+- `signals_simple`: macro handler registration and immediate emit API.
 - `signals_macroless`: equivalent direct `bundles::signal(...)`
   registration.
 - `signals_multiple_handlers`: one data type with multiple handlers.
-- `signals_scheduled`: delayed in-process scheduling.
 
 ## Failure Modes
 
-- `SignalError::NotFound`: no handler is registered for the submitted data
-  type.
 - Handler failure: the failure is logged and dispatch continues to later
   handlers.
-- Process shutdown: pending and scheduled signals can be cancelled or lost.
+- Process shutdown: pending emitted signals can be cancelled or lost.
 - Data type mismatch: usually indicates manually constructed data was
   dispatched with the wrong type.
 

@@ -107,7 +107,7 @@ where
     fn deserializer() -> Option<fn(&str) -> Result<DataBox, CallError>> {
         Some(|s: &str| {
             let value: T = serde_json::from_str(s).map_err(|_| CallError::DeserializeFailed)?;
-            Ok(DataBox::new(value))
+            Ok(DataBox::new_data(value))
         })
     }
 }
@@ -147,10 +147,10 @@ where
 
 impl<T> super::specs::HasData<T> for Valid<Data<T>> where T: DataValue {}
 
-/// Data<T> can be returned from handlers as an infallible output.
+/// `Data<T>` can be returned from handlers as an infallible output.
 impl<T: DataValue, E> IntoOutput<E> for Data<T> {
     fn into_output(self) -> Result<DataBox, E> {
-        Ok(DataBox::from_arc(self.0))
+        Ok(DataBox::from_data_arc(self.0))
     }
 }
 

@@ -1,46 +1,107 @@
 {% extends "console/layout.html" %}
 
 {% block content %}
-<section>
-  <p class="vyuh-kicker">Durable work</p>
-  <h1 class="vyuh-section-title">Tasks</h1>
-  <p class="vyuh-copy">Inspection-only task records. This UI does not claim, retry, cancel, or resume tasks.</p>
+<section class="vyuh-console-screen">
+  <header class="vyuh-console-topbar">
+    <div>
+      <h1>Tasks</h1>
+      <p>Background jobs and their current status</p>
+    </div>
+    <div class="vyuh-console-actions">
+      <a class="vyuh-console-icon-button" href="{{ base_path }}/tasks" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
+      <label class="vyuh-console-select"><span>Auto refresh</span><select><option>Off</option><option>30s</option></select></label>
+      <a class="vyuh-console-site-button" href="{{ base_path }}/api/tasks">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
+    </div>
+  </header>
 
-  <form class="console-toolbar" method="get" action="{{ base_path }}/tasks">
-    <input class="console-input" type="search" name="q" placeholder="Search" value="{% if query.q %}{{ query.q }}{% endif %}">
-    <select class="console-select" name="status">
-      <option value="">All statuses</option>
+  <nav class="vyuh-console-tabs" aria-label="Task sections">
+    <a href="{{ base_path }}/tasks" aria-current="page">Overview</a>
+    <a href="{{ base_path }}/tasks?status=running">Running</a>
+    <a href="{{ base_path }}/tasks?status=pending">Queued</a>
+    <a href="{{ base_path }}/tasks?status=failed">Failed</a>
+    <a href="{{ base_path }}/tasks?status=succeeded">Completed</a>
+  </nav>
+
+  <div class="vyuh-console-stat-grid is-five">
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-green"><svg><use href="#vyuh-icon-clipboard"></use></svg></span><div><h3>Total Tasks</h3><strong>{{ task_counts.total }}</strong><p>Current page</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-green"><svg><use href="#vyuh-icon-pulse"></use></svg></span><div><h3>Active</h3><strong>{{ task_counts.active }}</strong><p>Running now</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-yellow"><svg><use href="#vyuh-icon-clock"></use></svg></span><div><h3>Queued</h3><strong>{{ task_counts.queued }}</strong><p>Waiting for work</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-violet"><svg><use href="#vyuh-icon-check"></use></svg></span><div><h3>Completed</h3><strong>{{ task_counts.completed }}</strong><p>Finished</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-red"><svg><use href="#vyuh-icon-x"></use></svg></span><div><h3>Failed</h3><strong>{{ task_counts.failed }}</strong><p>Needs attention</p></div></article>
+  </div>
+
+  <form class="vyuh-console-toolbar" method="get" action="{{ base_path }}/tasks">
+    <label><svg><use href="#vyuh-icon-search"></use></svg><input type="search" name="q" placeholder="Search tasks by name, identity, or error..." value="{% if query.q %}{{ query.q }}{% endif %}"></label>
+    <select name="status">
+      <option value="">All Status</option>
       {% for status in statuses %}
       <option value="{{ status }}" {% if query.status == status %}selected{% endif %}>{{ status }}</option>
       {% endfor %}
     </select>
-    <button class="vyuh-button vyuh-button-primary" type="submit">Filter</button>
+    <input type="search" name="name" placeholder="Task name" value="{% if query.name %}{{ query.name }}{% endif %}">
+    <input type="search" name="identity" placeholder="Identity" value="{% if query.identity %}{{ query.identity }}{% endif %}">
+    <input type="date" name="created_from" value="{% if query.created_from %}{{ query.created_from }}{% endif %}">
+    <input type="date" name="created_to" value="{% if query.created_to %}{{ query.created_to }}{% endif %}">
+    <select name="limit" aria-label="Tasks per page">
+      {% for size in page_sizes %}
+      <option value="{{ size }}" {% if task_limit == size %}selected{% endif %}>{{ size }} per page</option>
+      {% endfor %}
+    </select>
+    <button type="submit"><svg><use href="#vyuh-icon-search"></use></svg>Filter</button>
+    <a class="vyuh-console-reset" href="{{ base_path }}/tasks"><svg><use href="#vyuh-icon-refresh"></use></svg>Reset</a>
   </form>
 
-  <table class="console-table">
-    <thead>
-      <tr><th>Status</th><th>Name</th><th>Attempts</th><th>Priority</th><th>Updated</th></tr>
-    </thead>
-    <tbody>
-      {% for task in page.items %}
-      <tr>
-        <td><span class="console-pill">{{ task.status }}</span></td>
-        <td><a href="{{ base_path }}/tasks/{{ task.id }}">{{ task.name }}</a></td>
-        <td>{{ task.attempts }}</td>
-        <td>{{ task.priority }}</td>
-        <td>{{ task.updated_at }}</td>
-      </tr>
+  <div class="vyuh-console-data-grid">
+    <article class="vyuh-console-card">
+      <header><h2>Recent Tasks <span class="vyuh-console-badge is-success">Live</span></h2><a href="{{ base_path }}/api/tasks"><svg><use href="#vyuh-icon-download"></use></svg>JSON</a></header>
+      <div class="vyuh-console-table">
+        <table>
+          <thead><tr><th>Status</th><th>Name</th><th>Identity</th><th>Attempts</th><th>Priority</th><th>Created</th><th>Updated</th><th></th></tr></thead>
+          <tbody>
+            {% for task in page.items %}
+            <tr {% if selected_task and selected_task.id == task.id %}aria-selected="true"{% endif %}>
+              <td><span class="vyuh-console-badge is-{{ task.status }}">{{ task.status }}</span></td>
+              <td><a href="{{ base_path }}/tasks?selected={{ task.id }}">{{ task.name }}</a></td>
+              <td>{% if task.identity %}{{ task.identity }}{% else %}-{% endif %}</td>
+              <td>{{ task.attempts }}</td>
+              <td>{{ task.priority }}</td>
+              <td><time datetime="{{ task.created_at }}">{{ task.created_at_display }}</time></td>
+              <td><time datetime="{{ task.updated_at }}">{{ task.updated_at_display }}</time></td>
+              <td><a href="{{ base_path }}/tasks?selected={{ task.id }}">›</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8"><div class="vyuh-console-empty"><strong>No task records yet.</strong><span>Registered task handlers and durable task records will appear here when this site uses Vyuh tasks.</span></div></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <footer class="vyuh-console-pagination">
+        <span>Showing {{ page.items | length }} task records</span>
+        <nav>{% if page.next_cursor %}<a href="{{ base_path }}/tasks?cursor={{ page.next_cursor }}&limit={{ task_limit }}">Next</a>{% endif %}</nav>
+      </footer>
+    </article>
+
+    <aside class="vyuh-console-inspector">
+      {% if selected_task %}
+      <header><h2>Task Details</h2><a href="{{ base_path }}/tasks" aria-label="Close"><svg><use href="#vyuh-icon-x"></use></svg></a></header>
+      <span class="vyuh-console-badge is-{{ selected_task.status }}">{{ selected_task.status }}</span>
+      <h3>{{ selected_task.name }}</h3>
+      <p>{{ selected_task.id }}</p>
+      <nav class="vyuh-console-tabs is-compact"><a aria-current="page">Overview</a><a>Timing</a><a>Error</a></nav>
+      <dl class="vyuh-console-kv">
+        <div><dt>Identity</dt><dd>{% if selected_task.identity %}{{ selected_task.identity }}{% else %}-{% endif %}</dd></div>
+        <div><dt>Attempts</dt><dd>{{ selected_task.attempts }}</dd></div>
+        <div><dt>Max Attempts</dt><dd>{% if selected_task.max_attempts %}{{ selected_task.max_attempts }}{% else %}-{% endif %}</dd></div>
+        <div><dt>Priority</dt><dd>{{ selected_task.priority }}</dd></div>
+        <div><dt>Ready At</dt><dd>{% if selected_task.ready_at_display %}{{ selected_task.ready_at_display }}{% else %}-{% endif %}</dd></div>
+        <div><dt>Completed At</dt><dd>{% if selected_task.completed_at_display %}{{ selected_task.completed_at_display }}{% else %}-{% endif %}</dd></div>
+      </dl>
+      <article class="vyuh-console-muted-panel"><strong>Last Error</strong><code>{% if selected_task.last_error %}{{ selected_task.last_error }}{% else %}No error recorded{% endif %}</code></article>
       {% else %}
-      <tr>
-        <td colspan="5">
-          <div class="console-empty">
-            <strong>No task records yet.</strong>
-            <span>Registered task handlers and durable task records will appear here when this site uses Vyuh tasks.</span>
-          </div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      <header><h2>Task Details</h2></header>
+      <p>Select a task row to inspect identity, attempts, timing, and errors.</p>
+      {% endif %}
+    </aside>
+  </div>
 </section>
 {% endblock %}

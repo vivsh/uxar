@@ -1,7 +1,7 @@
 use crate::auth::Authenticator;
 use crate::bundles::{Bundle, IntoBundle};
 use crate::callables::{self, DataBox};
-use crate::channels::{ChannelRef, LocalChannelBackend};
+use crate::channels::{Channels, LocalChannelBackend};
 use crate::commands::CommandRegistry;
 use crate::conf::{self, SiteConf};
 use crate::db::{DbError, DbPool, Notify, Pool};
@@ -524,8 +524,11 @@ impl Site {
             EmitTarget::Signal => {
                 self.inner
                     .signal_engine
-                    .dispatch_data_fire_and_forget(self.clone(), payload)
+                    .dispatch_data_fire_and_forget(self.clone(), payload.clone())
                     .await;
+                if let Err(err) = self.channels().publish_box(&payload).await {
+                    tracing::error!("Error delivering emitted signal to channels: {}", err);
+                }
             }
             EmitTarget::Task => {
                 let _ = payload;
@@ -586,8 +589,8 @@ impl Site {
         self.inner.pool.clone()
     }
 
-    pub fn channels(&self) -> ChannelRef {
-        ChannelRef::new(self.inner.channels.clone())
+    pub fn channels(&self) -> Channels {
+        Channels::new(self.inner.channels.clone())
     }
 
     pub(crate) fn console_runtime(&self) -> Option<crate::console::ConsoleRuntime> {

@@ -24,6 +24,9 @@ pub struct TaskQuery {
     pub name: Option<String>,
     pub priority_min: Option<i32>,
     pub identity: Option<String>,
+    pub created_from: Option<String>,
+    pub created_to: Option<String>,
+    pub selected: Option<String>,
     pub q: Option<String>,
     pub limit: Option<usize>,
     pub cursor: Option<String>,
@@ -36,11 +39,43 @@ impl TaskQuery {
             name: self.name.clone(),
             priority_min: self.priority_min,
             identity: self.identity.clone(),
+            created_from: parse_start(self.created_from.as_deref()),
+            created_to: parse_end(self.created_to.as_deref()),
             q: self.q.clone(),
             limit: clamp_limit(self.limit, default_limit, max_limit),
             offset: parse_cursor(self.cursor.as_deref()),
         }
     }
+}
+
+pub fn task_limit_max(configured_max: usize) -> usize {
+    configured_max.min(100)
+}
+
+pub fn task_limit(query: &TaskQuery, default_limit: usize, configured_max: usize) -> usize {
+    query
+        .limit
+        .unwrap_or(default_limit)
+        .clamp(1, task_limit_max(configured_max))
+}
+
+fn parse_start(value: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
+    parse_date(value, 0, 0, 0)
+}
+
+fn parse_end(value: Option<&str>) -> Option<chrono::DateTime<chrono::Utc>> {
+    parse_date(value, 23, 59, 59)
+}
+
+fn parse_date(
+    value: Option<&str>,
+    hour: u32,
+    min: u32,
+    sec: u32,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    let date = chrono::NaiveDate::parse_from_str(value?, "%Y-%m-%d").ok()?;
+    let time = date.and_hms_opt(hour, min, sec)?;
+    Some(time.and_utc())
 }
 
 pub fn filter_operations<'a>(

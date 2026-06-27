@@ -9,7 +9,9 @@ use crate::{
     Site,
     console::{
         auth::{ConsoleCookies, ConsoleSessionUser, expired_cookie, session_cookie},
-        query::{OperationQuery, TaskQuery, filter_operations, is_console_operation},
+        query::{
+            OperationQuery, TaskQuery, filter_operations, is_console_operation, task_limit_max,
+        },
         types::{ConfigOut, OperationOut, Page, SessionOut, TaskDetailOut, TaskOut},
     },
     routes::{Json, Path, Query},
@@ -103,7 +105,7 @@ pub async fn tasks(
     Query(query): Query<TaskQuery>,
 ) -> Result<Json<Page<TaskOut>>, StatusCode> {
     let conf = &site.conf().console;
-    let filter = query.to_filter(conf.page_size_default, conf.page_size_max);
+    let filter = query.to_filter(conf.page_size_default, task_limit_max(conf.page_size_max));
     let page = site
         .tasks()
         .list(filter)

@@ -27,7 +27,7 @@ before `1.0`.
 ## Highlights
 
 - Typed handlers across subsystems: `Data<T>` is used consistently across
-  routes, commands, tasks, signals, and emitters.
+  routes, commands, tasks, signals, emitters, and live channel delivery.
 - OpenAPI from real application code: request data, responses, validation, and
   auth metadata come from handler shapes and route metadata, with no per-route
   schema wiring.
@@ -35,8 +35,8 @@ before `1.0`.
   the same bundle tree, prefixes, and nesting as the rest of the application.
 - Durable tasks as continuations: tasks can complete, sleep, suspend, resume,
   retry, and return typed results.
-- Built-in live delivery: channels support SSE, WebSocket, and long polling for
-  client-facing streams.
+- Built-in live delivery: channels let clients subscribe to typed signal
+  payloads over SSE, WebSocket, or long polling.
 - Read-only operations console: inspect routes, operations, config, tasks, and
   runtime status from the same application.
 - Bundle-based composition: keep routes, assets, tasks, services, signals, and
@@ -54,7 +54,8 @@ That keeps the framework mentally small.
 - Routes parse request data into handler input.
 - Commands receive typed input.
 - Tasks receive typed input and can return `Data<T>` or `TaskState<T>`.
-- Signals and emitters exchange typed data.
+- Signals and emitters exchange typed data. Channels can expose emitted
+  signal payloads to clients.
 
 Uniformity here is practical, not forced. Services remain separate because they
 represent site-lifetime components, not handler data. Validation stays explicit

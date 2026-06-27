@@ -15,6 +15,38 @@ use crate::callables::{IntoReturnPart, ReturnPart, TypeSchema};
 
 use super::{ChannelCursor, ChannelError, ChannelEvent, ChannelReceiver};
 
+/// Unified route response for negotiated channel transports.
+///
+/// Handlers usually return this from `Subscriber::attach(stream).allow(...)`.
+pub enum ChannelResponse {
+    /// Server-sent events response.
+    Sse(ChannelSse),
+    /// WebSocket upgrade response.
+    WebSocket(ChannelWebSocket),
+    /// Long-poll JSON response.
+    Poll(ChannelLongPoll),
+}
+
+impl IntoResponse for ChannelResponse {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Sse(response) => response.into_response(),
+            Self::WebSocket(response) => response.into_response(),
+            Self::Poll(response) => response.into_response(),
+        }
+    }
+}
+
+impl IntoReturnPart for ChannelResponse {
+    fn into_return_part() -> ReturnPart {
+        ReturnPart::Unknown
+    }
+}
+
+/// Server-sent events channel response.
+///
+/// SSE uses the schema name as the event name and sends the shared channel
+/// envelope as JSON data.
 pub struct ChannelSse {
     replay: Vec<ChannelEvent>,
     receiver: ChannelReceiver,
@@ -54,13 +86,21 @@ impl IntoReturnPart for ChannelSse {
 }
 
 fn event_to_sse(event: ChannelEvent) -> Result<Event, Infallible> {
-    let data = serde_json::to_string(&event.data).unwrap_or_else(|_| "null".to_string());
+    let event_type = event.event_type.clone();
+    let data = match serde_json::to_string(&event) {
+        Ok(data) => data,
+        Err(_) => "null".to_string(),
+    };
     Ok(Event::default()
         .id(event.id.to_string())
-        .event(event.topic.as_str())
+        .event(event_type)
         .data(data))
 }
 
+/// WebSocket channel response.
+///
+/// The socket receives replay events first, then live channel envelopes as JSON
+/// text frames.
 pub struct ChannelWebSocket {
     upgrade: WebSocketUpgrade,
     replay: Vec<ChannelEvent>,
@@ -131,9 +171,14 @@ async fn send_ws_event(
         .map_err(|err| ChannelError::Transport(err.to_string()))
 }
 
+/// Long-poll channel response body.
+///
+/// Clients pass `cursor` back as `after` or `cursor` on the next poll request.
 #[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ChannelLongPoll {
+    /// Cursor for the last event in this response.
     pub cursor: Option<ChannelCursor>,
+    /// Events accepted for the user since the requested cursor.
     pub events: Vec<ChannelEvent>,
 }
 
@@ -141,6 +186,16 @@ impl ChannelLongPoll {
     pub(crate) fn from_events(events: Vec<ChannelEvent>) -> Self {
         let cursor = events.last().map(|event| ChannelCursor::new(event.id));
         Self { cursor, events }
+    }
+
+    pub(crate) async fn wait(
+        mut receiver: ChannelReceiver,
+        timeout: Duration,
+    ) -> Vec<ChannelEvent> {
+        match tokio::time::timeout(timeout, receiver.recv()).await {
+            Ok(Some(event)) => vec![event.as_ref().clone()],
+            Ok(None) | Err(_) => Vec::new(),
+        }
     }
 }
 

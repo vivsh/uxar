@@ -218,6 +218,16 @@ impl AbstractTaskStore for MemoryTaskStore {
                     .is_none_or(|priority_min| task.priority >= priority_min)
             })
             .filter(|task| {
+                filter
+                    .created_from
+                    .is_none_or(|created_from| task.created_at >= created_from)
+            })
+            .filter(|task| {
+                filter
+                    .created_to
+                    .is_none_or(|created_to| task.created_at <= created_to)
+            })
+            .filter(|task| {
                 filter.q.as_deref().is_none_or(|q| {
                     let q = q.to_lowercase();
                     task.name.to_lowercase().contains(&q)

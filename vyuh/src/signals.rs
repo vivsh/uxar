@@ -4,8 +4,11 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::{any::TypeId, collections::HashMap, sync::Arc, time::Duration};
+use std::{any::TypeId, collections::HashMap, sync::Arc};
 
+/// Registered handler for one signal payload type.
+///
+/// Handlers are built by bundle registration and dispatched by `SignalEngine`.
 #[derive(Clone)]
 pub struct SignalHandler {
     type_id: TypeId,
@@ -19,6 +22,10 @@ impl SignalHandler {
     }
 }
 
+/// Context passed to a signal handler invocation.
+///
+/// It carries the site handle and the emitted payload. Handler arguments
+/// extract typed `Data<T>` and site-derived values from this context.
 #[derive(Clone)]
 pub struct SignalContext {
     site: Site,
@@ -31,6 +38,10 @@ impl HasSite for SignalContext {
     }
 }
 
+/// Configuration recorded for a signal handler registration.
+///
+/// Signal handlers currently have no runtime knobs, but the struct keeps the
+/// bundle API extensible without changing registration shape later.
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct SignalConf {}
 
@@ -80,9 +91,6 @@ impl IntoDataBox for SignalContext {
 pub enum SignalError {
     #[error("Signal data type mismatch")]
     DataTypeMismatch,
-
-    #[error("Signal not found")]
-    NotFound,
 
     #[error(transparent)]
     CallError(#[from] CallError),
@@ -135,10 +143,10 @@ impl SignalRegistry {
 
 /// Site-scoped signal client.
 ///
-/// Signals are fire-and-forget in-process notifications. Submitting a signal
-/// validates that a handler exists, then queues dispatch on the site's runtime.
-/// Vyuh does not guarantee delivery, ordering, retries, durability, or handler
-/// completion for signals.
+/// Signals are fire-and-forget in-process notifications. Emitting a signal
+/// queues dispatch on the site's runtime and also offers the payload to channel
+/// subscribers for that type. Vyuh does not guarantee delivery, ordering,
+/// retries, durability, or handler completion for signals.
 #[derive(Clone)]
 pub struct SignalClient {
     site: Site,
@@ -150,66 +158,58 @@ impl SignalClient {
         Self { site, engine }
     }
 
-    /// Queues a signal for immediate in-process dispatch.
-    pub fn submit<T>(&self, item: T) -> Result<(), SignalError>
-    where
-        T: callables::DataValue,
-    {
-        let payload = DataBox::new(item);
-        self.submit_data(payload)
-    }
-
-    /// Queues a signal for delayed in-process dispatch.
+    /// Emits a typed signal through the site's fire-and-forget signal path.
     ///
-    /// Scheduled signals are cancelled when the site shuts down. They are not
-    /// durable and are not retried.
-    pub fn schedule<T>(&self, item: T, delay: Duration) -> Result<(), SignalError>
+    /// The payload is queued on the site runtime, delivered to registered
+    /// signal handlers, and offered to channel subscribers for the same Rust
+    /// data type. The call returns `Ok(())` even when no handler or channel
+    /// consumes the payload.
+    pub fn emit<T>(&self, item: T) -> Result<(), SignalError>
     where
         T: callables::DataValue,
     {
-        let payload = DataBox::new(item);
-        self.ensure_data_handler(&payload)?;
-
-        let site = self.site.clone();
-        let engine = self.engine.clone();
-        let shutdown = self.site.shutdown_notifier();
-        self.site.spawn(async move {
-            tokio::select! {
-                _ = tokio::time::sleep(delay) => {
-                    engine.dispatch_data_fire_and_forget(site, payload).await;
-                }
-                _ = shutdown.notified() => {}
-            }
-        });
+        let item = Arc::new(item);
+        self.emit_arc(item);
         Ok(())
     }
 
-    fn submit_data(&self, payload: DataBox) -> Result<(), SignalError> {
-        self.ensure_data_handler(&payload)?;
-
+    fn emit_arc<T>(&self, item: Arc<T>)
+    where
+        T: callables::DataValue,
+    {
         let site = self.site.clone();
         let engine = self.engine.clone();
         self.site.spawn(async move {
-            engine.dispatch_data_fire_and_forget(site, payload).await;
+            dispatch_signal(site, engine, item).await;
         });
-        Ok(())
-    }
-
-    fn ensure_data_handler(&self, payload: &DataBox) -> Result<(), SignalError> {
-        if self.engine.has_handler(payload.payload_type_id()) {
-            Ok(())
-        } else {
-            Err(SignalError::NotFound)
-        }
     }
 }
 
+async fn dispatch_signal<T>(site: Site, engine: SignalEngine, item: Arc<T>)
+where
+    T: callables::DataValue,
+{
+    if engine.has_handler(std::any::TypeId::of::<T>()) {
+        engine
+            .dispatch_data_fire_and_forget(site.clone(), DataBox::from_arc(Arc::clone(&item)))
+            .await;
+    }
+    if let Err(err) = site.channels().publish_signal(item.as_ref()).await {
+        tracing::error!("Error delivering signal to channels: {}", err);
+    }
+}
+
+/// Immutable signal dispatcher built from registered signal handlers.
+///
+/// The engine is site-scoped and in-process. It does not provide durability,
+/// retries, ordering guarantees, or delayed scheduling.
 #[derive(Clone)]
 pub struct SignalEngine {
     registry: Arc<SignalRegistry>,
 }
 
 impl SignalEngine {
+    /// Creates a signal engine from a finalized registry snapshot.
     pub fn new(registry: SignalRegistry) -> Self {
         Self {
             registry: Arc::new(registry),
@@ -235,7 +235,7 @@ impl SignalEngine {
         let type_id = payload.payload_type_id();
         let handlers = match self.registry.handlers.get(&type_id) {
             Some(handlers) => handlers,
-            None => return Err(SignalError::NotFound),
+            None => return Ok(()),
         };
 
         for handler in handlers.iter() {
@@ -257,13 +257,25 @@ mod tests {
     use super::*;
     use crate::callables::Data;
     use schemars::JsonSchema;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
     struct TestSignal {
         value: usize,
     }
 
+    #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+    struct TestChannelSignal {
+        user_id: usize,
+    }
+
+    static HANDLER_COUNT: AtomicUsize = AtomicUsize::new(0);
+
     async fn record_signal(_payload: Data<TestSignal>) {}
+
+    async fn count_signal(_payload: Data<TestSignal>) {
+        HANDLER_COUNT.fetch_add(1, Ordering::SeqCst);
+    }
 
     #[test]
     fn direct_registration_records_signal_operation() {
@@ -303,5 +315,72 @@ mod tests {
             left.handlers.get(&TypeId::of::<TestSignal>()).map(Vec::len),
             Some(2)
         );
+    }
+
+    #[tokio::test]
+    async fn emit_without_consumers_is_ok() -> Result<(), Box<dyn std::error::Error>> {
+        let site = crate::Site::build(
+            crate::SiteConf::default().log_init(false),
+            crate::bundles::bundle([]),
+        )
+        .await?;
+
+        site.signals().emit(TestSignal { value: 1 })?;
+        site.shutdown_and_wait().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn emit_reaches_signal_handlers() -> Result<(), Box<dyn std::error::Error>> {
+        HANDLER_COUNT.store(0, Ordering::SeqCst);
+        let bundle = crate::bundles::bundle([crate::bundles::signal::<TestSignal, _, _>(
+            count_signal,
+            SignalConf::default(),
+        )]);
+        let site = crate::Site::build(crate::SiteConf::default().log_init(false), bundle).await?;
+
+        site.signals().emit(TestSignal { value: 1 })?;
+        wait_for_count(&HANDLER_COUNT, 1).await?;
+        site.shutdown_and_wait().await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn emit_reaches_channel_users() -> Result<(), Box<dyn std::error::Error>> {
+        let site = crate::Site::build(
+            crate::SiteConf::default().log_init(false),
+            crate::bundles::bundle([]),
+        )
+        .await?;
+        let stream = site
+            .channels()
+            .user(crate::channels::UserKey::new("42")?)
+            .deliver_if::<TestChannelSignal, _>(|event| event.user_id == 42);
+        let mut open = site.channels().open_stream(stream, None).await?;
+
+        site.signals().emit(TestChannelSignal { user_id: 42 })?;
+        let event =
+            match tokio::time::timeout(std::time::Duration::from_millis(100), open.receiver.recv())
+                .await?
+            {
+                Some(event) => event,
+                None => return Err("channel closed before event arrived".into()),
+            };
+        assert_eq!(event.event_type, "TestChannelSignal");
+        site.shutdown_and_wait().await;
+        Ok(())
+    }
+
+    async fn wait_for_count(
+        counter: &'static AtomicUsize,
+        expected: usize,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        tokio::time::timeout(std::time::Duration::from_millis(250), async {
+            while counter.load(Ordering::SeqCst) < expected {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await?;
+        Ok(())
     }
 }

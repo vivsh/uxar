@@ -9777,5 +9777,938 @@ body {
     border: 0;
   }
 }
+.vyuh-icon-sprite {
+  display: none;
+}
+
+.stylebook-console-intro {
+  align-items: end;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 28rem);
+  margin-bottom: 2rem;
+}
+
+.stylebook-console-canvas {
+  max-width: 112rem;
+}
+
+.vyuh-console-app {
+  background: radial-gradient(circle at 0 75%, rgba(236, 91, 26, 0.08), transparent 20rem), linear-gradient(115deg, rgba(255, 255, 255, 0.94), rgba(251, 246, 237, 0.78));
+  border: 1px solid rgba(16, 24, 39, 0.08);
+  border-radius: 1.125rem;
+  box-shadow: 0 24px 70px rgba(16, 24, 39, 0.14);
+  color: #101827;
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  min-height: 64rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.vyuh-console-app svg {
+  fill: none;
+  height: 1.15em;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 1.15em;
+}
+
+.vyuh-console-app .vyuh-console-sidebar {
+  background: rgba(255, 250, 244, 0.72);
+  border-right: 1px solid rgba(16, 24, 39, 0.08);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 100%;
+  padding: 2rem 1rem 1.35rem;
+  position: relative;
+}
+
+.vyuh-console-app .vyuh-console-sidebar::after {
+  background: url("../img/vyuh-logo-transparent.png") no-repeat center/contain;
+  content: "";
+  height: 13rem;
+  left: 50%;
+  opacity: 0.045;
+  position: absolute;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  width: 13rem;
+}
+
+.vyuh-console-brand {
+  align-items: center;
+  color: #101827;
+  display: inline-flex;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 2rem;
+  gap: 0.55rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin-bottom: 2rem;
+}
+
+.vyuh-console-brand img {
+  height: 3rem;
+  width: 3rem;
+}
+
+.vyuh-console-nav {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+  position: relative;
+  z-index: 1;
+}
+
+.vyuh-console-nav strong {
+  color: #ec5b1a;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  padding: 0.75rem 0.75rem 0.45rem;
+  text-transform: uppercase;
+}
+
+.vyuh-console-nav a {
+  align-items: center;
+  border-radius: 0.5rem;
+  color: #101827;
+  display: flex;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.vyuh-console-nav a[aria-current=page],
+.vyuh-console-nav a:hover {
+  background: rgba(236, 91, 26, 0.1);
+  color: #101827;
+}
+
+.vyuh-console-nav svg {
+  color: rgba(16, 24, 39, 0.72);
+}
+
+.vyuh-console-nav a[aria-current=page] svg,
+.vyuh-console-nav a:hover svg {
+  color: #ec5b1a;
+}
+
+.vyuh-console-sidebar-footer {
+  align-self: end;
+  border-top: 1px solid rgba(16, 24, 39, 0.09);
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 0.8rem 0;
+  position: relative;
+  z-index: 1;
+}
+
+.vyuh-console-sidebar-footer span {
+  align-items: center;
+  color: #5d6875;
+  display: inline-flex;
+  gap: 0.75rem;
+}
+
+.vyuh-console-sidebar-footer i,
+.vyuh-console-status {
+  background: #2f7d4f;
+  border-radius: 999px;
+  display: inline-block;
+  height: 0.55rem;
+  width: 0.55rem;
+}
+
+.vyuh-console-page {
+  display: grid;
+  gap: 2rem;
+  padding: 1.85rem 2.25rem 0;
+}
+
+.vyuh-console-screen {
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  display: grid;
+  gap: 1.35rem;
+  padding-bottom: 2rem;
+}
+
+.vyuh-console-topbar {
+  align-items: start;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+}
+
+.vyuh-console-topbar h1, .vyuh-console-topbar .h1 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2rem, 3vw, 2.55rem);
+  letter-spacing: -0.055em;
+  margin: 0;
+}
+
+.vyuh-console-topbar p,
+.vyuh-console-captured {
+  color: #5d6875;
+  font-size: 1rem;
+  margin: 0.35rem 0 0;
+}
+
+.vyuh-console-actions {
+  align-items: center;
+  display: flex;
+  gap: 0.9rem;
+  justify-content: end;
+}
+
+.vyuh-console-icon-button,
+.vyuh-console-site-button,
+.vyuh-console-select,
+.vyuh-console-toolbar button,
+.vyuh-console-card header button {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(16, 24, 39, 0.1);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 28px rgba(16, 24, 39, 0.045);
+  color: #101827;
+  display: inline-flex;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0.65rem 0.95rem;
+}
+
+.vyuh-console-icon-button {
+  justify-content: center;
+  padding: 0;
+  width: 3rem;
+}
+
+.vyuh-console-site-button {
+  background: #ec5b1a;
+  border-color: #ec5b1a;
+  color: #fff;
+}
+
+.vyuh-console-select select {
+  background: transparent;
+  border: 0;
+  color: #101827;
+  min-width: 4rem;
+}
+
+.vyuh-console-tabs {
+  border-bottom: 1px solid rgba(16, 24, 39, 0.11);
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+}
+
+.vyuh-console-tabs a {
+  color: rgba(16, 24, 39, 0.72);
+  display: inline-flex;
+  padding: 0.7rem 0.25rem 0.95rem;
+  position: relative;
+  white-space: nowrap;
+}
+
+.vyuh-console-tabs a[aria-current=page] {
+  color: #ec5b1a;
+}
+
+.vyuh-console-tabs a[aria-current=page]::after {
+  background: #ec5b1a;
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.vyuh-console-tabs.is-compact {
+  gap: 1rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.vyuh-console-stat-grid,
+.vyuh-console-overview-grid,
+.vyuh-console-info-grid,
+.vyuh-console-config-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.vyuh-console-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(13.5rem, 1fr));
+}
+
+.vyuh-console-stat-grid.is-five {
+  grid-template-columns: repeat(auto-fit, minmax(11.65rem, 1fr));
+}
+
+.vyuh-console-overview-grid {
+  grid-template-columns: 1.2fr 1.2fr 1fr;
+}
+
+.vyuh-console-info-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vyuh-console-config-grid {
+  grid-template-columns: minmax(0, 1fr) 23rem;
+}
+
+.vyuh-console-card,
+.vyuh-console-stat,
+.vyuh-console-inspector {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.86), rgba(255, 250, 243, 0.68)), rgba(255, 255, 255, 0.66);
+  border: 1px solid rgba(16, 24, 39, 0.09);
+  border-radius: 0.75rem;
+  box-shadow: 0 18px 48px rgba(16, 24, 39, 0.06);
+}
+
+.vyuh-console-stat {
+  align-items: center;
+  display: flex;
+  gap: 1.25rem;
+  min-height: 8.4rem;
+  overflow: hidden;
+  padding: 1.35rem 1.55rem;
+  position: relative;
+}
+
+.vyuh-console-stat::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9), transparent 60%);
+  content: "";
+  height: 7rem;
+  position: absolute;
+  right: -2.25rem;
+  top: -3rem;
+  width: 7rem;
+}
+
+.vyuh-console-stat h3, .vyuh-console-stat .h3 {
+  color: #101827;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  margin: 0 0 0.35rem;
+}
+
+.vyuh-console-stat strong {
+  display: block;
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.75rem, 2.2vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+  line-height: 1.05;
+}
+
+.vyuh-console-stat p {
+  color: #5d6875;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  margin: 0.65rem 0 0;
+}
+
+.vyuh-console-stat p i {
+  background: #f59e0b;
+  border-radius: 999px;
+  display: inline-block;
+  height: 0.32rem;
+  margin: 0 0.45rem 0.13rem;
+  width: 0.32rem;
+}
+
+.vyuh-console-stat b {
+  color: #2f7d4f;
+}
+
+.vyuh-console-stat em {
+  color: #ec5b1a;
+  font-style: normal;
+}
+
+.vyuh-console-icon,
+.vyuh-console-icon-mini {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+.vyuh-console-icon {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.52);
+  height: 4.15rem;
+  width: 4.15rem;
+}
+
+.vyuh-console-icon svg {
+  height: 1.45rem;
+  width: 1.45rem;
+}
+
+.vyuh-console-icon-mini {
+  height: 1.75rem;
+  width: 1.75rem;
+}
+
+.vyuh-console-icon.is-ember,
+.vyuh-console-icon-mini.is-ember {
+  background: rgba(236, 91, 26, 0.11);
+  color: #ec5b1a;
+}
+
+.vyuh-console-icon.is-green,
+.vyuh-console-icon-mini.is-green {
+  background: rgba(47, 125, 79, 0.12);
+  color: #2f7d4f;
+}
+
+.vyuh-console-icon.is-orange,
+.vyuh-console-icon-mini.is-orange {
+  background: rgba(245, 158, 11, 0.15);
+  color: #a45f00;
+}
+
+.vyuh-console-icon.is-violet,
+.vyuh-console-icon-mini.is-violet {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.vyuh-console-icon.is-yellow,
+.vyuh-console-icon-mini.is-yellow {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+}
+
+.vyuh-console-icon.is-blue,
+.vyuh-console-icon-mini.is-blue {
+  background: rgba(35, 116, 171, 0.11);
+  color: #2374ab;
+}
+
+.vyuh-console-icon.is-red,
+.vyuh-console-icon-mini.is-red {
+  background: rgba(184, 50, 50, 0.1);
+  color: #b83232;
+}
+
+.vyuh-console-card {
+  min-width: 0;
+  padding: 1.2rem;
+}
+
+.vyuh-console-card header,
+.vyuh-console-inspector header {
+  align-items: center;
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: space-between;
+  margin: -0.2rem 0 0.75rem;
+  padding-bottom: 0.8rem;
+}
+
+.vyuh-console-card h2, .vyuh-console-card .h2,
+.vyuh-console-inspector h2,
+.vyuh-console-inspector .h2 {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: 1.3rem;
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+
+.vyuh-console-card-link {
+  align-items: center;
+  color: #ec5b1a;
+  display: inline-flex;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.vyuh-console-kv {
+  display: grid;
+  margin: 0;
+}
+
+.vyuh-console-kv div {
+  align-items: center;
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-height: 2.35rem;
+}
+
+.vyuh-console-kv div:last-child {
+  border-bottom: 0;
+}
+
+.vyuh-console-kv dt {
+  color: rgba(16, 24, 39, 0.72);
+  font-weight: 400;
+  min-width: 0;
+}
+
+.vyuh-console-kv dd {
+  color: #101827;
+  font-weight: 600;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.vyuh-console-health-list,
+.vyuh-console-resource-list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vyuh-console-health-list li,
+.vyuh-console-resource-list li {
+  align-items: center;
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  display: grid;
+  gap: 0.8rem;
+  min-height: 3rem;
+}
+
+.vyuh-console-health-list li {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.vyuh-console-resource-list li {
+  grid-template-columns: auto minmax(7rem, 1fr) minmax(8rem, 0.8fr) auto;
+}
+
+.vyuh-console-health-list li:last-child,
+.vyuh-console-resource-list li:last-child {
+  border-bottom: 0;
+}
+
+.vyuh-console-health-list em,
+.vyuh-console-resource-list em {
+  color: rgba(16, 24, 39, 0.72);
+  font-style: normal;
+}
+
+.vyuh-console-action-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.vyuh-console-action-list a {
+  align-items: center;
+  border: 1px solid rgba(16, 24, 39, 0.08);
+  border-radius: 0.5rem;
+  color: #101827;
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 4.2rem;
+  min-width: 0;
+  padding: 0.8rem;
+}
+
+.vyuh-console-action-list.is-flat a {
+  border: 0;
+  border-radius: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 2rem;
+  padding: 0.25rem 0;
+}
+
+.vyuh-console-action-list small, .vyuh-console-action-list .small {
+  color: #5d6875;
+  display: block;
+  margin-top: 0.15rem;
+}
+
+.vyuh-console-action-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vyuh-console-progress {
+  background: rgba(16, 24, 39, 0.08);
+  border-radius: 999px;
+  display: block;
+  height: 0.42rem;
+  overflow: hidden;
+}
+
+.vyuh-console-progress i {
+  background: #2f7d4f;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  width: 31%;
+}
+
+.vyuh-console-progress.is-violet i {
+  background: #8b5cf6;
+}
+
+.vyuh-console-progress.is-yellow i {
+  background: #f59e0b;
+}
+
+.vyuh-console-captured {
+  align-items: center;
+  display: inline-flex;
+  gap: 1rem;
+}
+
+.vyuh-console-captured a {
+  align-items: center;
+  color: #ec5b1a;
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.vyuh-console-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.vyuh-console-toolbar label {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(16, 24, 39, 0.1);
+  border-radius: 0.5rem;
+  display: flex;
+  gap: 0.65rem;
+  min-height: 3rem;
+  min-width: min(100%, 22rem);
+  padding: 0 0.85rem;
+}
+
+.vyuh-console-toolbar input,
+.vyuh-console-toolbar select {
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(16, 24, 39, 0.1);
+  border-radius: 0.5rem;
+  color: #101827;
+  min-height: 3rem;
+  padding: 0.55rem 0.9rem;
+}
+
+.vyuh-console-toolbar label input {
+  background: transparent;
+  border: 0;
+  min-height: auto;
+  padding: 0;
+  width: 100%;
+}
+
+.vyuh-console-data-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, 27rem);
+}
+
+.vyuh-console-table {
+  overflow: auto;
+}
+
+.vyuh-console-table table {
+  border-collapse: collapse;
+  min-width: 46rem;
+  width: 100%;
+}
+
+.vyuh-console-table th,
+.vyuh-console-table td {
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  padding: 0.78rem 0.55rem;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.vyuh-console-table td {
+  max-width: 22rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.vyuh-console-table th {
+  white-space: nowrap;
+}
+
+.vyuh-console-table th {
+  color: #5d6875;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.vyuh-console-table tr[aria-selected=true] {
+  background: rgba(236, 91, 26, 0.08);
+}
+
+.vyuh-console-badge {
+  align-items: center;
+  border-radius: 0.35rem;
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 600;
+  gap: 0.35rem;
+  padding: 0.22rem 0.42rem;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.vyuh-console-badge.is-success,
+.vyuh-console-badge.is-method-get {
+  background: rgba(47, 125, 79, 0.11);
+  color: #08733e;
+}
+
+.vyuh-console-badge.is-info,
+.vyuh-console-badge.is-method-post {
+  background: rgba(35, 116, 171, 0.12);
+  color: #0c63b7;
+}
+
+.vyuh-console-badge.is-warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45f00;
+}
+
+.vyuh-console-badge.is-danger,
+.vyuh-console-badge.is-method-delete {
+  background: rgba(184, 50, 50, 0.1);
+  color: #b83232;
+}
+
+.vyuh-console-badge i {
+  background: currentColor;
+  border-radius: 999px;
+  height: 0.4rem;
+  width: 0.4rem;
+}
+
+.vyuh-console-status.is-warning {
+  background: #f59e0b;
+}
+
+.vyuh-console-status.is-danger {
+  background: #b83232;
+}
+
+.vyuh-console-pagination {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 1rem;
+}
+
+.vyuh-console-pagination nav {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.vyuh-console-pagination a {
+  align-items: center;
+  border: 1px solid rgba(16, 24, 39, 0.1);
+  border-radius: 0.5rem;
+  color: #101827;
+  display: inline-flex;
+  height: 2.55rem;
+  justify-content: center;
+  min-width: 2.55rem;
+}
+
+.vyuh-console-pagination a[aria-current=page] {
+  background: rgba(236, 91, 26, 0.1);
+  border-color: rgba(236, 91, 26, 0.18);
+  color: #ec5b1a;
+}
+
+.vyuh-console-inspector {
+  align-self: start;
+  padding: 1.2rem;
+}
+
+.vyuh-console-inspector h3, .vyuh-console-inspector .h3 {
+  margin: 0.75rem 0 0.25rem;
+}
+
+.vyuh-console-inspector p {
+  color: #5d6875;
+}
+
+.vyuh-console-inspector button {
+  background: transparent;
+  border: 0;
+  color: #101827;
+  padding: 0;
+}
+
+.vyuh-console-muted-panel {
+  border: 1px solid rgba(16, 24, 39, 0.08);
+  border-radius: 0.5rem;
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+}
+
+.vyuh-console-code {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(16, 24, 39, 0.08);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.vyuh-console-code header {
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  display: flex;
+  justify-content: space-between;
+  padding: 0.65rem 0.8rem;
+}
+
+.vyuh-console-code pre {
+  color: #12438f;
+  counter-reset: line;
+  font-size: 0.6875rem;
+  line-height: 1.65;
+  margin: 0;
+  max-height: 23rem;
+  overflow: auto;
+  padding: 0.9rem 1rem;
+}
+
+.vyuh-console-code code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.vyuh-console-config-grid .is-span-wide {
+  grid-column: 1;
+}
+
+.vyuh-console-config-grid .is-code {
+  grid-column: 1;
+}
+
+.vyuh-console-summary-strip {
+  align-items: center;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  min-height: 6.2rem;
+}
+
+.vyuh-console-summary-item {
+  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.vyuh-console-summary-item dl {
+  min-width: 0;
+  margin: 0;
+}
+
+.vyuh-console-summary-strip dt {
+  color: #5d6875;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.vyuh-console-summary-strip dd {
+  margin: 0.25rem 0 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vyuh-console-section-list {
+  display: grid;
+}
+
+.vyuh-console-section-list button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(16, 24, 39, 0.08);
+  color: #101827;
+  display: flex;
+  justify-content: space-between;
+  min-height: 2.65rem;
+  padding: 0;
+}
+
+.vyuh-console-section-list button:last-child {
+  border-bottom: 0;
+}
+
+.vyuh-console-section-list b {
+  background: rgba(16, 24, 39, 0.06);
+  border-radius: 999px;
+  min-width: 1.45rem;
+  padding: 0.1rem 0.4rem;
+}
+
+.vyuh-console-footer {
+  align-items: center;
+  color: #5d6875;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  padding: 0 0 1.5rem;
+}
+
+.vyuh-console-footer img {
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+@media (max-width: 1200px) {
+  .vyuh-console-app {
+    grid-template-columns: 1fr;
+  }
+  .vyuh-console-app .vyuh-console-sidebar {
+    grid-template-rows: auto;
+  }
+  .vyuh-console-stat-grid,
+  .vyuh-console-stat-grid.is-five,
+  .vyuh-console-overview-grid,
+  .vyuh-console-info-grid,
+  .vyuh-console-config-grid,
+  .vyuh-console-data-grid {
+    grid-template-columns: 1fr;
+  }
+  .vyuh-console-summary-strip {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .stylebook-console-intro,
+  .vyuh-console-topbar,
+  .vyuh-console-actions,
+  .vyuh-console-pagination {
+    align-items: stretch;
+    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+  .vyuh-console-page {
+    padding: 1rem;
+  }
+}
 
 /*# sourceMappingURL=stylebook.css.map */

@@ -486,28 +486,6 @@
   padding: 1.125rem;
 }
 
-.console-redoc-panel {
-  border: 1px solid $vyuh-line;
-  margin-top: 1.5rem;
-  min-height: 72vh;
-  overflow: hidden;
-}
-
-.console-redoc-panel redoc {
-  display: block;
-  min-height: 72vh;
-}
-
-.console-redoc-blank {
-  background: #fff;
-  min-height: calc(100vh - 4.75rem);
-}
-
-.console-redoc-blank redoc {
-  display: block;
-  min-height: calc(100vh - 4.75rem);
-}
-
 .console-inspector a {
   color: #ffb476;
 }
@@ -581,5 +559,95 @@
   .console-kv-table td {
     display: block;
     width: 100%;
+  }
+}
+
+.console-body {
+  background: $vyuh-paper;
+  color-scheme: light;
+}
+
+.console-body > .vyuh-console-app {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+.console-body .vyuh-console-page {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.console-body .vyuh-console-card a,
+.console-body .vyuh-console-table a,
+.console-body .vyuh-console-inspector a,
+.console-body .vyuh-console-reset {
+  color: $vyuh-ember;
+}
+
+.vyuh-console-reset {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba($vyuh-ink, 0.1);
+  border-radius: $vyuh-radius-sm;
+  display: inline-flex;
+  gap: 0.55rem;
+  min-height: 3rem;
+  padding: 0.65rem 0.95rem;
+}
+
+.vyuh-console-empty {
+  border: 1px dashed rgba($vyuh-ink, 0.2);
+  border-radius: $vyuh-radius-sm;
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+}
+
+.vyuh-console-empty span {
+  color: $vyuh-muted;
+}
+
+.vyuh-console-badge.is-pending,
+.vyuh-console-badge.is-suspended {
+  background: rgba($vyuh-saffron, 0.14);
+  color: #b45f00;
+}
+
+.vyuh-console-badge.is-running {
+  background: rgba($vyuh-ocean, 0.12);
+  color: #0c63b7;
+}
+
+.vyuh-console-badge.is-succeeded {
+  background: rgba($vyuh-success, 0.11);
+  color: #08733e;
+}
+
+.vyuh-console-badge.is-failed {
+  background: rgba($vyuh-danger, 0.1);
+  color: $vyuh-danger;
+}
+
+.console-body .vyuh-console-card.is-redoc {
+  min-height: 72vh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.console-body .vyuh-console-card.is-redoc redoc {
+  display: block;
+  min-height: 72vh;
+}
+
+@media (min-width: 1201px) {
+  .console-body .vyuh-console-app .vyuh-console-sidebar {
+    height: 100vh;
+    inset: 0 auto 0 0;
+    overflow-y: auto;
+    position: fixed;
+    width: 16rem;
   }
 }

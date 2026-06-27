@@ -85,9 +85,9 @@ All endpoints are mounted under `ConsoleConf.path`.
 | `GET` | `/login-page` | show console login guidance |
 | `GET` | `/overview` | status overview page |
 | `GET` | `/runtime` | formatted site, process, and system runtime page |
-| `GET` | `/operations` | operation listing page |
+| `GET` | `/operations` | operation listing page with in-page inspector |
 | `GET` | `/operations/{id}` | operation detail page |
-| `GET` | `/tasks` | task listing page |
+| `GET` | `/tasks` | task listing page with filters and in-page inspector |
 | `GET` | `/tasks/{id}` | task detail page |
 | `GET` | `/openapi` | OpenAPI page for non-console routes |
 | `GET` | `/conf` | redacted runtime configuration page |
@@ -140,6 +140,8 @@ Supported filters:
 
 The response includes operation metadata derived from the same bundle operation
 model used by routes, OpenAPI, commands, tasks, signals, emitters, and services.
+The HTML operations page uses the same filters and keeps selected operation
+request/response details in a right-side inspector.
 
 ## OpenAPI
 
@@ -155,7 +157,7 @@ the console itself is mounted into the same site.
 `/api/tasks` lists task records without claiming or modifying them:
 
 ```text
-/_console/api/tasks?status=pending&priority_min=10&limit=50
+/_console/api/tasks?status=pending&priority_min=10&created_from=2026-06-01&created_to=2026-06-30&limit=50
 ```
 
 Supported filters:
@@ -164,12 +166,16 @@ Supported filters:
 - `name`: registered task name.
 - `priority_min`: minimum task priority.
 - `identity`: task identity.
+- `created_from`: inclusive task creation date in `YYYY-MM-DD` format.
+- `created_to`: inclusive task creation date in `YYYY-MM-DD` format.
 - `q`: text search across name, identity, and last error.
 - `limit` and `cursor`: offset-style pagination.
 
 `/api/tasks/{id}` returns the safe task detail shape for one task ID, including
 status, attempts, priority, timing, identity, last error, and JSON
 payload/state/resume/output/result fields when they parse as JSON.
+The HTML task page exposes search, status, name, identity, and date-range
+filters and shows selected task details without leaving the list.
 
 ## Status
 

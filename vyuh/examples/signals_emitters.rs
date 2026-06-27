@@ -155,18 +155,10 @@ async fn send_pg_notifications(site: &Site) -> Result<(), SiteError> {
 }
 
 async fn run_demo(site: &Site) -> Result<(), SiteError> {
-    site.signals().submit(UserEvent {
+    site.signals().emit(UserEvent {
         user_id: 42,
         action: "registered".to_string(),
     })?;
-
-    site.signals().schedule(
-        UserEvent {
-            user_id: 42,
-            action: "scheduled-follow-up".to_string(),
-        },
-        tokio::time::Duration::from_millis(250),
-    )?;
 
     #[cfg(feature = "postgres")]
     send_pg_notifications(site).await?;

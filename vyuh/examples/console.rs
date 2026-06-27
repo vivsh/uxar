@@ -104,7 +104,7 @@ async fn create_order(site: Site, Json(order): Json<CreateOrder>) -> Result<Json
         .await
         .map_err(Error::other)?;
     site.signals()
-        .submit(InvoiceSignal {
+        .emit(InvoiceSignal {
             invoice_id: created.id,
             amount: created.amount,
         })
@@ -209,7 +209,7 @@ async fn seed_demo(site: Site, Data(args): Data<SeedArgs>) -> Result<(), Error> 
 
 async fn print_report(site: Site, Data(args): Data<ReportArgs>) -> Result<(), Error> {
     site.signals()
-        .submit(SignupSignal {
+        .emit(SignupSignal {
             user_id: 42,
             source: args.section.clone(),
         })

@@ -26,8 +26,8 @@ pub use crate::bundles;
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 pub use crate::routes::{
-    AppendHeaders, Form, Html, IntoResponse, Json, NoContent, Path, Query, Redirect, State,
-    StatusCode,
+    AppendHeaders, Form, Html, IntoResponse, Json, NoContent, POLL, Path, Query, Redirect, SSE,
+    State, StatusCode, Subscriber, WS,
 };
 
 // ── Tasks ───────────────────────────────────────────────────────────────────
@@ -40,4 +40,4 @@ pub use crate::services::ServiceRef;
 
 // ── Channels ─────────────────────────────────────────────────────────────────
 
-pub use crate::channels::{ChannelLongPoll, ChannelRef, ChannelSse, ChannelWebSocket};
+pub use crate::channels::{ChannelResponse, Channels, UserKey};

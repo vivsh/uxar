@@ -1,4 +1,7 @@
-use axum::{http::StatusCode, response::Html};
+use axum::{
+    http::StatusCode,
+    response::{Html, IntoResponse, Response},
+};
 use serde_json::json;
 
 use crate::routes::{Path, Query};
@@ -6,7 +9,10 @@ use crate::{
     Site,
     console::{
         auth::ConsoleSessionUser,
-        query::{OperationQuery, TaskQuery, filter_operations, is_console_operation},
+        query::{
+            OperationQuery, TaskQuery, filter_operations, is_console_operation, task_limit,
+            task_limit_max,
+        },
         status::StatusOut,
         types::{ConfigOut, OperationOut, Page, TaskDetailOut, TaskOut},
     },
@@ -17,7 +23,10 @@ pub async fn login(site: Site) -> Result<Html<String>, TemplateError> {
     render(
         &site,
         "console/login.html",
-        json!({ "base_path": base_path(&site) }),
+        json!({
+            "base_path": base_path(&site),
+            "version": env!("CARGO_PKG_VERSION"),
+        }),
     )
 }
 
@@ -89,13 +98,17 @@ pub async fn operation_detail(
     site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
     Path(id): Path<String>,
-) -> Result<Html<String>, StatusCode> {
-    let id = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::NOT_FOUND)?;
-    let operation = site
+) -> Response {
+    let Ok(id) = uuid::Uuid::parse_str(&id) else {
+        return not_found(&site);
+    };
+    let Some(operation) = site
         .iter_operations()
         .find(|op| op.id == id)
         .map(OperationOut::from)
-        .ok_or(StatusCode::NOT_FOUND)?;
+    else {
+        return not_found(&site);
+    };
     render_page(
         &site,
         "console/operation_detail.html",
@@ -103,7 +116,7 @@ pub async fn operation_detail(
         "Operation",
         json!({ "operation": operation }),
     )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    .into_response()
 }
 
 pub async fn tasks(
@@ -117,7 +130,7 @@ pub async fn tasks(
     }
 
     let conf = &site.conf().console;
-    let filter = query.to_filter(conf.page_size_default, conf.page_size_max);
+    let filter = query.to_filter(conf.page_size_default, task_limit_max(conf.page_size_max));
     let page = site
         .tasks()
         .list(filter)
@@ -134,17 +147,20 @@ pub async fn task_detail(
     site: Site,
     ConsoleSessionUser(_user): ConsoleSessionUser,
     Path(id): Path<String>,
-) -> Result<Html<String>, StatusCode> {
-    let id = uuid::Uuid::parse_str(&id).map_err(|_| StatusCode::NOT_FOUND)?;
-    let record = site
-        .tasks()
-        .get(id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+) -> Response {
+    let Ok(id) = uuid::Uuid::parse_str(&id) else {
+        return not_found(&site);
+    };
+    let record = match site.tasks().get(id).await {
+        Ok(Some(record)) => record,
+        Ok(None) => return not_found(&site),
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
     let detail = TaskDetailOut::from(&record);
-    let payload =
-        serde_json::to_string_pretty(&detail).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let payload = match serde_json::to_string_pretty(&detail) {
+        Ok(payload) => payload,
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
     render_page(
         &site,
         "console/task_detail.html",
@@ -152,7 +168,7 @@ pub async fn task_detail(
         "Task",
         json!({ "task": detail, "payload": payload }),
     )
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+    .into_response()
 }
 
 pub async fn conf(
@@ -181,9 +197,13 @@ pub async fn openapi(
         "console/openapi.html",
         "openapi",
         "OpenAPI",
-        json!({ "blank_page": true }),
+        json!({}),
     )
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+pub async fn not_found_page(site: Site, ConsoleSessionUser(_user): ConsoleSessionUser) -> Response {
+    not_found(&site)
 }
 
 fn render_page(
@@ -196,6 +216,7 @@ fn render_page(
     context["active"] = json!(active);
     context["title"] = json!(title);
     context["base_path"] = json!(base_path(site));
+    context["version"] = json!(env!("CARGO_PKG_VERSION"));
     render(site, template, context)
 }
 
@@ -281,18 +302,113 @@ fn render(
     site.template_engine().html(template, &context)
 }
 
+fn not_found(site: &Site) -> Response {
+    error_page(
+        site,
+        StatusCode::NOT_FOUND,
+        "Console page not found",
+        "The requested console page or resource does not exist.",
+    )
+}
+
+fn error_page(site: &Site, status: StatusCode, title: &str, message: &str) -> Response {
+    let context = json!({
+        "base_path": base_path(site),
+        "version": env!("CARGO_PKG_VERSION"),
+        "status": status.as_u16(),
+        "title": title,
+        "message": message,
+    });
+    match site.template_engine().html("console/error.html", &context) {
+        Ok(body) => (status, body).into_response(),
+        Err(_) => (status, title.to_string()).into_response(),
+    }
+}
+
 fn render_tasks(
     site: &Site,
     query: TaskQuery,
     page: Page<TaskOut>,
 ) -> Result<Html<String>, TemplateError> {
+    let conf = &site.conf().console;
+    let task_limit = task_limit(&query, conf.page_size_default, conf.page_size_max);
+    let task_items = page.items.iter().map(task_view).collect::<Vec<_>>();
+    let selected_task = selected_task(&query, &task_items);
+    let task_counts = task_counts(&task_items);
     render_page(
         site,
         "console/tasks.html",
         "tasks",
         "Tasks",
-        json!({ "page": page, "query": query, "statuses": task_statuses() }),
+        json!({
+            "page": {
+                "items": task_items,
+                "next_cursor": page.next_cursor,
+            },
+            "query": query,
+            "statuses": task_statuses(),
+            "page_sizes": task_page_sizes(),
+            "task_limit": task_limit,
+            "selected_task": selected_task,
+            "task_counts": task_counts,
+        }),
     )
+}
+
+fn task_page_sizes() -> Vec<usize> {
+    vec![25, 50, 100]
+}
+
+fn task_view(task: &TaskOut) -> serde_json::Value {
+    let mut value = match serde_json::to_value(task) {
+        Ok(value) => value,
+        Err(_) => json!({}),
+    };
+    value["created_at_display"] = json!(compact_time(&task.created_at));
+    value["updated_at_display"] = json!(compact_time(&task.updated_at));
+    value["ready_at_display"] = json!(compact_optional(task.ready_at.as_deref()));
+    value["completed_at_display"] = json!(compact_optional(task.completed_at.as_deref()));
+    value
+}
+
+fn selected_task(query: &TaskQuery, tasks: &[serde_json::Value]) -> Option<serde_json::Value> {
+    let id = query.selected.as_deref()?;
+    tasks
+        .iter()
+        .find(|task| task.get("id").and_then(|value| value.as_str()) == Some(id))
+        .cloned()
+}
+
+fn task_counts(tasks: &[serde_json::Value]) -> serde_json::Value {
+    let active = count_tasks(tasks, "running");
+    let queued = count_tasks(tasks, "pending");
+    let completed = count_tasks(tasks, "succeeded");
+    let failed = count_tasks(tasks, "failed");
+    json!({
+        "total": tasks.len(),
+        "active": active,
+        "queued": queued,
+        "completed": completed,
+        "failed": failed,
+    })
+}
+
+fn count_tasks(tasks: &[serde_json::Value], status: &str) -> usize {
+    tasks
+        .iter()
+        .filter(|task| task.get("status").and_then(|value| value.as_str()) == Some(status))
+        .count()
+}
+
+fn compact_optional(value: Option<&str>) -> Option<String> {
+    value.map(compact_time)
+}
+
+fn compact_time(value: &str) -> String {
+    match chrono::DateTime::parse_from_rfc3339(value) {
+        Ok(value) => value.format("%Y-%m-%d %H:%M:%S").to_string(),
+        Err(_) => value.to_string(),
+    }
 }
 
 fn selected_operation(

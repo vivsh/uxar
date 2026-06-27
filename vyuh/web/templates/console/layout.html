@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
   <title>{{ title }} - Vyuh Console</title>
   <link rel="icon" href="/assets/img/favicon.svg">
   <link rel="stylesheet" href="/assets/css/base.css">
@@ -11,44 +12,55 @@
   <script src="/assets/js/console.js" defer></script>
 </head>
 <body class="vyuh-page console-body">
-  <header class="vyuh-header">
-    <nav class="vyuh-shell vyuh-nav">
-      <a class="vyuh-brand" href="{{ base_path }}/overview">
+  <svg class="vyuh-icon-sprite" aria-hidden="true">
+    <symbol id="vyuh-icon-dashboard" viewBox="0 0 24 24"><rect x="4" y="5" width="7" height="14" rx="2"></rect><rect x="13" y="5" width="7" height="6" rx="2"></rect><rect x="13" y="13" width="7" height="6" rx="2"></rect></symbol>
+    <symbol id="vyuh-icon-monitor" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="2"></rect><path d="M9 20h6M12 16v4"></path></symbol>
+    <symbol id="vyuh-icon-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><path d="m8.5 12.5 2.3 2.3 4.8-5.4"></path></symbol>
+    <symbol id="vyuh-icon-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"></path></symbol>
+    <symbol id="vyuh-icon-docs" viewBox="0 0 24 24"><rect x="6" y="4" width="5" height="16" rx="2"></rect><rect x="13" y="4" width="5" height="16" rx="2"></rect></symbol>
+    <symbol id="vyuh-icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5 6.8 15M17.2 9l2.6-1.5M3 12h3M18 12h3"></path></symbol>
+    <symbol id="vyuh-icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><path d="M12 7v5l3 2"></path></symbol>
+    <symbol id="vyuh-icon-clipboard" viewBox="0 0 24 24"><rect x="7" y="5" width="10" height="15" rx="2"></rect><path d="M9 5a3 3 0 0 1 6 0M9 10h6M9 14h4"></path></symbol>
+    <symbol id="vyuh-icon-cpu" viewBox="0 0 24 24"><rect x="8" y="8" width="8" height="8" rx="1.5"></rect><path d="M5 9h3M5 15h3M16 9h3M16 15h3M9 5v3M15 5v3M9 16v3M15 16v3"></path></symbol>
+    <symbol id="vyuh-icon-database" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="6" ry="3"></ellipse><path d="M6 6v6c0 1.7 2.7 3 6 3s6-1.3 6-3V6M6 12v6c0 1.7 2.7 3 6 3s6-1.3 6-3v-6"></path></symbol>
+    <symbol id="vyuh-icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="10" height="10" rx="2"></rect><path d="M6 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"></path></symbol>
+    <symbol id="vyuh-icon-download" viewBox="0 0 24 24"><path d="M12 4v11M8 11l4 4 4-4M5 20h14"></path></symbol>
+    <symbol id="vyuh-icon-refresh" viewBox="0 0 24 24"><path d="M18 8a7 7 0 1 0 1 6M18 4v4h-4"></path></symbol>
+    <symbol id="vyuh-icon-external" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8"></path><path d="M17 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4"></path></symbol>
+    <symbol id="vyuh-icon-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"></circle><path d="m15 15 4 4"></path></symbol>
+    <symbol id="vyuh-icon-x" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"></path></symbol>
+  </svg>
+
+  <div class="vyuh-console-app">
+    <aside class="vyuh-console-sidebar">
+      <a class="vyuh-console-brand" href="{{ base_path }}/overview">
         <img src="/assets/img/vyuh-logo-transparent.png" alt="Vyuh logo">
-        <span>vyuh</span>
+        <span>Vyuh</span>
       </a>
-      <div class="vyuh-links">
-        <a href="{{ base_path }}/operations">Operations</a>
-        <a href="{{ base_path }}/tasks">Tasks</a>
-      </div>
-      <form method="post" action="{{ base_path }}/api/logout">
-        <button class="vyuh-button vyuh-button-secondary" type="submit">Logout</button>
-      </form>
-    </nav>
-  </header>
-  <div class="console-layout {% if blank_page %}console-layout-blank{% endif %}">
-    {% if not blank_page %}
-    <aside class="console-sidebar">
-      <p class="vyuh-kicker">Console</p>
-      <nav class="console-nav" aria-label="Console navigation">
-        <a href="{{ base_path }}/overview" {% if active == "overview" %}aria-current="page"{% endif %}>Overview</a>
-        <a href="{{ base_path }}/runtime" {% if active == "runtime" %}aria-current="page"{% endif %}>Runtime</a>
-        <a href="{{ base_path }}/operations" {% if active == "operations" %}aria-current="page"{% endif %}>Operations</a>
-        <a href="{{ base_path }}/tasks" {% if active == "tasks" %}aria-current="page"{% endif %}>Tasks</a>
-        <a href="{{ base_path }}/openapi" {% if active == "openapi" %}aria-current="page"{% endif %}>OpenAPI</a>
-        <a href="{{ base_path }}/conf" {% if active == "conf" %}aria-current="page"{% endif %}>Config</a>
+      <nav class="vyuh-console-nav" aria-label="Console pages">
+        <strong>Console</strong>
+        <a href="{{ base_path }}/overview" {% if active == "overview" %}aria-current="page"{% endif %}><svg><use href="#vyuh-icon-dashboard"></use></svg><span>Overview</span></a>
+        <a href="{{ base_path }}/runtime" {% if active == "runtime" %}aria-current="page"{% endif %}><svg><use href="#vyuh-icon-monitor"></use></svg><span>System Info</span></a>
+        <a href="{{ base_path }}/tasks" {% if active == "tasks" %}aria-current="page"{% endif %}><svg><use href="#vyuh-icon-check"></use></svg><span>Tasks</span></a>
+        <a href="{{ base_path }}/operations" {% if active == "operations" %}aria-current="page"{% endif %}><svg><use href="#vyuh-icon-pulse"></use></svg><span>Operations</span></a>
+        <a href="{{ base_path }}/openapi" {% if active == "openapi" %}aria-current="page"{% endif %}><svg><use href="#vyuh-icon-docs"></use></svg><span>OpenAPI (ReDoc)</span></a>
       </nav>
-      {% block sidebar %}{% endblock %}
+      <nav class="vyuh-console-nav" aria-label="Console settings">
+        <strong>Settings</strong>
+        <a href="{{ base_path }}/conf" {% if active == "conf" %}aria-current="page"{% endif %}><svg><use href="#vyuh-icon-gear"></use></svg><span>Console Settings</span></a>
+      </nav>
+      <footer class="vyuh-console-sidebar-footer">
+        <span><i></i>System Healthy</span>
+        <small>v{{ version }}</small>
+      </footer>
     </aside>
-    {% endif %}
-    <main class="console-main {% if blank_page %}console-main-blank{% endif %}">
+    <main class="vyuh-console-page">
       {% block content %}{% endblock %}
+      <footer class="vyuh-console-footer">
+        <img src="/assets/img/vyuh-logo-transparent.png" alt="">
+        <span>Vyuh Console v{{ version }}</span>
+      </footer>
     </main>
-    {% if not blank_page %}
-    <aside class="console-right">
-      {% block inspector %}{% endblock %}
-    </aside>
-    {% endif %}
   </div>
 </body>
 </html>

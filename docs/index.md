@@ -7,7 +7,7 @@ that part of the framework.
 ## Vocabulary
 
 - `Data<T>`: handler input/output data for routes, commands, tasks, signals,
-  and emitters.
+  emitters, and live channel delivery.
 - `Valid<E>`: explicit validation wrapper around parsed request or handler data.
 - `ServiceRef<T>`: site-lifetime service access. Services are not handler data.
 - `Site`: cheap runtime handle for subsystem access.
@@ -80,8 +80,8 @@ that part of the framework.
 - [Auth](auth.md): opt-in JWT and API-key extraction, static roles, dynamic
   permissions, Django password hashes, and OpenAPI security metadata.
 - [Signals](signals.md): typed in-process events and signal handlers.
-- [Channels](channels.md): live client-facing pub/sub over SSE, WebSocket, and
-  long polling with bounded replay.
+- [Channels](channels.md): signal-backed live client delivery over SSE,
+  WebSocket, and long polling with bounded replay.
 - [Emitters](emitters.md): scheduled, debounced, and notification-driven event
   sources.
 - [Database](db.md): SQLx-backed database access, query builders, derives,

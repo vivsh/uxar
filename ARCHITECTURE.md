@@ -39,7 +39,7 @@ The `vyuh` crate is organized around these subsystems:
 - `validation` and `validators` provide typed validation primitives and
   extractor integration.
 - `signals`, `emitters`, and `channels` provide in-process fanout, scheduled
-  or external event sources, and client-facing live delivery.
+  or external event sources, and signal-backed client-facing live delivery.
 - `tasks` provides typed background task registration and backend-selected task
   execution.
 - `commands` provides typed command registration and command dispatch through a
@@ -81,15 +81,37 @@ Production applications should enable exactly one database backend feature:
 Backend selection belongs in `vyuh/src/db/commons.rs`, where `Database`,
 `Arguments`, `Row`, `QueryResult`, and `Pool` are aliased.
 
+## Signal And Channel Model
+
+Signals are the only application event publish path. `site.signals().emit(T)`
+queues fire-and-forget in-process handler fanout and also offers the same typed
+payload to channels. Delayed event production is intentionally not part of the
+signal client; scheduled sources belong in emitters, and durable delayed work
+belongs in tasks.
+
+Channels are consumers of typed signal payloads, not a separate topic bus.
+Routes attach a `Subscriber` to a `Channels::user(UserKey)` stream and declare
+accepted payload types with `deliver::<T>()` or `deliver_if::<T>(...)`.
+Delivery policy is user-scoped: re-registering a `UserKey` replaces that user's
+older rules, while multiple channel sessions for the user share one retained
+queue and hold independent cursors.
+
+The channel backend owns per-user policies, fixed-length per-user retained
+queues, per-channel cursor/session state, atomic attach with replay, live
+wakeup, and close/find operations. Predicates run before serialization; accepted
+payloads are serialized once and delivered through a shared envelope across
+WebSocket, SSE, and polling. Internal indexing uses Rust type identity, while
+the client-facing event type uses the payload schema name.
+
 ## Request Flow
 
 1. A bundle registers routes, commands, emitters, services, schema contributors,
    templates, assets, signals, and optional migrations.
 2. `Site::build` validates `SiteConf` and bundle metadata.
 3. `SiteBuilder` creates the database pool, router, template engine,
-   authenticator, command registry, signal engine, emitter engine, services, and
-   task engine. Database-backed builds use the selected backend task store;
-   lightweight builds use `MemoryTaskStore`.
+   authenticator, command registry, channel backend, signal engine, emitter
+   engine, services, and task engine. Database-backed builds use the selected
+   backend task store; lightweight builds use `MemoryTaskStore`.
 4. When console is enabled, Vyuh injects its internal `vyuh/web` asset dir before
    template loading so console HTML and public assets ship with the runtime
    crate.

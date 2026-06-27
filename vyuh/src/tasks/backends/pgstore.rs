@@ -494,6 +494,14 @@ fn push_filters<'a>(builder: &mut QueryBuilder<'a, Postgres>, filter: &'a TaskLi
         builder.push(" AND priority >= ");
         builder.push_bind(priority_min);
     }
+    if let Some(created_from) = filter.created_from {
+        builder.push(" AND created_at >= ");
+        builder.push_bind(created_from);
+    }
+    if let Some(created_to) = filter.created_to {
+        builder.push(" AND created_at <= ");
+        builder.push_bind(created_to);
+    }
     if let Some(q) = &filter.q {
         let q = format!("%{}%", q);
         builder.push(" AND (name ILIKE ");

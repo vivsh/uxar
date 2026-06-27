@@ -1,191 +1,154 @@
 {% extends "console/layout.html" %}
 
 {% block content %}
-<section class="console-document">
-  <p class="vyuh-kicker">Runtime</p>
-  <h1 class="vyuh-section-title">Config</h1>
-  <p class="vyuh-copy">Redacted runtime configuration, grouped by subsystem.</p>
+<section class="vyuh-console-screen">
+  <header class="vyuh-console-topbar">
+    <div>
+      <h1>Configuration</h1>
+      <p>Complete redacted SiteConf for this Vyuh application</p>
+    </div>
+    <div class="vyuh-console-actions">
+      <a class="vyuh-console-icon-button" href="{{ base_path }}/conf" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
+      <label class="vyuh-console-select"><span>Auto refresh</span><select><option>Off</option><option>30s</option></select></label>
+      <a class="vyuh-console-site-button" href="{{ base_path }}/api/conf">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
+    </div>
+  </header>
 
-  <div class="console-conf-grid">
-    <article class="console-conf-section">
-      <header>
-        <h2>Site</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Address</th><td>{{ conf.site.host }}:{{ conf.site.port }}</td></tr>
-          <tr><th>Project dir</th><td><code>{{ conf.site.project_dir }}</code></td></tr>
-          <tr><th>Timezone</th><td>{{ conf.site.timezone }}</td></tr>
-          <tr><th>Log init</th><td>{{ conf.site.log_init }}</td></tr>
-          <tr><th>Touch reload</th><td>{% if conf.site.touch_reload %}<code>{{ conf.site.touch_reload }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
-        </tbody>
-      </table>
+  <nav class="vyuh-console-tabs" aria-label="Configuration sections">
+    <a href="#site-conf" aria-current="page">Site Configuration</a>
+    <a href="#database-conf">Database</a>
+    <a href="#auth-conf">Auth</a>
+    <a href="#console-conf">Console</a>
+    <a href="#tasks-conf">Tasks</a>
+    <a href="#channels-conf">Channels</a>
+    <a href="#http-conf">HTTP</a>
+    <a href="#logging-conf">Logging</a>
+  </nav>
+
+  <div class="vyuh-console-config-grid">
+    <article class="vyuh-console-card is-span-wide">
+      <header><h2>Configuration Summary</h2></header>
+      <div class="vyuh-console-summary-strip">
+        <div class="vyuh-console-summary-item"><span class="vyuh-console-icon-mini is-ember"><svg><use href="#vyuh-icon-docs"></use></svg></span><dl><dt>Environment</dt><dd>{{ conf.site.timezone }}</dd></dl></div>
+        <div class="vyuh-console-summary-item"><span class="vyuh-console-icon-mini is-green"><svg><use href="#vyuh-icon-clipboard"></use></svg></span><dl><dt>Host</dt><dd>{{ conf.site.host }}:{{ conf.site.port }}</dd></dl></div>
+        <div class="vyuh-console-summary-item"><span class="vyuh-console-icon-mini is-violet"><svg><use href="#vyuh-icon-database"></use></svg></span><dl><dt>Backend</dt><dd>{{ conf.database.backend }}</dd></dl></div>
+        <div class="vyuh-console-summary-item"><span class="vyuh-console-icon-mini is-yellow"><svg><use href="#vyuh-icon-gear"></use></svg></span><dl><dt>Console</dt><dd>{{ conf.console.path }}</dd></dl></div>
+        <div class="vyuh-console-summary-item"><span class="vyuh-console-icon-mini is-blue"><svg><use href="#vyuh-icon-external"></use></svg></span><dl><dt>Page Size</dt><dd>{{ conf.console.page_size_default }} / {{ conf.console.page_size_max }}</dd></dl></div>
+      </div>
     </article>
 
-    <article class="console-conf-section">
-      <header>
-        <h2>Database</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Backend</th><td><span class="console-pill">{{ conf.database.backend }}</span></td></tr>
-          <tr><th>URL</th><td><code>{{ conf.database.url }}</code></td></tr>
-          <tr><th>Pool</th><td>{{ conf.database.min_connections }} min / {{ conf.database.max_connections }} max</td></tr>
-          <tr><th>Lazy connect</th><td>{{ conf.database.lazy }}</td></tr>
-        </tbody>
-      </table>
+    <article class="vyuh-console-card">
+      <header><h2>Actions</h2></header>
+      <div class="vyuh-console-action-list is-flat">
+        <a href="{{ base_path }}/api/conf"><svg><use href="#vyuh-icon-download"></use></svg><span>Download as JSON</span></a>
+        <a href="{{ base_path }}/api/status"><svg><use href="#vyuh-icon-docs"></use></svg><span>View Status</span></a>
+        <a href="{{ base_path }}/openapi"><svg><use href="#vyuh-icon-external"></use></svg><span>View OpenAPI</span></a>
+      </div>
     </article>
 
-    <article class="console-conf-section">
-      <header>
-        <h2>Authentication</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Issuer</th><td>{% if conf.auth.issuer %}{{ conf.auth.issuer }}{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
-          <tr><th>Audience</th><td><code>{{ conf.auth.audience }}</code></td></tr>
-          <tr><th>Access TTL</th><td>{{ conf.auth.access_ttl }} seconds</td></tr>
-          <tr><th>Refresh TTL</th><td>{{ conf.auth.refresh_ttl }} seconds</td></tr>
-          <tr><th>JWT algorithm</th><td>{{ conf.auth.jwt_algorithm }}</td></tr>
-          <tr><th>Signing key</th><td><code>{{ conf.auth.jwt_signing_key_source }}</code></td></tr>
-          <tr><th>Verifying key</th><td>{% if conf.auth.jwt_verifying_key_source %}<code>{{ conf.auth.jwt_verifying_key_source }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
-          <tr><th>API keys</th><td>{{ conf.auth.api_keys_enabled }}</td></tr>
-        </tbody>
-      </table>
+    <article class="vyuh-console-card is-code">
+      <header><h2>SiteConf <span class="vyuh-console-badge is-warning">JSON</span></h2><a href="{{ base_path }}/api/conf">Open raw</a></header>
+      <div class="vyuh-console-code"><pre><code>{{ payload }}</code></pre></div>
     </article>
 
-    <article class="console-conf-section">
-      <header>
-        <h2>Console</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Path</th><td><code>{{ conf.console.path }}</code></td></tr>
-          <tr><th>Bootstrap token TTL</th><td>{{ conf.console.bootstrap_token_ttl_seconds }} seconds</td></tr>
-          <tr><th>Session TTL</th><td>{{ conf.console.session_ttl_seconds }} seconds</td></tr>
-          <tr><th>Bootstrap print mode</th><td>{{ conf.console.print_bootstrap_url }}</td></tr>
-          <tr><th>Cookie name</th><td><code>{{ conf.console.cookie_name }}</code></td></tr>
-          <tr><th>Page size</th><td>{{ conf.console.page_size_default }} default / {{ conf.console.page_size_max }} max</td></tr>
-          <tr><th>Status cache TTL</th><td>{{ conf.console.status_cache_ttl_seconds }} seconds</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>Tasks</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Poll interval</th><td>{{ conf.tasks.poll_interval_ms }} ms</td></tr>
-          <tr><th>Capacity</th><td>{{ conf.tasks.capacity }}</td></tr>
-          <tr><th>Concurrency</th><td>{{ conf.tasks.concurrency }}</td></tr>
-          <tr><th>Batch size</th><td>{{ conf.tasks.batch_size }}</td></tr>
-          <tr><th>Lease duration</th><td>{{ conf.tasks.lease_duration_ms }} ms</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>Emitters</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Notify channel capacity</th><td>{{ conf.emitters.notify_channel_capacity }}</td></tr>
-          <tr><th>Max in-flight handlers</th><td>{{ conf.emitters.max_in_flight_handlers }}</td></tr>
-          <tr><th>PgNotify reconnect initial</th><td>{{ conf.emitters.pgnotify_reconnect_initial_ms }} ms</td></tr>
-          <tr><th>PgNotify reconnect max</th><td>{{ conf.emitters.pgnotify_reconnect_max_ms }} ms</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>Uploads</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Directory</th><td><code>{{ conf.uploads.dir }}</code></td></tr>
-          <tr><th>Base URL</th><td>{% if conf.uploads.base_url %}<code>{{ conf.uploads.base_url }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
-          <tr><th>Temp directory</th><td>{% if conf.uploads.temp_dir %}<code>{{ conf.uploads.temp_dir }}</code>{% else %}<span class="console-muted">not set</span>{% endif %}</td></tr>
-          <tr><th>Max request</th><td>{{ conf.uploads.max_request_bytes }} bytes</td></tr>
-          <tr><th>Max file</th><td>{{ conf.uploads.max_file_bytes }} bytes</td></tr>
-          <tr><th>Limits</th><td>{{ conf.uploads.max_files }} files / {{ conf.uploads.max_fields }} fields</td></tr>
-          <tr><th>Memory threshold</th><td>{{ conf.uploads.memory_threshold_bytes }} bytes</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>Channels</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Enabled</th><td>{{ conf.channels.enabled }}</td></tr>
-          <tr><th>Queues</th><td>{{ conf.channels.subscriber_queue }} subscriber / {{ conf.channels.command_queue }} command</td></tr>
-          <tr><th>Replay</th><td>{{ conf.channels.replay_limit }} limit / {{ conf.channels.retention_events }} retained</td></tr>
-          <tr><th>Topic limits</th><td>{{ conf.channels.max_topics_per_subscribe }} per subscribe / {{ conf.channels.max_topic_len }} chars</td></tr>
-          <tr><th>Max message</th><td>{{ conf.channels.max_message_bytes }} bytes</td></tr>
-          <tr><th>Long poll timeout</th><td>{{ conf.channels.long_poll_timeout_ms }} ms</td></tr>
-          <tr><th>SSE keepalive</th><td>{{ conf.channels.sse_keepalive_ms }} ms</td></tr>
-          <tr><th>Slow subscriber</th><td>{{ conf.channels.slow_subscriber_policy }}</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>HTTP Pipeline</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Slash policy</th><td>{{ conf.http.slash_policy }}</td></tr>
-          <tr><th>Catch panic</th><td>{{ conf.http.catch_panic_enabled }}</td></tr>
-          <tr><th>Request ID</th><td>{{ conf.http.request_id_enabled }} via <code>{{ conf.http.request_id_header }}</code></td></tr>
-          <tr><th>Trace</th><td>{{ conf.http.trace_enabled }}</td></tr>
-          <tr><th>Compression</th><td>{{ conf.http.compression_enabled }}</td></tr>
-          <tr><th>CORS</th><td>{{ conf.http.cors_enabled }}{% if conf.http.cors_permissive %} permissive{% endif %}</td></tr>
-          <tr><th>Timeout</th><td>{{ conf.http.timeout_enabled }} / {{ conf.http.timeout_ms }} ms</td></tr>
-          <tr><th>Body limit</th><td>{{ conf.http.body_limit_enabled }} / {{ conf.http.body_limit_max_bytes }} bytes</td></tr>
-          <tr><th>Security headers</th><td>{{ conf.http.security_headers_enabled }}</td></tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="console-conf-section">
-      <header>
-        <h2>Logging</h2>
-      </header>
-      <table class="console-kv-table">
-        <tbody>
-          <tr><th>Env prefix</th><td><code>{{ conf.logging.env_prefix }}</code></td></tr>
-          {% for rule in conf.logging.rules %}
-          <tr>
-            <th>{{ rule.name }}</th>
-            <td>{{ rule.sink }} · <code>{{ rule.default_filter }}</code>{% if rule.path %} · <code>{{ rule.path }}</code>{% endif %}{% if rule.rotation %} · {{ rule.rotation }}{% endif %}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <article class="vyuh-console-card">
+      <header><h2>Configuration Sections</h2></header>
+      <div class="vyuh-console-section-list">
+        <button type="button"><span>site</span><b>5</b></button>
+        <button type="button"><span>database</span><b>4</b></button>
+        <button type="button"><span>auth</span><b>8</b></button>
+        <button type="button"><span>console</span><b>7</b></button>
+        <button type="button"><span>tasks</span><b>5</b></button>
+        <button type="button"><span>emitters</span><b>4</b></button>
+        <button type="button"><span>uploads</span><b>7</b></button>
+        <button type="button"><span>channels</span><b>7</b></button>
+        <button type="button"><span>http</span><b>9</b></button>
+        <button type="button"><span>logging</span><b>{{ conf.logging.rules | length }}</b></button>
+      </div>
     </article>
   </div>
-</section>
-{% endblock %}
 
-{% block inspector %}
-<section class="console-inspector">
-  <p class="vyuh-kicker">Config View</p>
-  <h2>Redacted by default</h2>
-  <p class="vyuh-copy">This page is structured for operations. Secrets and database URLs are omitted or replaced before rendering.</p>
-  <dl class="console-meta">
-    <dt>Source</dt>
-    <dd>SiteConf runtime snapshot</dd>
-    <dt>Shape</dt>
-    <dd>Grouped key/value sections</dd>
-    <dt>Raw API</dt>
-    <dd><a href="{{ base_path }}/api/conf">Open JSON</a></dd>
-  </dl>
+  <div class="vyuh-console-info-grid">
+    <article id="site-conf" class="vyuh-console-card">
+      <header><h2>Site</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Address</dt><dd>{{ conf.site.host }}:{{ conf.site.port }}</dd></div>
+        <div><dt>Project Dir</dt><dd>{{ conf.site.project_dir }}</dd></div>
+        <div><dt>Timezone</dt><dd>{{ conf.site.timezone }}</dd></div>
+        <div><dt>Log Init</dt><dd>{{ conf.site.log_init }}</dd></div>
+        <div><dt>Touch Reload</dt><dd>{% if conf.site.touch_reload %}{{ conf.site.touch_reload }}{% else %}not set{% endif %}</dd></div>
+      </dl>
+    </article>
+    <article id="database-conf" class="vyuh-console-card">
+      <header><h2>Database</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Backend</dt><dd>{{ conf.database.backend }}</dd></div>
+        <div><dt>URL</dt><dd>{{ conf.database.url }}</dd></div>
+        <div><dt>Pool</dt><dd>{{ conf.database.min_connections }} min / {{ conf.database.max_connections }} max</dd></div>
+        <div><dt>Lazy Connect</dt><dd>{{ conf.database.lazy }}</dd></div>
+      </dl>
+    </article>
+    <article id="auth-conf" class="vyuh-console-card">
+      <header><h2>Authentication</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Issuer</dt><dd>{% if conf.auth.issuer %}{{ conf.auth.issuer }}{% else %}not set{% endif %}</dd></div>
+        <div><dt>Audience</dt><dd>{{ conf.auth.audience }}</dd></div>
+        <div><dt>Access TTL</dt><dd>{{ conf.auth.access_ttl }} seconds</dd></div>
+        <div><dt>Refresh TTL</dt><dd>{{ conf.auth.refresh_ttl }} seconds</dd></div>
+        <div><dt>JWT Algorithm</dt><dd>{{ conf.auth.jwt_algorithm }}</dd></div>
+        <div><dt>API Keys</dt><dd>{{ conf.auth.api_keys_enabled }}</dd></div>
+      </dl>
+    </article>
+    <article id="console-conf" class="vyuh-console-card">
+      <header><h2>Console</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Path</dt><dd>{{ conf.console.path }}</dd></div>
+        <div><dt>Bootstrap Token TTL</dt><dd>{{ conf.console.bootstrap_token_ttl_seconds }} seconds</dd></div>
+        <div><dt>Session TTL</dt><dd>{{ conf.console.session_ttl_seconds }} seconds</dd></div>
+        <div><dt>Cookie Name</dt><dd>{{ conf.console.cookie_name }}</dd></div>
+        <div><dt>Status Cache TTL</dt><dd>{{ conf.console.status_cache_ttl_seconds }} seconds</dd></div>
+      </dl>
+    </article>
+    <article id="tasks-conf" class="vyuh-console-card">
+      <header><h2>Tasks</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Poll Interval</dt><dd>{{ conf.tasks.poll_interval_ms }} ms</dd></div>
+        <div><dt>Capacity</dt><dd>{{ conf.tasks.capacity }}</dd></div>
+        <div><dt>Concurrency</dt><dd>{{ conf.tasks.concurrency }}</dd></div>
+        <div><dt>Batch Size</dt><dd>{{ conf.tasks.batch_size }}</dd></div>
+        <div><dt>Lease Duration</dt><dd>{{ conf.tasks.lease_duration_ms }} ms</dd></div>
+      </dl>
+    </article>
+    <article id="channels-conf" class="vyuh-console-card">
+      <header><h2>Channels</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Enabled</dt><dd>{{ conf.channels.enabled }}</dd></div>
+        <div><dt>Subscriber Queue</dt><dd>{{ conf.channels.subscriber_queue }}</dd></div>
+        <div><dt>Replay</dt><dd>{{ conf.channels.replay_limit }} limit / {{ conf.channels.retention_events }} retained</dd></div>
+        <div><dt>Long Poll</dt><dd>{{ conf.channels.long_poll_timeout_ms }} ms</dd></div>
+        <div><dt>SSE Keepalive</dt><dd>{{ conf.channels.sse_keepalive_ms }} ms</dd></div>
+      </dl>
+    </article>
+    <article id="http-conf" class="vyuh-console-card">
+      <header><h2>HTTP Pipeline</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Slash Policy</dt><dd>{{ conf.http.slash_policy }}</dd></div>
+        <div><dt>Request ID</dt><dd>{{ conf.http.request_id_enabled }} via {{ conf.http.request_id_header }}</dd></div>
+        <div><dt>Trace</dt><dd>{{ conf.http.trace_enabled }}</dd></div>
+        <div><dt>Compression</dt><dd>{{ conf.http.compression_enabled }}</dd></div>
+        <div><dt>CORS</dt><dd>{{ conf.http.cors_enabled }}</dd></div>
+        <div><dt>Timeout</dt><dd>{{ conf.http.timeout_enabled }} / {{ conf.http.timeout_ms }} ms</dd></div>
+      </dl>
+    </article>
+    <article id="logging-conf" class="vyuh-console-card">
+      <header><h2>Logging</h2></header>
+      <dl class="vyuh-console-kv">
+        <div><dt>Env Prefix</dt><dd>{{ conf.logging.env_prefix }}</dd></div>
+        {% for rule in conf.logging.rules %}
+        <div><dt>{{ rule.name }}</dt><dd>{{ rule.sink }} · {{ rule.default_filter }}</dd></div>
+        {% endfor %}
+      </dl>
+    </article>
+  </div>
 </section>
 {% endblock %}
