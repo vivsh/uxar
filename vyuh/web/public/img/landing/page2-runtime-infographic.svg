@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 705 670" role="img" aria-labelledby="title desc">
+  <title id="title">Vyuh runtime infographic</title>
+  <desc id="desc">Routes, tasks, signals, emitters, services, channels, commands, and console visibility around the Vyuh runtime core.</desc>
+  <defs>
+    <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#1d130b" flood-opacity="0.12"/>
+    </filter>
+    <filter id="core-shadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#f45b19" flood-opacity="0.32"/>
+    </filter>
+    <linearGradient id="core-face" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fffefa"/>
+      <stop offset="0.58" stop-color="#fff9f0"/>
+      <stop offset="1" stop-color="#fff0df"/>
+    </linearGradient>
+    <linearGradient id="core-side" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffc08f"/>
+      <stop offset="0.42" stop-color="#ff985a"/>
+      <stop offset="1" stop-color="#f45b19"/>
+    </linearGradient>
+    <radialGradient id="core-glow" cx="50%" cy="50%" r="58%">
+      <stop offset="0" stop-color="#f45b19" stop-opacity=".22"/>
+      <stop offset=".55" stop-color="#f45b19" stop-opacity=".08"/>
+      <stop offset="1" stop-color="#f45b19" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bar" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0" stop-color="#f45b19"/>
+      <stop offset="1" stop-color="#ffc39a"/>
+    </linearGradient>
+    <style>
+      .card{fill:rgba(255,255,255,.86);stroke:#eadfd4;stroke-width:1;filter:url(#soft-shadow)}
+      .label{fill:#101828;font:600 16px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .note{fill:#374151;font:12px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .tiny{fill:#5f6673;font:9px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .micro{fill:#5f6673;font:8px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .metric{fill:#101828;font:700 14px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .ok{fill:#1d8f5c;font:9px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .bad{fill:#d92d20;font:9px Manrope,Avenir Next,Segoe UI,sans-serif}
+      .line{fill:none;stroke:#ff6b2a;stroke-width:1.05;stroke-dasharray:3 4;stroke-linecap:round;opacity:.72}
+      .icon-bg{fill:#fff0e8}
+      .icon{fill:none;stroke:#4a2a16;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+      .icon-ember{fill:none;stroke:#f45b19;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+      .console-line{stroke:#eadfd4;stroke-width:1}
+    </style>
+  </defs>
+
+  <g>
+    <path class="line" d="M188 118 H293 Q311 118 311 136 V169"/>
+    <path class="line" d="M352 80 V170"/>
+    <path class="line" d="M516 118 H413 Q394 118 394 136 V169"/>
+    <path class="line" d="M135 235 H274"/>
+    <path class="line" d="M431 235 H570"/>
+    <path class="line" d="M175 356 H295"/>
+    <path class="line" d="M410 356 H539"/>
+    <path class="line" d="M352 324 V415"/>
+  </g>
+
+  <g transform="translate(34 40)">
+    <rect class="card" width="172" height="76" rx="10"/>
+    <rect class="icon-bg" x="19" y="20" width="36" height="36" rx="5"/>
+    <path class="icon-ember" d="M31 28c-5 5-5 13 0 18M43 28c5 5 5 13 0 18M37 32v10"/>
+    <text class="label" x="70" y="35">Tasks</text>
+    <text class="note" x="70" y="55">Background jobs</text>
+  </g>
+
+  <g transform="translate(270 12)">
+    <rect class="card" width="166" height="76" rx="10"/>
+    <rect class="icon-bg" x="18" y="20" width="36" height="36" rx="5"/>
+    <circle class="icon" cx="36" cy="38" r="13"/>
+    <path class="icon" d="M23 38h26M36 25c5 5 5 21 0 26M36 25c-5 5-5 21 0 26"/>
+    <text class="label" x="67" y="35">Routes</text>
+    <text class="note" x="67" y="55">HTTP APIs</text>
+  </g>
+
+  <g transform="translate(514 40)">
+    <rect class="card" width="162" height="76" rx="10"/>
+    <rect class="icon-bg" x="18" y="20" width="36" height="36" rx="5"/>
+    <circle class="icon" cx="36" cy="38" r="13"/>
+    <path class="icon" d="M36 29v10l7 4"/>
+    <text class="label" x="67" y="35">Emitters</text>
+    <text class="note" x="67" y="55">Scheduled jobs</text>
+  </g>
+
+  <g transform="translate(0 152)">
+    <rect class="card" width="168" height="76" rx="10"/>
+    <rect class="icon-bg" x="18" y="20" width="36" height="36" rx="5"/>
+    <path class="icon" d="M22 34c8-8 21-8 29 0M27 40c5-5 14-5 19 0M33 46c2-2 5-2 7 0"/>
+    <text class="label" x="67" y="35">Signals</text>
+    <text class="note" x="67" y="55">In-process events</text>
+  </g>
+
+  <g transform="translate(536 152)">
+    <rect class="card" width="166" height="76" rx="10"/>
+    <rect class="icon-bg" x="18" y="20" width="36" height="36" rx="5"/>
+    <path class="icon" d="m36 24 13 7v14l-13 7-13-7V31l13-7Z"/>
+    <path class="icon" d="M23 31l13 7 13-7M36 38v14"/>
+    <text class="label" x="67" y="35">Services</text>
+    <text class="note" x="67" y="55">Long-running</text>
+    <text class="note" x="67" y="70">components</text>
+  </g>
+
+  <g transform="translate(18 260)">
+    <rect class="card" width="170" height="76" rx="10"/>
+    <rect x="18" y="20" width="36" height="36" rx="5" fill="#3a2517"/>
+    <path d="m30 31 8 7-8 7M41 47h9" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <text class="label" x="67" y="35">Commands</text>
+    <text class="note" x="67" y="55">Application actions</text>
+  </g>
+
+  <g transform="translate(548 260)">
+    <rect class="card" width="154" height="76" rx="10"/>
+    <rect class="icon-bg" x="18" y="20" width="36" height="36" rx="5"/>
+    <path class="icon" d="M24 29h24v18H33l-9 7V29Z"/>
+    <text class="label" x="67" y="35">Channels</text>
+    <text class="note" x="67" y="55">Pub/Sub streams</text>
+  </g>
+
+  <g transform="translate(250 140)" filter="url(#core-shadow)">
+    <ellipse cx="102" cy="118" rx="124" ry="78" fill="url(#core-glow)"/>
+    <path d="M102 18 178 62v88l-76 44-76-44V62l76-44Z" fill="none" stroke="#f45b19" stroke-opacity=".2"/>
+    <path d="M102 34 164 70v72l-62 36-62-36V70l62-36Z" fill="none" stroke="#f45b19" stroke-opacity=".3"/>
+    <path d="M30 136 102 178 174 136v18l-72 42-72-42Z" fill="url(#core-side)" opacity=".82"/>
+    <path d="M102 38 174 80v70l-72 42-72-42V80l72-42Z" fill="url(#core-face)" stroke="#ffc8a7"/>
+    <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAMAAABlApw1AAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAMAUExURfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGfRbGa6HEs0AAAD/dFJOUwAEcnoFTZcWcHgCSpgKC2jc1ywJqO2QHjer+PsV1cxaCBeA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" x="67" y="81" width="70" height="70"/>
+  </g>
+
+  <g transform="translate(92 374)" filter="url(#soft-shadow)">
+    <rect width="520" height="268" rx="11" fill="rgba(255,255,255,.9)" stroke="#eadfd4"/>
+    <rect y="48" width="90" height="220" fill="rgba(255,245,238,.55)"/>
+    <line class="console-line" x1="0" y1="48" x2="520" y2="48"/>
+    <line class="console-line" x1="90" y1="48" x2="90" y2="268"/>
+    <circle cx="490" cy="24" r="4" fill="#22a06b"/>
+    <g transform="translate(20 17)" stroke="#f45b19" stroke-width="1.4" fill="none">
+      <path d="M8 0 15 4v8l-7 4-7-4V4L8 0Z"/>
+      <path d="m8 4 4 2v4l-4 2-4-2V6l4-2Z"/>
+    </g>
+    <text class="label" x="42" y="29">Console</text>
+    <text class="tiny" x="22" y="70" fill="#f45b19">Overview</text>
+    <text class="tiny" x="22" y="96">Operations</text>
+    <text class="tiny" x="22" y="122">Tasks</text>
+    <text class="tiny" x="22" y="148">Routes</text>
+    <text class="tiny" x="22" y="174">Signals</text>
+    <text class="tiny" x="22" y="200">Services</text>
+    <text class="tiny" x="22" y="226">OpenAPI</text>
+    <text class="tiny" x="22" y="252">Runtime</text>
+    <rect x="14" y="58" width="64" height="24" rx="4" fill="#fff0e8"/>
+
+    <g transform="translate(110 60)">
+      <rect width="86" height="56" rx="5" fill="#fffdf8" stroke="#eadfd4"/>
+      <text class="micro" x="12" y="17">Requests</text>
+      <text class="metric" x="12" y="37">12.6k</text>
+      <text class="ok" x="52" y="38">+8.1%</text>
+    </g>
+    <g transform="translate(206 60)">
+      <rect width="86" height="56" rx="5" fill="#fffdf8" stroke="#eadfd4"/>
+      <text class="micro" x="12" y="17">Tasks</text>
+      <text class="metric" x="12" y="37">342</text>
+      <text class="ok" x="52" y="38">+12.4%</text>
+    </g>
+    <g transform="translate(302 60)">
+      <rect width="86" height="56" rx="5" fill="#fffdf8" stroke="#eadfd4"/>
+      <text class="micro" x="12" y="17">Signals</text>
+      <text class="metric" x="12" y="37">1.2k</text>
+      <text class="ok" x="52" y="38">+5.7%</text>
+    </g>
+    <g transform="translate(398 60)">
+      <rect width="92" height="56" rx="5" fill="#fffdf8" stroke="#eadfd4"/>
+      <text class="micro" x="12" y="17">Uptime</text>
+      <text class="metric" x="12" y="37">7d 14h</text>
+      <text class="ok" x="62" y="38">100%</text>
+    </g>
+
+    <g transform="translate(110 132)">
+      <rect width="178" height="112" rx="6" fill="#fffdf8" stroke="#eadfd4"/>
+      <text class="tiny" x="14" y="24" fill="#101828">Recent Tasks</text>
+      <circle cx="17" cy="48" r="3" fill="#22a06b"/><text class="micro" x="30" y="51">send-email</text><text class="ok" x="112" y="51">Completed</text>
+      <circle cx="17" cy="72" r="3" fill="#22a06b"/><text class="micro" x="30" y="75">process-report</text><text class="ok" x="112" y="75">Running</text>
+      <circle cx="17" cy="96" r="3" fill="#d92d20"/><text class="micro" x="30" y="99">sync-data</text><text class="bad" x="112" y="99">Failed</text>
+    </g>
+    <g transform="translate(306 132)">
+      <rect width="184" height="112" rx="6" fill="#fffdf8" stroke="#eadfd4"/>
+      <text class="tiny" x="14" y="24" fill="#101828">Top Routes</text>
+      <text class="micro" x="14" y="51">POST /api/users</text><rect x="112" y="47" width="52" height="2" fill="url(#bar)"/><text class="micro" x="168" y="51">1.2k</text>
+      <text class="micro" x="14" y="75">GET /api/posts</text><rect x="112" y="71" width="44" height="2" fill="url(#bar)"/><text class="micro" x="168" y="75">980</text>
+      <text class="micro" x="14" y="99">POST /api/login</text><rect x="112" y="95" width="34" height="2" fill="url(#bar)"/><text class="micro" x="168" y="99">642</text>
+    </g>
+  </g>
+</svg>

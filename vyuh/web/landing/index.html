@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=JetBrains+Mono:wght@400;600&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" href="../public/img/favicon.svg">
-  <link rel="stylesheet" href="../public/css/landing.css">
+  <link rel="stylesheet" href="../public/css/vyuh.css">
 </head>
 <body>
   <header class="landing-header">
@@ -22,6 +22,8 @@
       <div class="landing-nav-links d-flex align-items-center gap-4">
         <a href="../../../docs/book/book/index.html">Docs</a>
         <a href="#code">Examples</a>
+        <a href="#console">Console</a>
+        <a href="#benchmarks">Benchmarks</a>
         <a href="../../../docs/book/book/philosophy.html">Philosophy</a>
         <a href="#stack">Stack</a>
         <a href="https://github.com/vyuh-rs/vyuh">GitHub</a>
@@ -41,14 +43,21 @@
   <main id="top">
     <section class="landing-hero">
       <div class="container-xxl landing-hero-inner">
-        <strong class="vyuh-kicker">Rust application framework</strong>
-        <h1 class="vyuh-display mt-3">Vyuh, wired for real applications.</h1>
-        <p class="vyuh-copy landing-hero-copy mt-4 mb-0">One framework. Every runtime path.</p>
-        <p class="vyuh-copy landing-hero-copy mt-3 mb-0">Build web APIs, background tasks, commands, signals, emitters, and services on the same typed Rust application core.</p>
+        <div class="landing-hero-grid">
+          <article class="landing-hero-main">
+            <strong class="vyuh-kicker">Rust application framework</strong>
+            <h1 class="vyuh-display mt-3">Axum performance.<br>FastAPI <span>ergonomics.</span><br>Runtime <span>visibility.</span></h1>
+            <p class="vyuh-copy landing-hero-copy mt-4 mb-0">Vyuh is a handler-first Rust framework for building typed APIs and application runtimes with routes, tasks, cron, channels, OpenAPI, and console visibility in one coherent model.</p>
 
-        <div class="landing-action-row mt-4">
-          <a class="vyuh-button vyuh-button-primary" href="#start">Get Started</a>
-          <a class="vyuh-button vyuh-button-secondary" href="https://github.com/vyuh-rs/vyuh">View on GitHub</a>
+            <div class="landing-action-row mt-4">
+              <a class="vyuh-button vyuh-button-primary" href="#start">Get Started</a>
+              <a class="vyuh-button vyuh-button-secondary" href="https://github.com/vyuh-rs/vyuh">GitHub</a>
+            </div>
+          </article>
+
+          <figure class="landing-hero-art">
+            <img src="../public/img/landing/page2-runtime-infographic.svg" alt="Vyuh runtime model connecting routes, tasks, signals, emitters, services, channels, commands, and console visibility">
+          </figure>
         </div>
 
         <section id="philosophy" class="landing-philosophy" aria-labelledby="philosophy-title">
@@ -161,6 +170,47 @@
       </div>
     </section>
 
+    <section id="console" class="container-xxl landing-section landing-console-section" aria-labelledby="console-title">
+      <div class="landing-console-shell">
+        <header class="landing-console-copy">
+          <strong class="vyuh-kicker">Console</strong>
+          <h2 id="console-title" class="vyuh-section-title mt-2">A runtime console comes with the framework.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Vyuh registers routes, tasks, signals, emitters, services, schemas, OpenAPI, and runtime config into one inspectable surface.</p>
+          <p id="console-inference" class="landing-console-inference">See the whole application shape without stitching together separate dashboards for routes, workers, docs, and services.</p>
+          <div class="landing-console-actions" aria-label="Console image controls">
+            <button class="landing-console-control is-active" type="button" data-console-slide="0">Overview</button>
+            <button class="landing-console-control" type="button" data-console-slide="1">Operations</button>
+            <button class="landing-console-control" type="button" data-console-slide="2">Tasks</button>
+            <button class="landing-console-control" type="button" data-console-slide="3">OpenAPI</button>
+            <button class="landing-console-control" type="button" data-console-slide="4">Runtime</button>
+          </div>
+        </header>
+
+        <div class="landing-console-deck" aria-live="polite">
+          <figure class="landing-console-slide is-active" data-inference="See the whole application shape without stitching together separate dashboards for routes, workers, docs, and services.">
+            <img src="../public/img/console/overview.png" alt="Vyuh console overview with runtime totals and recent activity">
+            <figcaption>Overview: every registered runtime surface in one place.</figcaption>
+          </figure>
+          <figure class="landing-console-slide" data-inference="Route docs carry method, auth, middleware, request, and response metadata from the registered handler.">
+            <img src="../public/img/console/operations.png" alt="Vyuh console operations browser with route metadata">
+            <figcaption>Operations: routes, auth, middleware, and schema metadata together.</figcaption>
+          </figure>
+          <figure class="landing-console-slide" data-inference="Background work is not invisible: task state, retry, suspension, and payload details are part of the console model.">
+            <img src="../public/img/console/tasks.png" alt="Vyuh console task list with states and retry information">
+            <figcaption>Tasks: inspect state, retries, suspension, and payload transitions.</figcaption>
+          </figure>
+          <figure class="landing-console-slide" data-inference="OpenAPI is generated from runtime registration, including schema, auth, and middleware context.">
+            <img src="../public/img/console/openapi.png" alt="Vyuh console OpenAPI explorer">
+            <figcaption>OpenAPI: generated from the same typed surfaces the app runs.</figcaption>
+          </figure>
+          <figure class="landing-console-slide" data-inference="Runtime configuration and health stay visible without exposing secrets or turning logs into the only source of truth.">
+            <img src="../public/img/console/runtime.png" alt="Vyuh console runtime and system information">
+            <figcaption>Runtime: system information, health, backend, and console configuration.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
     <section id="code" class="container-xxl landing-code-layout">
       <article class="vyuh-code-window">
         <header class="landing-code-toolbar">
@@ -177,7 +227,9 @@
             <button class="landing-code-tab" type="button" data-key="signals">Signals</button>
             <button class="landing-code-tab" type="button" data-key="emitters">Emitters</button>
             <button class="landing-code-tab" type="button" data-key="commands">Commands</button>
+            <button class="landing-code-tab" type="button" data-key="channels">Channels</button>
             <button class="landing-code-tab" type="button" data-key="services">Services</button>
+            <button class="landing-code-tab" type="button" data-key="bundles">Bundles</button>
           </nav>
 
           <div>
@@ -187,7 +239,9 @@
               <button class="landing-code-tab" type="button" data-key="signals">Signals</button>
               <button class="landing-code-tab" type="button" data-key="emitters">Emitters</button>
               <button class="landing-code-tab" type="button" data-key="commands">Commands</button>
+              <button class="landing-code-tab" type="button" data-key="channels">Channels</button>
               <button class="landing-code-tab" type="button" data-key="services">Services</button>
+              <button class="landing-code-tab" type="button" data-key="bundles">Bundles</button>
             </nav>
             <pre><code id="code-snippet"></code></pre>
           </div>
@@ -204,6 +258,38 @@
           <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-c">Built for long-term maintainability</span></li>
         </ul>
       </aside>
+    </section>
+
+    <section id="benchmarks" class="container-xxl landing-section landing-benchmark-section" aria-labelledby="benchmark-title">
+      <div class="landing-benchmark-shell">
+        <header class="landing-benchmark-copy">
+          <strong class="vyuh-kicker">Benchmarks</strong>
+          <h2 id="benchmark-title" class="vyuh-section-title mt-2">Axum-class HTTP. Less operations glue.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Single-process baselines with Postgres-backed live workloads, raw results, and generated SVG/PNG charts.</p>
+          <p id="benchmark-inference" class="landing-benchmark-inference">Vyuh keeps Postgres writes competitive while scheduling, signals, channels, and introspection stay in one framework model.</p>
+          <div class="landing-benchmark-actions" aria-label="Benchmark chart controls">
+            <button class="landing-benchmark-control" type="button" data-benchmark-slide="0">HTTP baseline</button>
+            <button class="landing-benchmark-control is-active" type="button" data-benchmark-slide="1">Postgres writes</button>
+            <button class="landing-benchmark-control" type="button" data-benchmark-slide="2">Source tokens</button>
+          </div>
+          <p class="landing-benchmark-scope">Scope note: these are honest single-process baselines. Multi-worker profiles need shared scheduler/fanout infrastructure for frameworks that rely on in-process queues.</p>
+        </header>
+
+        <div class="landing-benchmark-deck" aria-live="polite">
+          <figure class="landing-benchmark-slide" data-inference="Vyuh stays close to Axum on typed HTTP while carrying the runtime surfaces production apps usually assemble by hand.">
+            <img src="../public/img/benchmarks/t1-echo-c64-rps.svg" alt="Tier 1 echo throughput chart comparing Vyuh, Axum, Rocket, Actix, FastAPI, and DRF">
+            <figcaption>Slide 1 of 3: typed JSON echo at concurrency 64.</figcaption>
+          </figure>
+          <figure class="landing-benchmark-slide is-active" data-inference="Vyuh keeps Postgres writes competitive while scheduling, signals, channels, and introspection stay in one framework model.">
+            <img src="../public/img/benchmarks/t2-write-c256-rps.svg" alt="Tier 2 Postgres write throughput chart comparing Vyuh, Axum, Rocket, Actix, FastAPI, and DRF">
+            <figcaption>Slide 2 of 3: Postgres event writes at concurrency 256.</figcaption>
+          </figure>
+          <figure class="landing-benchmark-slide" data-inference="The point is not just speed: Vyuh’s scheduler, signals, channels, and introspection stay in one app model.">
+            <img src="../public/img/benchmarks/t2-source-tokens.svg" alt="Tier 2 source token count chart comparing implementations">
+            <figcaption>Slide 3 of 3: implementation source-token count for the Tier 2 app.</figcaption>
+          </figure>
+        </div>
+      </div>
     </section>
 
     <section id="stack" class="container-xxl landing-section landing-section-tight">

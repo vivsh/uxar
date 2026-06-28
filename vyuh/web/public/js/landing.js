@@ -1,6 +1,6 @@
 const examples = {
   routes: {
-    file: "src/routes/users.rs",
+    file: "src/routes/orders.rs",
     eyebrow: "Routes",
     title: "Handler-first APIs without hiding the Rust.",
     copy: "Keep validation, permissions, and typed request handling visible where the behavior actually happens.",
@@ -12,22 +12,30 @@ const examples = {
     code: `use vyuh::prelude::*;
 
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
-struct CreateUser {
+struct CreateOrder {
     #[validate(email)]
-    email: String,
-    name: String,
+    customer_email: String,
+    amount: i64,
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+struct OrderOut {
+    id: i64,
+    amount: i64,
+}
+
+#[bundles::route(path = "/orders", method = "POST")]
 async fn create(
-    Permit<User>,
-    Valid(Data(input)): Valid<Data<CreateUser>>,
-) -> Result<Json<User>, Error> {
-    let user = User::create(input).await?;
-    Ok(Json(user))
+    site: Site,
+    Valid(Data(input)): Valid<Data<CreateOrder>>,
+) -> Result<Json<OrderOut>, Error> {
+    let db = site.db();
+    let id = Orders::insert(db, &input).await?;
+    Ok(Json(OrderOut { id, amount: input.amount }))
 }`,
   },
   tasks: {
-    file: "src/tasks/send_welcome.rs",
+    file: "src/tasks/receipts.rs",
     eyebrow: "Tasks",
     title: "Move background work into a first-class runtime path.",
     copy: "Tasks run with application context, explicit inputs, and the same dependency model as the web surface.",
@@ -39,24 +47,24 @@ async fn create(
     code: `use vyuh::prelude::*;
 
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
-struct WelcomeEmail {
+struct ReceiptJob {
     #[validate(email)]
     to: String,
-    user_id: Uuid,
+    order_id: i64,
 }
 
-#[bundles::task(name = "send_welcome")]
-async fn send_welcome(
+#[bundles::task(name = "send_receipt")]
+async fn send_receipt(
     site: Site,
-    Data(input): Data<WelcomeEmail>,
-) -> Result<TaskOutcome, Error> {
+    Valid(Data(input)): Valid<Data<ReceiptJob>>,
+) -> Result<(), Error> {
     let mail = site.service::<Mailer>()?;
-    mail.send_template(input.user_id, &input.to).await?;
-    TaskOutcome::complete(&"sent").map_err(Error::other)
+    mail.send_receipt(input.order_id, &input.to).await?;
+    Ok(())
 }`,
   },
   signals: {
-    file: "src/signals/user_events.rs",
+    file: "src/signals/orders.rs",
     eyebrow: "Signals",
     title: "Use typed signals for domain events and lifecycle hooks.",
     copy: "Signals keep local reactions decoupled without turning your app into a hidden event maze.",
@@ -67,28 +75,27 @@ async fn send_welcome(
     ],
     code: `use vyuh::prelude::*;
 
-#[derive(Clone, Serialize, Deserialize, JsonSchema, Validate)]
-struct UserCreated {
-    id: Uuid,
-    #[validate(email)]
-    email: String,
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+struct OrderCreated {
+    id: i64,
+    total: i64,
 }
 
 #[bundles::signal]
-async fn index_user(
+async fn index_order(
     site: Site,
-    Data(event): Data<UserCreated>,
+    Data(event): Data<OrderCreated>,
 ) -> Result<(), Error> {
     let search = site.service::<SearchIndex>()?;
-    search.upsert_user(event.id, event.email).await?;
+    search.upsert_order(event.id, event.total).await?;
     Ok(())
 }`,
   },
   emitters: {
-    file: "src/emitters/audit.rs",
+    file: "src/emitters/reports.rs",
     eyebrow: "Emitters",
-    title: "Emit structured messages from the same application model.",
-    copy: "Emitters make outbound data deliberate, typed, and easy to route into signals.",
+    title: "Let schedules emit typed events into the same runtime.",
+    copy: "Cron, periodic, and database notifications produce typed data that feeds signal handlers.",
     points: [
       "One shape for emitted data",
       "Cron, periodic, and PgNotify sources",
@@ -96,19 +103,18 @@ async fn index_user(
     ],
     code: `use vyuh::prelude::*;
 
-#[derive(Serialize, Deserialize, JsonSchema, Validate)]
-struct AuditSweep {
-    #[validate(length(min = 1))]
-    scope: String,
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+struct ReportDue {
+    tenant: String,
     count: u64,
 }
 
-#[bundles::periodic(secs = 60)]
-async fn publish_audit_sweep(
+#[bundles::cron(expr = "0 0 6 * * *")]
+async fn daily_report(
     IterCount(count): IterCount,
-) -> Data<AuditSweep> {
-    Data::new(AuditSweep {
-        scope: "users".into(),
+) -> Data<ReportDue> {
+    Data::new(ReportDue {
+        tenant: "default".into(),
         count,
     })
 }`,
@@ -123,11 +129,11 @@ async fn publish_audit_sweep(
       "Useful for migrations and maintenance",
       "Easy to document and discover",
     ],
-    code: `use vyuh::prelude::*;
+    code: `use vyuh::{commands::CommandConf, prelude::*};
 
 #[derive(Serialize, Deserialize, JsonSchema, Validate)]
 struct Reindex {
-    #[validate(length(min = 1))]
+    #[validate(min_length = 1)]
     tenant: String,
 }
 
@@ -138,6 +144,50 @@ async fn reindex(
     let search = site.service::<SearchIndex>()?;
     search.rebuild(args.tenant).await?;
     Ok(())
+}
+
+fn command_bundle() -> vyuh::bundles::Bundle {
+    bundles::bundle([bundles::command(
+        reindex,
+        CommandConf::new("search:reindex"),
+    )])
+}`,
+  },
+  channels: {
+    file: "src/channels/events.rs",
+    eyebrow: "Channels",
+    title: "Stream typed events to clients without a second pub/sub model.",
+    copy: "Channels expose selected signal payloads over WebSocket, SSE, or long polling.",
+    points: [
+      "One signal publish path",
+      "Transport negotiation at the route edge",
+      "Server-side delivery filters",
+    ],
+    code: `use vyuh::prelude::*;
+
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+struct OrderUpdated {
+    order_id: i64,
+    tenant: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema, Validate)]
+struct EventsQuery {
+    #[validate(min_length = 1)]
+    tenant: String,
+}
+
+#[bundles::route(path = "/events")]
+async fn events(
+    Valid(Data(query)): Valid<Data<EventsQuery>>,
+    sub: Subscriber,
+    channels: Channels,
+) -> Result<ChannelResponse, Error> {
+    let tenant = query.tenant.clone();
+    let stream = channels
+        .user(UserKey::new(query.tenant.clone())?)
+        .deliver_if::<OrderUpdated, _>(move |event| event.tenant == tenant);
+    sub.attach(stream).allow(WS | SSE | POLL).await
 }`,
   },
   services: {
@@ -170,6 +220,37 @@ async fn search(
     Json(index.stats().await)
 }`,
   },
+  bundles: {
+    file: "src/app.rs",
+    eyebrow: "Bundles",
+    title: "Compose features as one runtime unit.",
+    copy: "Bundles collect macro-registered routes, tasks, signals, emitters, services, assets, docs, and console metadata.",
+    points: [
+      "Feature-level composition",
+      "Shared prefixing, tagging, and OpenAPI",
+      "Validation before site startup",
+    ],
+    code: `use vyuh::prelude::*;
+
+#[bundles::route(path = "/orders")]
+async fn list_orders() -> Json<Vec<OrderOut>> {
+    Json(Vec::new())
+}
+
+#[bundles::task(name = "send_receipt")]
+async fn send_receipt(Data(job): Data<ReceiptJob>) {
+    println!("receipt for {}", job.order_id);
+}
+
+pub fn orders_bundle() -> vyuh::bundles::Bundle {
+    bundles::bundle! {
+        list_orders,
+        send_receipt,
+    }
+    .with_prefix("/api")
+    .with_tags(["orders"])
+}`,
+  },
 };
 
 const snippet = document.querySelector("#code-snippet");
@@ -181,6 +262,12 @@ const pointA = document.querySelector("#code-point-a");
 const pointB = document.querySelector("#code-point-b");
 const pointC = document.querySelector("#code-point-c");
 const tabs = document.querySelectorAll(".landing-code-tab");
+const benchmarkControls = document.querySelectorAll(".landing-benchmark-control");
+const benchmarkSlides = document.querySelectorAll(".landing-benchmark-slide");
+const benchmarkInference = document.querySelector("#benchmark-inference");
+const consoleControls = document.querySelectorAll(".landing-console-control");
+const consoleSlides = document.querySelectorAll(".landing-console-slide");
+const consoleInference = document.querySelector("#console-inference");
 
 function setExample(key) {
   const example = examples[key];
@@ -201,4 +288,57 @@ tabs.forEach((tab) => {
   tab.addEventListener("click", () => setExample(tab.dataset.key));
 });
 
+function setBenchmarkSlide(index) {
+  benchmarkSlides.forEach((slide, slideIndex) => {
+    const active = slideIndex === index;
+    slide.classList.toggle("is-active", active);
+    if (active && benchmarkInference) {
+      benchmarkInference.textContent = slide.dataset.inference;
+    }
+  });
+  benchmarkControls.forEach((control, controlIndex) => {
+    control.classList.toggle("is-active", controlIndex === index);
+  });
+}
+
+benchmarkControls.forEach((control) => {
+  control.addEventListener("click", () => {
+    const index = Number.parseInt(control.dataset.benchmarkSlide, 10);
+    if (Number.isFinite(index)) {
+      setBenchmarkSlide(index);
+    }
+  });
+});
+
+function setConsoleSlide(index) {
+  const slideCount = consoleSlides.length;
+  if (!slideCount) {
+    return;
+  }
+  const selectedIndex = Math.max(0, Math.min(index, slideCount - 1));
+  consoleSlides.forEach((slide, slideIndex) => {
+    const active = slideIndex === selectedIndex;
+    slide.classList.toggle("is-active", active);
+    if (active && consoleInference) {
+      consoleInference.textContent = slide.dataset.inference;
+    }
+  });
+  consoleControls.forEach((control, controlIndex) => {
+    const active = controlIndex === selectedIndex;
+    control.classList.toggle("is-active", active);
+    control.setAttribute("aria-current", active ? "true" : "false");
+  });
+}
+
+consoleControls.forEach((control) => {
+  control.addEventListener("click", () => {
+    const index = Number.parseInt(control.dataset.consoleSlide, 10);
+    if (Number.isFinite(index)) {
+      setConsoleSlide(index);
+    }
+  });
+});
+
 setExample("routes");
+setConsoleSlide(0);
+setBenchmarkSlide(1);
