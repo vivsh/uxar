@@ -1,0 +1,175 @@
+.vyuh-console-card {
+  min-width: 0;
+  padding: $vyuh-console-card-padding;
+}
+
+.vyuh-console-card header,
+.vyuh-console-inspector header {
+  align-items: center;
+  border-bottom: $vyuh-border-subtle;
+  display: flex;
+  flex-wrap: wrap;
+  gap: $vyuh-space-3;
+  justify-content: space-between;
+  margin: 0 0 $vyuh-space-3;
+  padding-bottom: $vyuh-space-3;
+}
+
+.vyuh-console-card h2,
+.vyuh-console-inspector h2 {
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-xl;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.vyuh-console-card-link {
+  align-items: center;
+  color: $vyuh-ember;
+  display: inline-flex;
+  gap: $vyuh-space-2;
+  margin-top: $vyuh-space-4;
+}
+
+.vyuh-console-kv {
+  display: grid;
+  margin: 0;
+}
+
+.vyuh-console-kv div {
+  align-items: center;
+  border-bottom: $vyuh-border-subtle;
+  display: flex;
+  gap: $vyuh-space-4;
+  justify-content: space-between;
+  min-height: $vyuh-console-kv-height;
+}
+
+.vyuh-console-kv div:last-child {
+  border-bottom: 0;
+}
+
+.vyuh-console-kv dt {
+  color: $vyuh-ink-soft;
+  font-weight: 400;
+  min-width: 0;
+}
+
+.vyuh-console-kv dd {
+  color: $vyuh-ink;
+  font-weight: $vyuh-label-weight;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.vyuh-console-health-list,
+.vyuh-console-resource-list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.vyuh-console-health-list li,
+.vyuh-console-resource-list li {
+  align-items: center;
+  border-bottom: $vyuh-border-subtle;
+  display: grid;
+  gap: $vyuh-space-3;
+  min-height: $vyuh-console-row-height;
+}
+
+.vyuh-console-health-list li {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.vyuh-console-resource-list li {
+  grid-template-columns: auto minmax($vyuh-space-11, 1fr) minmax($vyuh-space-12, 0.8fr) auto;
+}
+
+.vyuh-console-health-list li:last-child,
+.vyuh-console-resource-list li:last-child {
+  border-bottom: 0;
+}
+
+.vyuh-console-health-list em,
+.vyuh-console-resource-list em {
+  color: $vyuh-ink-soft;
+  font-style: normal;
+}
+
+.vyuh-console-action-list {
+  display: grid;
+  gap: $vyuh-space-3;
+}
+
+.vyuh-console-action-list a {
+  align-items: center;
+  border: $vyuh-border-subtle;
+  border-radius: $vyuh-radius-sm;
+  color: $vyuh-ink;
+  display: grid;
+  gap: $vyuh-space-3;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: $vyuh-console-action-height;
+  min-width: 0;
+  padding: $vyuh-space-3;
+}
+
+.vyuh-console-action-list.is-flat a {
+  border: 0;
+  border-radius: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: $vyuh-space-7;
+  padding: $vyuh-space-1 0;
+}
+
+.vyuh-console-action-list small {
+  color: $vyuh-muted;
+  display: block;
+  margin-top: $vyuh-space-1;
+}
+
+.vyuh-console-action-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vyuh-console-progress {
+  background: rgba($vyuh-ink, $vyuh-state-tint-soft);
+  border-radius: $vyuh-radius-pill;
+  display: block;
+  height: $vyuh-space-2;
+  overflow: hidden;
+}
+
+.vyuh-console-progress i {
+  background: $vyuh-success;
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  width: 31%;
+}
+
+.vyuh-console-progress.is-violet i {
+  background: $vyuh-violet;
+}
+
+.vyuh-console-progress.is-yellow i {
+  background: $vyuh-saffron;
+}
+
+.vyuh-console-captured {
+  align-items: center;
+  display: inline-flex;
+  gap: $vyuh-space-4;
+}
+
+.vyuh-console-captured a {
+  align-items: center;
+  color: $vyuh-ember;
+  display: inline-flex;
+  gap: $vyuh-space-2;
+}

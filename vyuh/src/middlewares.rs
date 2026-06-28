@@ -25,6 +25,8 @@ pub struct HttpConf {
     pub timeout: TimeoutConf,
     pub body_limit: BodyLimitConf,
     pub security_headers: SecurityHeadersConf,
+    #[serde(default)]
+    pub shutdown: ShutdownConf,
 }
 
 impl Default for HttpConf {
@@ -39,6 +41,7 @@ impl Default for HttpConf {
             timeout: TimeoutConf::default(),
             body_limit: BodyLimitConf::default(),
             security_headers: SecurityHeadersConf::default(),
+            shutdown: ShutdownConf::default(),
         }
     }
 }
@@ -176,6 +179,24 @@ impl Default for SecurityHeadersConf {
             referrer_policy: Some("same-origin".into()),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShutdownConf {
+    #[serde(default = "default_shutdown_grace_period_ms")]
+    pub grace_period_ms: u64,
+}
+
+impl Default for ShutdownConf {
+    fn default() -> Self {
+        Self {
+            grace_period_ms: default_shutdown_grace_period_ms(),
+        }
+    }
+}
+
+fn default_shutdown_grace_period_ms() -> u64 {
+    10_000
 }
 
 #[derive(Debug, Clone)]
@@ -441,4 +462,25 @@ pub(crate) async fn security_headers_middleware(
 
 fn header_value(value: &str) -> Option<HeaderValue> {
     HeaderValue::from_str(value).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shutdown_grace_defaults_to_ten_seconds() {
+        assert_eq!(HttpConf::default().shutdown.grace_period_ms, 10_000);
+    }
+
+    #[test]
+    fn empty_shutdown_conf_uses_default_grace() {
+        let parsed = serde_json::from_str::<ShutdownConf>("{}");
+        assert!(matches!(
+            parsed,
+            Ok(ShutdownConf {
+                grace_period_ms: 10_000
+            })
+        ));
+    }
 }

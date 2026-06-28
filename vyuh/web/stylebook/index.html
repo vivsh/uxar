@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>Vyuh Stylebook</title>
   <link rel="icon" href="../public/img/favicon.svg">
+  <link rel="stylesheet" href="../public/css/vyuh.css">
   <link rel="stylesheet" href="../public/css/stylebook.css">
 </head>
 <body>
@@ -17,6 +18,7 @@
       </a>
       <div class="d-none d-lg-flex align-items-center gap-4">
         <a href="#rules">Rules</a>
+        <a href="#scales">Scales</a>
         <a href="#palette">Palette</a>
         <a href="#components">Components</a>
         <a href="#product">Product</a>
@@ -133,6 +135,56 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <section id="scales" class="stylebook-section py-5">
+      <div class="container-xxl">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-4">
+          <div>
+            <strong class="vyuh-kicker">Scales and presets</strong>
+            <h2 class="vyuh-section-title">Small scales, named decisions.</h2>
+          </div>
+          <p class="vyuh-copy col-lg-4 mb-0">Use these presets before adding a new local value. If a component needs a new rhythm, add it to the scale first.</p>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-lg-4">
+            <article class="stylebook-panel h-100">
+              <h3 class="h5">Spacing</h3>
+              <div class="stylebook-token-grid mt-3">
+                <div class="stylebook-token"><strong>1</strong><span>0.25rem</span></div>
+                <div class="stylebook-token"><strong>2</strong><span>0.5rem</span></div>
+                <div class="stylebook-token"><strong>3</strong><span>0.75rem</span></div>
+                <div class="stylebook-token"><strong>4</strong><span>1rem</span></div>
+                <div class="stylebook-token"><strong>6</strong><span>1.5rem</span></div>
+                <div class="stylebook-token"><strong>8</strong><span>2.5rem</span></div>
+              </div>
+            </article>
+          </div>
+          <div class="col-lg-4">
+            <article class="stylebook-panel h-100">
+              <h3 class="h5">Radius</h3>
+              <div class="stylebook-token-grid mt-3">
+                <div class="stylebook-token"><div class="stylebook-radius-sample rounded-1"></div><span>xs</span></div>
+                <div class="stylebook-token"><div class="stylebook-radius-sample rounded-2"></div><span>sm</span></div>
+                <div class="stylebook-token"><div class="stylebook-radius-sample rounded-3"></div><span>md</span></div>
+                <div class="stylebook-token"><div class="stylebook-radius-sample rounded-pill"></div><span>pill</span></div>
+              </div>
+            </article>
+          </div>
+          <div class="col-lg-4">
+            <article class="stylebook-panel h-100">
+              <h3 class="h5">Surfaces</h3>
+              <div class="stylebook-token-grid mt-3">
+                <div class="stylebook-token"><div class="stylebook-shadow-sample"></div><span>soft</span></div>
+                <div class="stylebook-token"><div class="stylebook-shadow-sample is-raised"></div><span>raised</span></div>
+                <div class="stylebook-token"><div class="stylebook-shadow-sample is-lift"></div><span>lift</span></div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
     </section>
 
     <section id="palette" class="stylebook-section py-5">

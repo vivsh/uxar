@@ -1,0 +1,78 @@
+.vyuh-operation-row {
+  align-items: start;
+  background: rgba($vyuh-white, 0.62);
+  border-left: 3px solid transparent;
+  box-shadow: inset 0 -1px 0 $vyuh-line;
+  display: grid;
+  gap: $vyuh-space-1 $vyuh-space-3;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: $vyuh-space-3 $vyuh-space-4;
+
+  code {
+    grid-column: 2;
+  }
+
+  &[aria-selected="true"] {
+    background: rgba($vyuh-ember, 0.07);
+    border-left-color: $vyuh-ember;
+  }
+
+  &:hover {
+    background: rgba($vyuh-ember, 0.05);
+  }
+}
+
+.vyuh-console-data-grid {
+  display: grid;
+  gap: $vyuh-space-4;
+  grid-template-columns: minmax(0, 1fr) minmax(21rem, $vyuh-console-inspector-width);
+}
+
+.vyuh-console-pagination {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding-top: $vyuh-space-4;
+}
+
+.vyuh-console-pagination nav {
+  display: flex;
+  gap: $vyuh-space-2;
+}
+
+.vyuh-console-pagination a {
+  align-items: center;
+  border: $vyuh-border-default;
+  border-radius: $vyuh-radius-sm;
+  color: $vyuh-ink;
+  display: inline-flex;
+  height: $vyuh-control-height-sm;
+  justify-content: center;
+  min-width: $vyuh-control-height-sm;
+}
+
+.vyuh-console-pagination a[aria-current="page"] {
+  background: rgba($vyuh-ember, $vyuh-state-tint);
+  border-color: rgba($vyuh-ember, 0.18);
+  color: $vyuh-ember;
+}
+
+.vyuh-console-inspector {
+  align-self: start;
+  padding: $vyuh-console-card-padding;
+}
+
+.vyuh-console-inspector h3 {
+  margin: $vyuh-space-3 0 $vyuh-space-1;
+}
+
+.vyuh-console-inspector p {
+  color: $vyuh-muted;
+}
+
+.vyuh-console-inspector button {
+  background: transparent;
+  border: 0;
+  color: $vyuh-ink;
+  padding: 0;
+}

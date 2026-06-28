@@ -14,6 +14,7 @@ use axum::extract::ws::WebSocketUpgrade;
 use crate::{
     Error, Site,
     callables::{self, DataValue},
+    notifiers::CancellationNotifier,
 };
 
 /// Site-scoped entry point for signal-backed channel delivery.
@@ -158,19 +159,23 @@ impl UserStream {
 }
 
 impl OpenStream {
-    pub(crate) fn into_sse(self) -> ChannelSse {
-        ChannelSse::new(self.replay, self.receiver, self.keepalive)
+    pub(crate) fn into_sse(self, shutdown: CancellationNotifier) -> ChannelSse {
+        ChannelSse::new(self.replay, self.receiver, self.keepalive, shutdown)
     }
 
-    pub(crate) fn into_websocket(self, upgrade: WebSocketUpgrade) -> ChannelWebSocket {
-        ChannelWebSocket::new(upgrade, self.replay, self.receiver)
+    pub(crate) fn into_websocket(
+        self,
+        upgrade: WebSocketUpgrade,
+        shutdown: CancellationNotifier,
+    ) -> ChannelWebSocket {
+        ChannelWebSocket::new(upgrade, self.replay, self.receiver, shutdown)
     }
 
-    pub(crate) async fn into_poll(self) -> ChannelLongPoll {
+    pub(crate) async fn into_poll(self, shutdown: CancellationNotifier) -> ChannelLongPoll {
         if !self.replay.is_empty() {
             return ChannelLongPoll::from_events(self.replay);
         }
-        let events = ChannelLongPoll::wait(self.receiver, self.poll_timeout).await;
+        let events = ChannelLongPoll::wait(self.receiver, self.poll_timeout, shutdown).await;
         ChannelLongPoll::from_events(events)
     }
 }

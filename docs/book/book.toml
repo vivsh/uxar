@@ -7,8 +7,7 @@ authors = ["Vyuh contributors"]
 [output.html]
 site-url = "/"
 additional-css = [
-  "theme/stylebook.css",
-  "theme/docs.css",
+  "theme/vyuh.css",
 ]
 git-repository-url = "https://github.com/vyuh-rs/vyuh"
 edit-url-template = "https://github.com/vyuh-rs/vyuh/edit/main/docs/book/{path}"

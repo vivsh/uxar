@@ -13,6 +13,7 @@ use crate::{
             OperationQuery, TaskQuery, filter_operations, is_console_operation, task_limit,
             task_limit_max,
         },
+        schema_view::OperationView,
         status::StatusOut,
         types::{ConfigOut, OperationOut, Page, TaskDetailOut, TaskOut},
     },
@@ -26,6 +27,7 @@ pub async fn login(site: Site) -> Result<Html<String>, TemplateError> {
         json!({
             "base_path": base_path(&site),
             "version": env!("CARGO_PKG_VERSION"),
+            "stylesheet_path": crate::console::stylesheet_path(),
         }),
     )
 }
@@ -217,6 +219,7 @@ fn render_page(
     context["title"] = json!(title);
     context["base_path"] = json!(base_path(site));
     context["version"] = json!(env!("CARGO_PKG_VERSION"));
+    context["stylesheet_path"] = json!(crate::console::stylesheet_path());
     render(site, template, context)
 }
 
@@ -315,6 +318,7 @@ fn error_page(site: &Site, status: StatusCode, title: &str, message: &str) -> Re
     let context = json!({
         "base_path": base_path(site),
         "version": env!("CARGO_PKG_VERSION"),
+        "stylesheet_path": crate::console::stylesheet_path(),
         "status": status.as_u16(),
         "title": title,
         "message": message,
@@ -415,12 +419,12 @@ fn selected_operation(
     site: &Site,
     query: &OperationQuery,
     console_bundle_id: Option<uuid::Uuid>,
-) -> Option<OperationOut> {
+) -> Option<OperationView> {
     let id = query.selected.as_deref()?;
     let id = uuid::Uuid::parse_str(id).ok()?;
     site.iter_operations()
         .find(|op| op.id == id && !is_console_operation(op, console_bundle_id))
-        .map(OperationOut::from)
+        .map(OperationView::from_operation)
 }
 
 fn console_bundle_id(site: &Site) -> Option<uuid::Uuid> {

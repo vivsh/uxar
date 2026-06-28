@@ -3,10 +3,11 @@ mod auth;
 mod conf;
 mod pages;
 mod query;
+mod schema_view;
 mod status;
 mod types;
 
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use rust_silos::{Silo, embed_silo};
 
@@ -18,6 +19,7 @@ pub use conf::{ConsoleBootstrapMode, ConsoleConf};
 pub(crate) use auth::ConsoleRuntime;
 
 const WEB_ASSETS: Silo = embed_silo!("web", force = true);
+const FALLBACK_STYLESHEET_PATH: &str = "/assets/css/vyuh.css";
 
 pub(crate) fn bundle(conf: &ConsoleConf) -> crate::bundles::Bundle {
     web_assets()
@@ -28,6 +30,27 @@ pub(crate) fn bundle(conf: &ConsoleConf) -> crate::bundles::Bundle {
 
 fn web_assets() -> crate::bundles::Bundle {
     bundles::bundle([bundles::asset_dir(embed::Dir::new(WEB_ASSETS.clone()))])
+}
+
+pub(crate) fn stylesheet_path() -> &'static str {
+    static PATH: OnceLock<String> = OnceLock::new();
+    PATH.get_or_init(resolve_stylesheet_path).as_str()
+}
+
+fn resolve_stylesheet_path() -> String {
+    read_stylesheet_name()
+        .map(|name| format!("/assets/css/{name}"))
+        .unwrap_or_else(|| FALLBACK_STYLESHEET_PATH.to_string())
+}
+
+fn read_stylesheet_name() -> Option<String> {
+    let file = embed::Dir::new(WEB_ASSETS.clone()).get_file("public/css/manifest.json")?;
+    let bytes = file.read_bytes_sync().ok()?;
+    let manifest: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    manifest
+        .get("vyuh.css")
+        .and_then(|value| value.as_str())
+        .map(str::to_owned)
 }
 
 fn home_routes(conf: &ConsoleConf) -> crate::bundles::Bundle {
@@ -197,6 +220,19 @@ mod tests {
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+    struct InvoiceSignal {
+        invoice_id: String,
+        amount: f64,
+    }
+
+    async fn invoice_signal() -> Data<InvoiceSignal> {
+        Data(std::sync::Arc::new(InvoiceSignal {
+            invoice_id: "inv_001".to_string(),
+            amount: 42.0,
+        }))
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
     struct ConsoleTaskJob {
         message: String,
     }
@@ -207,15 +243,26 @@ mod tests {
     }
 
     fn app_bundle() -> crate::bundles::Bundle {
-        bundles::bundle([bundles::route(
-            ping,
-            RouteConf {
-                name: "ping".into(),
-                methods: Methods::GET,
-                path: "/ping".into(),
-                slash: None,
-            },
-        )])
+        bundles::bundle([
+            bundles::route(
+                ping,
+                RouteConf {
+                    name: "ping".into(),
+                    methods: Methods::GET,
+                    path: "/ping".into(),
+                    slash: None,
+                },
+            ),
+            bundles::route(
+                invoice_signal,
+                RouteConf {
+                    name: "invoice_signal".into(),
+                    methods: Methods::GET,
+                    path: "/invoice-signal".into(),
+                    slash: None,
+                },
+            ),
+        ])
     }
 
     fn task_app_bundle() -> crate::bundles::Bundle {
@@ -226,13 +273,18 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_console_mounts_no_routes() {
-        let site = Site::build(SiteConf::default().log_init(false), app_bundle())
-            .await
-            .unwrap();
+        let site = Site::build(
+            SiteConf::default()
+                .log_init(false)
+                .console(ConsoleConf::default().enabled(false)),
+            app_bundle(),
+        )
+        .await
+        .unwrap();
         let client = TestClient::new(site);
 
         client
-            .get("/_console/api/status")
+            .get("/console/api/status")
             .send()
             .await
             .assert_status(StatusCode::NOT_FOUND);
@@ -240,21 +292,19 @@ mod tests {
 
     #[tokio::test]
     async fn console_local_debug_allows_direct_access() {
-        let conf = SiteConf::default()
-            .log_init(false)
-            .console(ConsoleConf::default().enabled(true));
+        let conf = SiteConf::default().log_init(false);
         let site = Site::build(conf, app_bundle()).await.unwrap();
         let client = TestClient::new(site);
 
-        let status = client.get("/_console/api/status").send().await;
+        let status = client.get("/console/api/status").send().await;
         assert_eq!(status.status(), StatusCode::OK);
 
-        let session = client.get("/_console/api/session").send().await;
+        let session = client.get("/console/api/session").send().await;
         assert_eq!(session.status(), StatusCode::OK);
         let session = session.text().await;
         assert!(session.contains("local-debug"));
 
-        let missing = client.get("/_console/missing").send().await;
+        let missing = client.get("/console/missing").send().await;
         assert_eq!(missing.status(), StatusCode::NOT_FOUND);
         let missing = missing.text().await;
         assert!(missing.contains("Console page not found"));
@@ -274,26 +324,26 @@ mod tests {
         let client = TestClient::new(site);
 
         client
-            .get("/_console/api/status")
+            .get("/console/api/status")
             .send()
             .await
             .assert_status(StatusCode::FORBIDDEN);
-        let forbidden = client.get("/_console/api/conf").send().await;
+        let forbidden = client.get("/console/api/conf").send().await;
         assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
         let forbidden = forbidden.text().await;
         assert!(forbidden.contains("Console access denied"));
-        let forbidden_page = client.get("/_console/overview").send().await;
+        let forbidden_page = client.get("/console/overview").send().await;
         assert_eq!(forbidden_page.status(), StatusCode::FORBIDDEN);
         let forbidden_page = forbidden_page.text().await;
         assert!(forbidden_page.contains("Console access denied"));
         client
-            .get("/_console/api/openapi")
+            .get("/console/api/openapi")
             .send()
             .await
             .assert_status(StatusCode::FORBIDDEN);
 
         let login = client
-            .get(&format!("/_console/login?token={token}"))
+            .get(&format!("/console/login?token={token}"))
             .send()
             .await;
         assert_eq!(login.status(), StatusCode::SEE_OTHER);
@@ -301,10 +351,10 @@ mod tests {
             login
                 .header(header::LOCATION.as_str())
                 .and_then(|value| value.to_str().ok()),
-            Some("/_console")
+            Some("/console")
         );
         client
-            .get(&format!("/_console/login?token={token}"))
+            .get(&format!("/console/login?token={token}"))
             .send()
             .await
             .assert_status(StatusCode::UNAUTHORIZED);
@@ -317,33 +367,34 @@ mod tests {
         let cookie = cookie.split(';').next().unwrap().to_string();
 
         client
-            .get("/_console/api/operations?kind=route&q=ping")
+            .get("/console/api/operations?kind=route&q=ping")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await
             .assert_ok();
 
         let conf = client
-            .get("/_console/api/conf")
+            .get("/console/api/conf")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
         assert_eq!(conf.status(), StatusCode::OK);
         let conf = conf.text().await;
         assert!(conf.contains("\"url\":\"<redacted>\""));
+        assert!(conf.contains("\"shutdown_grace_period_ms\":10000"));
         assert!(!conf.contains("secret_key"));
         assert!(!conf.contains("DATABASE_URL"));
         assert!(!conf.contains(token.as_str()));
 
         let openapi = client
-            .get("/_console/api/openapi")
+            .get("/console/api/openapi")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
         assert_eq!(openapi.status(), StatusCode::OK);
         let openapi = openapi.text().await;
         assert!(openapi.contains("\"/ping\""));
-        assert!(!openapi.contains("/_console"));
+        assert!(!openapi.contains("/console"));
         assert!(!openapi.contains("console_operations"));
     }
 
@@ -358,6 +409,11 @@ mod tests {
             .find(|op| op.name == "ping")
             .map(|op| op.id)
             .unwrap();
+        let invoice_signal_id = site
+            .iter_operations()
+            .find(|op| op.name == "invoice_signal")
+            .map(|op| op.id)
+            .unwrap();
         let console_operation_id = site
             .iter_operations()
             .find(|op| op.name == "console_operations")
@@ -370,7 +426,7 @@ mod tests {
         let client = TestClient::new(site);
 
         let login = client
-            .get(&format!("/_console/login?token={token}"))
+            .get(&format!("/console/login?token={token}"))
             .send()
             .await;
         assert_eq!(login.status(), StatusCode::SEE_OTHER);
@@ -378,7 +434,7 @@ mod tests {
             login
                 .header(header::LOCATION.as_str())
                 .and_then(|value| value.to_str().ok()),
-            Some("/_console")
+            Some("/console")
         );
         let cookie = login
             .header(header::SET_COOKIE.as_str())
@@ -389,7 +445,7 @@ mod tests {
         let cookie = cookie.split(';').next().unwrap().to_string();
 
         let overview = client
-            .get("/_console")
+            .get("/console")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -398,7 +454,7 @@ mod tests {
         assert!(overview.contains("Overview"));
 
         let overview = client
-            .get("/_console/overview")
+            .get("/console/overview")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -407,7 +463,7 @@ mod tests {
         assert!(overview.contains("Overview"));
 
         let runtime = client
-            .get("/_console/runtime")
+            .get("/console/runtime")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -418,10 +474,10 @@ mod tests {
         assert!(runtime.contains("System Environment"));
         assert!(runtime.contains("Resource Usage"));
         assert!(runtime.contains("Build Information"));
-        assert!(runtime.contains("JSON"));
+        assert!(!runtime.contains("api/status"));
 
         let operations = client
-            .get("/_console/operations?kind=route&q=ping")
+            .get("/console/operations?kind=route&q=ping")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -432,9 +488,10 @@ mod tests {
         );
         let operations = operations.text().await;
         assert!(operations.contains("ping"));
+        assert!(!operations.contains("api/operations"));
 
         let operations = client
-            .get("/_console/operations")
+            .get("/console/operations")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -450,7 +507,7 @@ mod tests {
         assert!(!operations.contains("console_api_status"));
 
         let api_operations = client
-            .get("/_console/api/operations")
+            .get("/console/api/operations")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -464,14 +521,14 @@ mod tests {
         assert!(!api_operations.contains("console_operations"));
 
         let console_detail = client
-            .get(&format!("/_console/api/operations/{console_operation_id}"))
+            .get(&format!("/console/api/operations/{console_operation_id}"))
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
         assert_eq!(console_detail.status(), StatusCode::NOT_FOUND);
 
         let selected = client
-            .get(&format!("/_console/operations?selected={ping_id}"))
+            .get(&format!("/console/operations?selected={ping_id}"))
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -486,8 +543,23 @@ mod tests {
         assert!(selected.contains("Request"));
         assert!(selected.contains("Response"));
 
+        let selected = client
+            .get(&format!("/console/operations?selected={invoice_signal_id}"))
+            .header(header::COOKIE.as_str(), &cookie)
+            .send()
+            .await;
+        assert_eq!(
+            selected.status(),
+            StatusCode::OK,
+            "selected typed operation page failed"
+        );
+        let selected = selected.text().await;
+        assert!(selected.contains("InvoiceSignal"));
+        assert!(selected.contains("invoice_id"));
+        assert!(selected.contains("Raw JSON schema"));
+
         let tasks = client
-            .get("/_console/tasks")
+            .get("/console/tasks")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -496,9 +568,10 @@ mod tests {
         assert!(tasks.contains("No task records yet."));
         assert!(tasks.contains("name=\"limit\""));
         assert!(tasks.contains("100 per page"));
+        assert!(!tasks.contains("api/tasks"));
 
         let conf = client
-            .get("/_console/conf")
+            .get("/console/conf")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -508,7 +581,9 @@ mod tests {
         assert!(conf.contains("aria-current=\"page\""));
         assert!(conf.contains("Authentication"));
         assert!(conf.contains("HTTP Pipeline"));
-        assert!(conf.contains("Open raw"));
+        assert!(!conf.contains("Open raw"));
+        assert!(!conf.contains("Download as JSON"));
+        assert!(!conf.contains("api/conf"));
         assert!(!conf.contains(">01<"));
         assert!(conf.contains("&lt;redacted&gt;"));
         assert!(!conf.contains("secret_key"));
@@ -516,7 +591,7 @@ mod tests {
         assert!(!conf.contains(token.as_str()));
 
         let openapi = client
-            .get("/_console/openapi")
+            .get("/console/openapi")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -531,8 +606,9 @@ mod tests {
         assert!(!openapi.contains("Application routes only"));
         assert!(!openapi.contains("console_operations"));
 
-        let css = client.get("/assets/css/base.css").send().await;
-        assert_eq!(css.status(), StatusCode::OK, "base.css failed");
+        let stylesheet = super::stylesheet_path();
+        let css = client.get(stylesheet).send().await;
+        assert_eq!(css.status(), StatusCode::OK, "stylesheet failed");
         assert_eq!(
             css.header(header::CONTENT_TYPE.as_str())
                 .and_then(|value| value.to_str().ok()),
@@ -560,7 +636,7 @@ mod tests {
             .unwrap();
         let client = TestClient::new(site);
         let login = client
-            .get(&format!("/_console/login?token={token}"))
+            .get(&format!("/console/login?token={token}"))
             .send()
             .await;
         let cookie = login
@@ -574,7 +650,7 @@ mod tests {
             .to_string();
 
         let api_tasks = client
-            .get("/_console/api/tasks")
+            .get("/console/api/tasks")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;
@@ -583,7 +659,7 @@ mod tests {
         assert!(api_tasks.contains("console_test_task"));
 
         let tasks = client
-            .get("/_console/tasks")
+            .get("/console/tasks")
             .header(header::COOKIE.as_str(), &cookie)
             .send()
             .await;

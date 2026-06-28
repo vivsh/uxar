@@ -10,7 +10,6 @@
     <div class="vyuh-console-actions">
       <a class="vyuh-console-icon-button" href="{{ base_path }}/tasks" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
       <label class="vyuh-console-select"><span>Auto refresh</span><select><option>Off</option><option>30s</option></select></label>
-      <a class="vyuh-console-site-button" href="{{ base_path }}/api/tasks">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
     </div>
   </header>
 
@@ -53,7 +52,7 @@
 
   <div class="vyuh-console-data-grid">
     <article class="vyuh-console-card">
-      <header><h2>Recent Tasks <span class="vyuh-console-badge is-success">Live</span></h2><a href="{{ base_path }}/api/tasks"><svg><use href="#vyuh-icon-download"></use></svg>JSON</a></header>
+      <header><h2>Recent Tasks <span class="vyuh-console-badge is-success">Live</span></h2></header>
       <div class="vyuh-console-table">
         <table>
           <thead><tr><th>Status</th><th>Name</th><th>Identity</th><th>Attempts</th><th>Priority</th><th>Created</th><th>Updated</th><th></th></tr></thead>
@@ -61,7 +60,7 @@
             {% for task in page.items %}
             <tr {% if selected_task and selected_task.id == task.id %}aria-selected="true"{% endif %}>
               <td><span class="vyuh-console-badge is-{{ task.status }}">{{ task.status }}</span></td>
-              <td><a href="{{ base_path }}/tasks?selected={{ task.id }}">{{ task.name }}</a></td>
+              <td><a class="vyuh-console-row-title" href="{{ base_path }}/tasks?selected={{ task.id }}">{{ task.name }}</a></td>
               <td>{% if task.identity %}{{ task.identity }}{% else %}-{% endif %}</td>
               <td>{{ task.attempts }}</td>
               <td>{{ task.priority }}</td>
@@ -87,16 +86,28 @@
       <span class="vyuh-console-badge is-{{ selected_task.status }}">{{ selected_task.status }}</span>
       <h3>{{ selected_task.name }}</h3>
       <p>{{ selected_task.id }}</p>
-      <nav class="vyuh-console-tabs is-compact"><a aria-current="page">Overview</a><a>Timing</a><a>Error</a></nav>
-      <dl class="vyuh-console-kv">
-        <div><dt>Identity</dt><dd>{% if selected_task.identity %}{{ selected_task.identity }}{% else %}-{% endif %}</dd></div>
-        <div><dt>Attempts</dt><dd>{{ selected_task.attempts }}</dd></div>
-        <div><dt>Max Attempts</dt><dd>{% if selected_task.max_attempts %}{{ selected_task.max_attempts }}{% else %}-{% endif %}</dd></div>
-        <div><dt>Priority</dt><dd>{{ selected_task.priority }}</dd></div>
-        <div><dt>Ready At</dt><dd>{% if selected_task.ready_at_display %}{{ selected_task.ready_at_display }}{% else %}-{% endif %}</dd></div>
-        <div><dt>Completed At</dt><dd>{% if selected_task.completed_at_display %}{{ selected_task.completed_at_display }}{% else %}-{% endif %}</dd></div>
-      </dl>
-      <article class="vyuh-console-muted-panel"><strong>Last Error</strong><code>{% if selected_task.last_error %}{{ selected_task.last_error }}{% else %}No error recorded{% endif %}</code></article>
+      <nav class="vyuh-console-tabs is-compact" role="tablist" data-console-tabs aria-label="Task detail sections">
+        <button type="button" role="tab" id="task-overview-tab" aria-controls="task-overview-panel" aria-selected="true">Overview</button>
+        <button type="button" role="tab" id="task-timing-tab" aria-controls="task-timing-panel" aria-selected="false" tabindex="-1">Timing</button>
+        <button type="button" role="tab" id="task-error-tab" aria-controls="task-error-panel" aria-selected="false" tabindex="-1">Error</button>
+      </nav>
+      <section class="vyuh-console-tab-panel" role="tabpanel" id="task-overview-panel" aria-labelledby="task-overview-tab">
+        <dl class="vyuh-console-kv">
+          <div><dt>Identity</dt><dd>{% if selected_task.identity %}{{ selected_task.identity }}{% else %}-{% endif %}</dd></div>
+          <div><dt>Attempts</dt><dd>{{ selected_task.attempts }}</dd></div>
+          <div><dt>Max Attempts</dt><dd>{% if selected_task.max_attempts %}{{ selected_task.max_attempts }}{% else %}-{% endif %}</dd></div>
+          <div><dt>Priority</dt><dd>{{ selected_task.priority }}</dd></div>
+        </dl>
+      </section>
+      <section class="vyuh-console-tab-panel" role="tabpanel" id="task-timing-panel" aria-labelledby="task-timing-tab" hidden>
+        <dl class="vyuh-console-kv">
+          <div><dt>Ready At</dt><dd>{% if selected_task.ready_at_display %}{{ selected_task.ready_at_display }}{% else %}-{% endif %}</dd></div>
+          <div><dt>Completed At</dt><dd>{% if selected_task.completed_at_display %}{{ selected_task.completed_at_display }}{% else %}-{% endif %}</dd></div>
+        </dl>
+      </section>
+      <section class="vyuh-console-tab-panel" role="tabpanel" id="task-error-panel" aria-labelledby="task-error-tab" hidden>
+        <article class="vyuh-console-muted-panel"><strong>Last Error</strong><code>{% if selected_task.last_error %}{{ selected_task.last_error }}{% else %}No error recorded{% endif %}</code></article>
+      </section>
       {% else %}
       <header><h2>Task Details</h2></header>
       <p>Select a task row to inspect identity, attempts, timing, and errors.</p>

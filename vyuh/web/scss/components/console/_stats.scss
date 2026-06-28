@@ -1,0 +1,158 @@
+.vyuh-console-stat-grid,
+.vyuh-console-overview-grid,
+.vyuh-console-info-grid,
+.vyuh-console-config-grid {
+  display: grid;
+  gap: $vyuh-space-4;
+}
+
+.vyuh-console-stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax($vyuh-console-stat-min, 1fr));
+}
+
+.vyuh-console-stat-grid.is-five {
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax($vyuh-console-stat-compact-min, 1fr)
+  );
+}
+
+.vyuh-console-overview-grid {
+  grid-template-columns: 1.2fr 1.2fr 1fr;
+}
+
+.vyuh-console-info-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vyuh-console-config-grid {
+  grid-template-columns: minmax(0, 1fr) $vyuh-console-config-aside-width;
+}
+
+.vyuh-console-card,
+.vyuh-console-stat,
+.vyuh-console-inspector {
+  @include vyuh-surface(raised, raised, md);
+}
+
+.vyuh-console-stat {
+  align-items: center;
+  display: flex;
+  gap: $vyuh-space-5;
+  min-height: $vyuh-console-stat-height;
+  overflow: hidden;
+  padding: $vyuh-space-5;
+  position: relative;
+}
+
+.vyuh-console-stat::before {
+  background: radial-gradient(circle, rgba($vyuh-white, 0.9), transparent 60%);
+  content: "";
+  height: $vyuh-space-12;
+  position: absolute;
+  right: -$vyuh-space-7;
+  top: -$vyuh-space-9;
+  width: $vyuh-space-12;
+}
+
+.vyuh-console-stat h3 {
+  color: $vyuh-ink;
+  font-size: $vyuh-text-sm;
+  font-weight: $vyuh-label-weight;
+  letter-spacing: 0;
+  margin: 0 0 $vyuh-space-2;
+}
+
+.vyuh-console-stat strong {
+  display: block;
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-xl;
+  font-weight: $vyuh-heading-weight;
+  letter-spacing: 0;
+  line-height: $vyuh-line-stat;
+}
+
+.vyuh-console-stat p {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-xs;
+  line-height: $vyuh-line-compact;
+  margin: $vyuh-space-2 0 0;
+}
+
+.vyuh-console-stat p i {
+  background: $vyuh-saffron;
+  border-radius: $vyuh-radius-pill;
+  display: inline-block;
+  height: $vyuh-space-1;
+  margin: 0 $vyuh-space-2 $vyuh-space-half;
+  width: $vyuh-space-1;
+}
+
+.vyuh-console-stat b {
+  color: $vyuh-success;
+}
+
+.vyuh-console-stat em {
+  color: $vyuh-ember;
+  font-style: normal;
+}
+
+.vyuh-console-icon,
+.vyuh-console-icon-mini {
+  align-items: center;
+  border-radius: $vyuh-radius-pill;
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+}
+
+.vyuh-console-icon {
+  box-shadow: inset 0 0 0 1px rgba($vyuh-white, 0.52);
+  height: $vyuh-console-icon-size;
+  width: $vyuh-console-icon-size;
+}
+
+.vyuh-console-icon svg {
+  height: $vyuh-text-xl;
+  width: $vyuh-text-xl;
+}
+
+.vyuh-console-icon-mini {
+  height: $vyuh-console-icon-mini-size;
+  width: $vyuh-console-icon-mini-size;
+}
+
+.vyuh-console-icon.is-ember,
+.vyuh-console-icon-mini.is-ember {
+  @include vyuh-status(ember, 0.11);
+}
+
+.vyuh-console-icon.is-green,
+.vyuh-console-icon-mini.is-green {
+  @include vyuh-status(green, 0.12);
+}
+
+.vyuh-console-icon.is-orange,
+.vyuh-console-icon-mini.is-orange {
+  @include vyuh-status(yellow, 0.15);
+}
+
+.vyuh-console-icon.is-violet,
+.vyuh-console-icon-mini.is-violet {
+  @include vyuh-status(violet, 0.12);
+}
+
+.vyuh-console-icon.is-yellow,
+.vyuh-console-icon-mini.is-yellow {
+  @include vyuh-status(yellow, 0.14);
+}
+
+.vyuh-console-icon.is-blue,
+.vyuh-console-icon-mini.is-blue {
+  @include vyuh-status(blue, 0.11);
+}
+
+.vyuh-console-icon.is-red,
+.vyuh-console-icon-mini.is-red {
+  @include vyuh-status(red);
+}

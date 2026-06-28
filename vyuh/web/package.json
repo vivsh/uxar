@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "build:css": "sass --load-path=node_modules scss:public/css --style=expanded",
-    "watch:css": "sass --watch --load-path=node_modules scss:public/css --style=expanded"
+    "build:css": "node scripts/build-css.mjs",
+    "check:css": "node scripts/check-css.mjs",
+    "watch:css": "sass --watch --load-path=node_modules scss/vyuh.scss:public/css/vyuh.css scss/stylebook.scss:public/css/stylebook.css --style=expanded"
   },
   "devDependencies": {
     "bootstrap": "^5.3.3",

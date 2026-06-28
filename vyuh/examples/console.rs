@@ -251,10 +251,10 @@ fn command_bundle() -> vyuh::bundles::Bundle {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conf = SiteConf::default()
-        .port(18080)
-        .console(ConsoleConf::default().enabled(true));
+        .port(8080)
+        .console(ConsoleConf::default());
     let site = Site::build(conf, app_bundle()).await?;
-    println!("Console demo running on http://localhost:18080");
+    println!("Console demo running on http://localhost:8080");
     site.start().await?;
     Ok(())
 }

@@ -183,12 +183,24 @@ impl SiteBuilder {
 
         let touch_reload = site.inner.conf.touch_reload.clone();
 
-        axum::serve(listener, make_svc)
-            .with_graceful_shutdown(watch::shutdown_signal(
-                touch_reload,
-                site.inner.shutdown_notifier.clone(),
-            ))
-            .await?;
+        let shutdown = watch::ShutdownController::new(
+            touch_reload,
+            site.inner.shutdown_notifier.clone(),
+            std::time::Duration::from_millis(site.inner.conf.http.shutdown.grace_period_ms),
+        );
+        let forced = shutdown.force_notifier();
+        let server =
+            axum::serve(listener, make_svc).with_graceful_shutdown(shutdown.clone().graceful());
+
+        tokio::select! {
+            result = server => {
+                shutdown.complete();
+                result?;
+            },
+            _ = forced.notified() => {
+                tracing::warn!("Forced shutdown requested");
+            },
+        }
 
         // Abort all tasks and wait for them to finish without holding the lock
         // across an await point (parking_lot guards are not Send).

@@ -2,7 +2,8 @@
   background: $vyuh-paper;
   color: $vyuh-ink;
   font-family: $vyuh-font-sans;
-  font-size: 0.9375rem;
+  font-size: $vyuh-text-sm;
+  line-height: $line-height-base;
   min-height: 100vh;
 }
 
@@ -17,7 +18,7 @@
 }
 
 .console-layout {
-  background: #fff;
+  background: $vyuh-white;
   display: grid;
   grid-template-columns: 17rem minmax(32rem, 1fr) minmax(22rem, 28rem);
   min-height: calc(100vh - 4.75rem);
@@ -28,19 +29,19 @@
 }
 
 .console-sidebar {
-  background: #fbfaf8;
-  border-right: 1px solid $vyuh-line;
+  background: $vyuh-paper;
+  border-right: $vyuh-border-default;
   height: calc(100vh - 4.75rem);
   overflow-y: auto;
-  padding: 1.5rem 1rem;
+  padding: $vyuh-space-5 $vyuh-space-4;
   position: sticky;
   top: 4.75rem;
 }
 
 .console-main {
-  background: #fff;
+  background: $vyuh-white;
   min-width: 0;
-  padding: clamp(1.5rem, 3vw, 2.75rem);
+  padding: clamp($vyuh-space-5, 2.6vw, $vyuh-space-8);
 }
 
 .console-main-blank {
@@ -48,17 +49,17 @@
 }
 
 .console-right {
-  background: #111827;
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.84);
+  background: $vyuh-surface-inspector;
+  border-left: 1px solid rgba($vyuh-white, $vyuh-state-tint-soft);
+  color: rgba($vyuh-white, 0.84);
   min-width: 0;
-  padding: 1.5rem;
+  padding: $vyuh-space-5;
 }
 
 .console-nav,
 .console-subnav {
   display: grid;
-  gap: 0.125rem;
+  gap: $vyuh-space-1;
 }
 
 .console-nav a,
@@ -66,8 +67,8 @@
   border-left: 3px solid transparent;
   color: rgba($vyuh-ink, 0.68);
   display: block;
-  line-height: 1.35;
-  padding: 0.625rem 0.75rem;
+  line-height: 1.28;
+  padding: $vyuh-space-2 $vyuh-space-3;
 }
 
 .console-nav a {
@@ -90,16 +91,16 @@
 }
 
 .console-sidebar-section {
-  border-top: 1px solid $vyuh-line;
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
+  border-top: $vyuh-border-default;
+  margin-top: $vyuh-space-5;
+  padding-top: $vyuh-space-4;
 }
 
 .console-sidebar-section h2 {
   color: $vyuh-muted;
   font-size: $vyuh-text-xs;
   letter-spacing: $vyuh-tracking-kicker;
-  margin: 0 0 0.5rem;
+  margin: 0 0 $vyuh-space-2;
   text-transform: uppercase;
 }
 
@@ -114,31 +115,31 @@
 
 .console-toolbar {
   align-items: center;
-  border: 1px solid $vyuh-line;
+  border: $vyuh-border-default;
   display: grid;
-  gap: 0.75rem;
+  gap: $vyuh-space-3;
   grid-template-columns: minmax(0, 1fr) 11rem auto;
-  margin: 1.75rem 0;
-  padding: 0.75rem;
+  margin: $vyuh-space-6 0;
+  padding: $vyuh-space-3;
 }
 
 .console-input,
 .console-select {
-  background: #fff;
-  border: 1px solid $vyuh-line;
+  background: $vyuh-white;
+  border: $vyuh-border-default;
   border-radius: 0;
   color: $vyuh-ink;
   font: inherit;
-  min-height: 2.75rem;
-  padding: 0 0.75rem;
+  min-height: $vyuh-control-height-sm;
+  padding: 0 $vyuh-space-3;
 }
 
 .console-operation-list {
-  border-top: 1px solid $vyuh-line;
+  border-top: $vyuh-border-default;
 }
 
 .console-operation-row {
-  border-bottom: 1px solid $vyuh-line;
+  border-bottom: $vyuh-border-default;
   border-left: 4px solid transparent;
   transition: background 140ms ease, border-color 140ms ease;
 }
@@ -152,18 +153,18 @@
 .console-operation-link {
   color: inherit;
   display: grid;
-  gap: 0.625rem;
-  padding: 1.125rem 1.25rem;
+  gap: $vyuh-space-2;
+  padding: $vyuh-space-4;
 }
 
 .console-operation-link header {
   align-items: center;
   display: flex;
-  gap: 0.75rem;
+  gap: $vyuh-space-3;
 }
 
 .console-operation-link h2 {
-  font-size: 1.08rem;
+  font-size: 1rem;
   line-height: $vyuh-line-heading;
   margin: 0;
 }
@@ -177,7 +178,7 @@
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: $vyuh-space-2;
 }
 
 .console-operation-path code,
@@ -201,25 +202,25 @@
 .console-method {
   background: rgba($vyuh-ocean, 0.1);
   color: $vyuh-ocean;
-  padding: 0.375rem 0.45rem;
+  padding: $vyuh-space-1 $vyuh-space-2;
 }
 
 .console-pill {
   background: rgba($vyuh-ember, 0.1);
   color: $vyuh-ember;
-  padding: 0.375rem 0.5rem;
+  padding: $vyuh-space-1 $vyuh-space-2;
 }
 
 .console-inspector {
   display: grid;
-  gap: 1rem;
+  gap: $vyuh-space-3;
   position: sticky;
   top: 6.25rem;
 }
 
 .console-inspector h2 {
-  color: #fffaf3;
-  font-size: 1.35rem;
+  color: $vyuh-paper;
+  font-size: $vyuh-text-xl;
   line-height: $vyuh-line-heading;
   margin: 0;
   overflow-wrap: anywhere;
@@ -227,116 +228,116 @@
 
 .console-inspector .vyuh-copy,
 .console-inspector .console-muted {
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba($vyuh-white, 0.62);
 }
 
 .console-inspector .vyuh-kicker {
-  color: #ff9f5a;
+  color: $vyuh-saffron;
   margin: 0;
 }
 
 .console-meta {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba($vyuh-white, $vyuh-state-tint);
   display: grid;
   margin: 0;
 }
 
 .console-meta dt,
 .console-meta dd {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba($vyuh-white, $vyuh-state-tint-soft);
   margin: 0;
-  padding: 0.625rem 0.75rem;
+  padding: $vyuh-space-2 $vyuh-space-3;
 }
 
 .console-meta dt {
-  color: rgba(255, 255, 255, 0.54);
+  color: rgba($vyuh-white, 0.54);
   font-size: $vyuh-text-xs;
   letter-spacing: $vyuh-tracking-label;
   text-transform: uppercase;
 }
 
 .console-meta dd {
-  color: rgba(255, 255, 255, 0.86);
+  color: rgba($vyuh-white, 0.86);
   overflow-wrap: anywhere;
 }
 
 .console-meta code {
-  color: #fffaf3;
+  color: $vyuh-paper;
 }
 
 .console-schema-section {
   display: grid;
-  gap: 0.75rem;
+  gap: $vyuh-space-3;
 }
 
 .console-schema-section h3 {
-  color: #fffaf3;
+  color: $vyuh-paper;
   font-size: 1rem;
   margin: 0;
 }
 
 .console-schema-card {
-  background: #0b1220;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: $vyuh-code-panel;
+  border: 1px solid rgba($vyuh-white, $vyuh-state-tint);
   overflow: hidden;
 }
 
 .console-schema-card header {
   align-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba($vyuh-white, 0.04);
+  border-bottom: 1px solid rgba($vyuh-white, $vyuh-state-tint-soft);
   display: flex;
-  gap: 0.75rem;
+  gap: $vyuh-space-3;
   justify-content: space-between;
-  padding: 0.75rem 0.875rem;
+  padding: $vyuh-space-3 $vyuh-space-4;
 }
 
 .console-schema-card strong {
-  color: #fffaf3;
+  color: $vyuh-paper;
 }
 
 .console-schema-card span {
-  color: #ff9f5a;
+  color: $vyuh-saffron;
   font-family: $vyuh-font-mono;
   font-size: $vyuh-text-xs;
   text-transform: uppercase;
 }
 
 .console-schema-card p {
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba($vyuh-white, 0.62);
   margin: 0;
-  padding: 0.75rem 0.875rem 0;
+  padding: $vyuh-space-3 $vyuh-space-4 0;
 }
 
 .console-schema-card pre {
-  background: #060b14;
-  color: #fffaf3;
+  background: $vyuh-code-panel-deep;
+  color: $vyuh-paper;
   font-family: $vyuh-font-mono;
   font-size: $vyuh-text-code-compact;
   line-height: $vyuh-line-code-compact;
-  margin: 0.875rem 0 0;
+  margin: $vyuh-space-3 0 0;
   max-height: 28rem;
   overflow: auto;
-  padding: 0.875rem;
+  padding: $vyuh-space-3;
 }
 
 .console-grid {
   display: grid;
-  gap: 1rem;
+  gap: $vyuh-space-4;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .console-section-gap {
-  margin-top: 1.5rem;
+  margin-top: $vyuh-space-6;
 }
 
 .console-stat {
-  padding: 1.125rem;
+  padding: $vyuh-space-4;
 }
 
 .console-stat strong {
   display: block;
-  font-size: 1.875rem;
+  font-size: 1.65rem;
   line-height: 1;
 }
 
@@ -346,30 +347,30 @@
 }
 
 .console-detail {
-  margin-top: 1.5rem;
-  padding: 1.125rem;
+  margin-top: $vyuh-space-6;
+  padding: $vyuh-space-4;
 }
 
 .console-conf-grid {
   display: grid;
-  gap: 1rem;
-  margin-top: 1.5rem;
+  gap: $vyuh-space-4;
+  margin-top: $vyuh-space-6;
 }
 
 .console-runtime-grid {
   display: grid;
-  gap: 1rem;
+  gap: $vyuh-space-4;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 1.5rem;
+  margin-top: $vyuh-space-6;
 }
 
 .console-runtime-metric {
-  background: #fff;
-  border: 1px solid $vyuh-line;
+  background: $vyuh-white;
+  border: $vyuh-border-default;
   border-top: 3px solid $vyuh-ember;
   display: grid;
-  gap: 0.35rem;
-  padding: 1rem;
+  gap: $vyuh-space-2;
+  padding: $vyuh-space-3;
 }
 
 .console-runtime-metric span {
@@ -381,7 +382,7 @@
 
 .console-runtime-metric strong {
   font-family: $vyuh-font-mono;
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   line-height: $vyuh-line-heading;
 }
 
@@ -391,23 +392,23 @@
 
 .console-runtime-list {
   display: grid;
-  gap: 0.375rem;
+  gap: $vyuh-space-2;
   margin: 0;
-  padding-left: 1.125rem;
+  padding-left: $vyuh-text-lg;
 }
 
 .console-conf-section {
-  background: #fff;
-  border: 1px solid $vyuh-line;
+  background: $vyuh-white;
+  border: $vyuh-border-default;
 }
 
 .console-conf-section header {
   align-items: center;
-  background: #fbfaf8;
-  border-bottom: 1px solid $vyuh-line;
+  background: $vyuh-paper;
+  border-bottom: $vyuh-border-default;
   display: flex;
-  gap: 0.75rem;
-  padding: 0.875rem 1rem;
+  gap: $vyuh-space-3;
+  padding: $vyuh-space-3 $vyuh-space-4;
 }
 
 .console-conf-section header span {
@@ -428,8 +429,8 @@
 
 .console-kv-table th,
 .console-kv-table td {
-  border-bottom: 1px solid $vyuh-line;
-  padding: 0.75rem 1rem;
+  border-bottom: $vyuh-border-default;
+  padding: $vyuh-space-2 $vyuh-space-3;
   text-align: left;
   vertical-align: top;
 }
@@ -458,16 +459,16 @@
 }
 
 .console-table {
-  background: rgba(255, 255, 255, 0.86);
-  border: 1px solid $vyuh-line;
+  background: rgba($vyuh-white, 0.86);
+  border: $vyuh-border-default;
   border-collapse: collapse;
   width: 100%;
 }
 
 .console-table th,
 .console-table td {
-  border-bottom: 1px solid $vyuh-line;
-  padding: 0.875rem;
+  border-bottom: $vyuh-border-default;
+  padding: $vyuh-space-3;
   text-align: left;
   vertical-align: top;
 }
@@ -480,14 +481,14 @@
 }
 
 .console-empty {
-  border: 1px dashed rgba($vyuh-ink, 0.2);
+  border: $vyuh-border-dashed;
   display: grid;
-  gap: 0.25rem;
-  padding: 1.125rem;
+  gap: $vyuh-space-1;
+  padding: $vyuh-space-4;
 }
 
 .console-inspector a {
-  color: #ffb476;
+  color: $vyuh-saffron;
 }
 
 .console-muted {
@@ -497,7 +498,7 @@
 .console-login {
   display: grid;
   min-height: calc(100vh - 4.75rem);
-  padding: 1.75rem;
+  padding: $vyuh-space-5;
   place-items: center;
 }
 
@@ -507,7 +508,7 @@
 }
 
 .console-login-kicker {
-  margin-top: 1.75rem;
+  margin-top: $vyuh-space-7;
 }
 
 @media (max-width: 76rem) {
@@ -587,50 +588,6 @@
   color: $vyuh-ember;
 }
 
-.vyuh-console-reset {
-  align-items: center;
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba($vyuh-ink, 0.1);
-  border-radius: $vyuh-radius-sm;
-  display: inline-flex;
-  gap: 0.55rem;
-  min-height: 3rem;
-  padding: 0.65rem 0.95rem;
-}
-
-.vyuh-console-empty {
-  border: 1px dashed rgba($vyuh-ink, 0.2);
-  border-radius: $vyuh-radius-sm;
-  display: grid;
-  gap: 0.25rem;
-  padding: 1rem;
-}
-
-.vyuh-console-empty span {
-  color: $vyuh-muted;
-}
-
-.vyuh-console-badge.is-pending,
-.vyuh-console-badge.is-suspended {
-  background: rgba($vyuh-saffron, 0.14);
-  color: #b45f00;
-}
-
-.vyuh-console-badge.is-running {
-  background: rgba($vyuh-ocean, 0.12);
-  color: #0c63b7;
-}
-
-.vyuh-console-badge.is-succeeded {
-  background: rgba($vyuh-success, 0.11);
-  color: #08733e;
-}
-
-.vyuh-console-badge.is-failed {
-  background: rgba($vyuh-danger, 0.1);
-  color: $vyuh-danger;
-}
-
 .console-body .vyuh-console-card.is-redoc {
   min-height: 72vh;
   overflow: hidden;
@@ -648,6 +605,16 @@
     inset: 0 auto 0 0;
     overflow-y: auto;
     position: fixed;
-    width: 16rem;
+    width: $vyuh-console-sidebar-width;
+  }
+}
+
+@media (max-width: 1200px) {
+  .console-body .vyuh-console-page {
+    grid-column: 1;
+  }
+
+  .console-body .vyuh-console-app .vyuh-console-sidebar {
+    min-height: auto;
   }
 }

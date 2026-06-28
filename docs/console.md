@@ -1,7 +1,8 @@
 # Console
 
-Vyuh console is an opt-in operational UI and JSON API for inspection. It is
-disabled by default, isolated from application auth, and read-only in this pass.
+Vyuh console is a built-in operational UI and JSON API for inspection. It is
+enabled by default in debug builds at `/console`, disabled by default in release
+builds, isolated from application auth, and read-only in this pass.
 
 Use it for inspecting registered operations, task records, runtime status,
 OpenAPI for application routes, and redacted runtime configuration. Do not use
@@ -9,8 +10,10 @@ it as an application admin framework or a command/task execution surface.
 
 ## Mental Model
 
-- Console is a built-in operational app mounted only when `ConsoleConf.enabled`
-  is true.
+- Console is a built-in operational app mounted at `ConsoleConf.path` when
+  `ConsoleConf.enabled` is true.
+- `ConsoleConf::default()` enables the console in debug builds and disables it
+  in release builds.
 - Console roles are separate from application roles.
 - Console auth uses a console-only cookie/session. Normal app JWTs do not grant
   console access.
@@ -28,7 +31,7 @@ use vyuh::console::ConsoleConf;
 let conf = SiteConf::default().console(
     ConsoleConf::default()
         .enabled(true)
-        .path("/_console"),
+        .path("/console"),
 );
 ```
 
@@ -36,8 +39,8 @@ Defaults:
 
 | Field | Default |
 | --- | --- |
-| `enabled` | `false` |
-| `path` | `/_console` |
+| `enabled` | `cfg!(debug_assertions)` |
+| `path` | `/console` |
 | `bootstrap_token_ttl_seconds` | `300` |
 | `session_ttl_seconds` | `28800` |
 | `print_bootstrap_url` | `LocalOnly` |
@@ -51,13 +54,18 @@ configured host is `localhost`, `127.0.0.1`, or `::1`:
 
 ```text
 Vyuh console enabled:
-http://localhost:8080/_console/login?token=...
+http://localhost:8080/console/login?token=...
 Token expires in 300 seconds.
 ```
 
 Bootstrap tokens are in-memory and are not persisted. Consuming a bootstrap
 token creates a console session cookie and redirects to the console root. The
 session cookie lasts 8 hours by default.
+
+In debug builds on `localhost`, `127.0.0.1`, or `::1`, the console also allows
+direct access without a bootstrap token. In release builds, enable the console
+explicitly and keep the bootstrap/session flow or another guarded access policy
+in place.
 
 ## Roles
 
@@ -109,8 +117,8 @@ cancel tasks, fire signals, or control services.
 Console pages use the package-owned `vyuh/web/` assets:
 
 ```text
-/assets/css/base.css
-/assets/css/console.css
+/assets/css/vyuh.css
+/assets/css/vyuh.<hash>.css
 /assets/img/vyuh-logo-transparent.png
 /assets/js/console.js
 ```
@@ -125,7 +133,7 @@ Applications do not need to copy console assets to enable the built-in console.
 parameters for filtering:
 
 ```text
-/_console/api/operations?kind=route&q=user&hidden=false&limit=50
+/console/api/operations?kind=route&q=user&hidden=false&limit=50
 ```
 
 Supported filters:
@@ -157,7 +165,7 @@ the console itself is mounted into the same site.
 `/api/tasks` lists task records without claiming or modifying them:
 
 ```text
-/_console/api/tasks?status=pending&priority_min=10&created_from=2026-06-01&created_to=2026-06-30&limit=50
+/console/api/tasks?status=pending&priority_min=10&created_from=2026-06-01&created_to=2026-06-30&limit=50
 ```
 
 Supported filters:

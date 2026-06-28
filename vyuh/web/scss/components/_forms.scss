@@ -1,0 +1,15 @@
+.vyuh-field {
+  display: grid;
+  gap: $vyuh-space-2;
+
+  input,
+  select,
+  textarea {
+    background: $vyuh-white;
+    border: $vyuh-border-default;
+    border-radius: $vyuh-radius-sm;
+    color: $vyuh-ink;
+    min-height: $vyuh-control-height;
+    padding: $vyuh-control-padding-y $vyuh-control-padding-x;
+  }
+}

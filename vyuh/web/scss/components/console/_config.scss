@@ -1,0 +1,64 @@
+.vyuh-console-config-grid .is-span-wide,
+.vyuh-console-config-grid .is-code {
+  grid-column: 1;
+}
+
+.vyuh-console-summary-strip {
+  align-items: center;
+  display: grid;
+  gap: $vyuh-space-4;
+  grid-template-columns: repeat(auto-fit, minmax($vyuh-console-summary-min, 1fr));
+  min-height: $vyuh-space-12;
+}
+
+.vyuh-console-summary-item {
+  align-items: center;
+  display: grid;
+  gap: $vyuh-space-3;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+}
+
+.vyuh-console-summary-item dl {
+  margin: 0;
+  min-width: 0;
+}
+
+.vyuh-console-summary-strip dt {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-sm;
+  font-weight: 400;
+}
+
+.vyuh-console-summary-strip dd {
+  margin: $vyuh-space-1 0 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vyuh-console-section-list {
+  display: grid;
+}
+
+.vyuh-console-section-list button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: $vyuh-border-subtle;
+  color: $vyuh-ink;
+  display: flex;
+  justify-content: space-between;
+  min-height: $vyuh-control-height;
+  padding: 0;
+}
+
+.vyuh-console-section-list button:last-child {
+  border-bottom: 0;
+}
+
+.vyuh-console-section-list b {
+  background: rgba($vyuh-ink, 0.06);
+  border-radius: $vyuh-radius-pill;
+  min-width: $vyuh-space-6;
+  padding: $vyuh-space-1 $vyuh-space-2;
+}

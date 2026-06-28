@@ -304,6 +304,7 @@ impl ConfigOut {
                 body_limit_enabled: conf.http.body_limit.enabled,
                 body_limit_max_bytes: conf.http.body_limit.max_bytes,
                 security_headers_enabled: conf.http.security_headers.enabled,
+                shutdown_grace_period_ms: conf.http.shutdown.grace_period_ms,
             },
             logging: LoggingConfigOut {
                 env_prefix: conf.logging.resolved_env_prefix().to_string(),
@@ -420,6 +421,7 @@ pub struct HttpConfigOut {
     pub body_limit_enabled: bool,
     pub body_limit_max_bytes: u64,
     pub security_headers_enabled: bool,
+    pub shutdown_grace_period_ms: u64,
 }
 
 #[derive(Debug, Serialize, JsonSchema)]

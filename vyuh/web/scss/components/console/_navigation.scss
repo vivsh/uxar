@@ -1,0 +1,109 @@
+.vyuh-console-link {
+  border-radius: $vyuh-radius-sm;
+  color: $vyuh-muted;
+  display: block;
+  font-size: $vyuh-text-sm;
+  font-weight: $vyuh-label-weight;
+  padding: $vyuh-space-3 $vyuh-space-4;
+
+  &[aria-current="page"],
+  &:hover {
+    @include vyuh-status(ember);
+  }
+}
+
+.vyuh-console-app .vyuh-console-sidebar {
+  background: rgba($vyuh-paper-warm, 0.72);
+  border-right: $vyuh-border-subtle;
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 100%;
+  padding: $vyuh-space-7 $vyuh-space-4 $vyuh-space-5;
+  position: relative;
+}
+
+.vyuh-console-app .vyuh-console-sidebar::after {
+  background: url("../img/vyuh-logo-transparent.png") no-repeat center / contain;
+  content: "";
+  height: 13rem;
+  left: 50%;
+  opacity: $vyuh-opacity-watermark;
+  position: absolute;
+  top: 58%;
+  transform: translate(-50%, -50%);
+  width: 13rem;
+}
+
+.vyuh-console-brand {
+  align-items: center;
+  color: $vyuh-ink;
+  display: inline-flex;
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-3xl;
+  gap: $vyuh-space-2;
+  line-height: $vyuh-line-tight;
+  margin-bottom: $vyuh-space-7;
+}
+
+.vyuh-console-brand img {
+  height: $vyuh-space-9;
+  width: $vyuh-space-9;
+}
+
+.vyuh-console-nav {
+  display: grid;
+  gap: $vyuh-space-1;
+  margin-bottom: $vyuh-space-5;
+  position: relative;
+  z-index: 1;
+}
+
+.vyuh-console-nav strong {
+  color: $vyuh-ember;
+  font-size: $vyuh-text-xs;
+  letter-spacing: $vyuh-tracking-kicker;
+  padding: $vyuh-space-3 $vyuh-space-3 $vyuh-space-2;
+  text-transform: uppercase;
+}
+
+.vyuh-console-nav a {
+  align-items: center;
+  border-radius: $vyuh-radius-sm;
+  color: $vyuh-ink;
+  display: flex;
+  gap: $vyuh-space-3;
+  min-height: $vyuh-space-9;
+  padding: $vyuh-space-3 $vyuh-space-4;
+}
+
+.vyuh-console-nav a[aria-current="page"],
+.vyuh-console-nav a:hover {
+  background: rgba($vyuh-ember, $vyuh-state-tint);
+  color: $vyuh-ink;
+}
+
+.vyuh-console-nav svg {
+  color: $vyuh-ink-soft;
+}
+
+.vyuh-console-nav a[aria-current="page"] svg,
+.vyuh-console-nav a:hover svg {
+  color: $vyuh-ember;
+}
+
+.vyuh-console-sidebar-footer {
+  align-self: end;
+  border-top: $vyuh-border-subtle;
+  display: grid;
+  gap: $vyuh-space-4;
+  padding: $vyuh-space-5 $vyuh-space-3 0;
+  position: relative;
+  z-index: 1;
+}
+
+.vyuh-console-sidebar-footer span {
+  align-items: center;
+  color: $vyuh-muted;
+  display: inline-flex;
+  gap: $vyuh-space-3;
+}

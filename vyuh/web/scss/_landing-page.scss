@@ -4,7 +4,7 @@ html {
 
 body {
   background:
-    linear-gradient(120deg, rgba($vyuh-ocean, 0.08), transparent 30%),
+    linear-gradient(120deg, rgba($vyuh-moss, 0.08), transparent 30%),
     linear-gradient(240deg, rgba($vyuh-ember, 0.12), transparent 36%),
     $vyuh-paper;
 }
@@ -56,7 +56,7 @@ a {
 .landing-hero {
   background:
     radial-gradient(circle at 82% 16%, rgba($vyuh-ember, 0.14), transparent 30%),
-    radial-gradient(circle at 18% 78%, rgba($vyuh-ocean, 0.08), transparent 34%),
+    radial-gradient(circle at 18% 78%, rgba($vyuh-moss, 0.08), transparent 34%),
     linear-gradient(120deg, rgba($vyuh-paper, 0.98), rgba($vyuh-paper-deep, 0.88) 58%, rgba($vyuh-ember, 0.1));
   min-height: min(48rem, calc(100vh - 4.75rem));
   overflow: hidden;
@@ -178,14 +178,6 @@ a {
   color: $vyuh-moss;
 }
 
-.landing-tone-ocean {
-  color: $vyuh-ocean;
-}
-
-.landing-tone-violet {
-  color: $vyuh-violet;
-}
-
 .landing-tone-saffron {
   color: $vyuh-saffron;
 }
@@ -212,31 +204,89 @@ a {
   width: 2.75rem;
 }
 
-.landing-feature {
-  min-height: 14rem;
-  transition: background 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+.landing-runtime-code {
+  background:
+    linear-gradient(135deg, rgba($vyuh-white, 0.72), rgba($vyuh-paper, 0.5)),
+    radial-gradient(circle at 18% 0%, rgba($vyuh-ember, 0.08), transparent 34%);
+  border: $vyuh-border-subtle;
+  border-radius: $vyuh-radius-md;
+  box-shadow: $vyuh-shadow-raised;
+  display: grid;
+  gap: 0;
+  grid-template-columns: minmax(20rem, 0.44fr) minmax(0, 0.56fr);
+  margin-top: $vyuh-space-7;
+  overflow: hidden;
+}
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.9);
-    box-shadow: 0 16px 42px rgba($vyuh-ink, 0.09);
-    transform: translateY(-3px);
+.landing-runtime-panel {
+  background: rgba($vyuh-white, 0.5);
+  border-right: $vyuh-border-subtle;
+  display: flex;
+  min-height: 100%;
+  padding: clamp($vyuh-space-5, 3vw, $vyuh-space-7);
+}
+
+.landing-runtime-tabs {
+  background: rgba($vyuh-white, 0.64);
+  border-bottom: $vyuh-border-subtle;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.landing-runtime-copy {
+  align-self: center;
+
+  .vyuh-section-title {
+    font-size: clamp($vyuh-text-2xl, 2.4vw, $vyuh-text-4xl);
   }
 }
 
-.landing-icon-box {
-  @include vyuh-surface(control, soft, sm);
-  display: grid;
-  font-family: $vyuh-font-mono;
-  height: $vyuh-control-height;
-  place-items: center;
-  width: $vyuh-control-height;
+.landing-code-body {
+  background: $vyuh-code-panel;
+  min-height: 100%;
+
+  pre {
+    min-height: 31rem;
+  }
 }
 
-.landing-code-layout {
-  display: grid;
-  gap: clamp($vyuh-space-7, 5vw, $vyuh-space-9);
-  grid-template-columns: minmax(0, 1.08fr) minmax(20rem, 0.92fr);
-  padding-block: clamp($vyuh-space-5, 3.5vw, $vyuh-space-7) clamp($vyuh-space-4, 2.5vw, $vyuh-space-6);
+.landing-code-tab {
+  background: transparent;
+  border: 0;
+  border-right: $vyuh-border-subtle;
+  color: rgba($vyuh-ink, 0.68);
+  cursor: pointer;
+  font-weight: $vyuh-label-weight;
+  padding: $vyuh-space-4 $vyuh-space-3;
+  position: relative;
+  text-align: center;
+  transition: background 160ms ease, color 160ms ease;
+  white-space: nowrap;
+
+  &:last-child {
+    border-right: 0;
+  }
+
+  &::after {
+    background: transparent;
+    bottom: 0;
+    content: "";
+    height: 0.1875rem;
+    left: $vyuh-space-4;
+    position: absolute;
+    right: $vyuh-space-4;
+  }
+
+  &:hover,
+  &.is-active {
+    background: rgba($vyuh-ember, 0.07);
+    color: $vyuh-ember;
+  }
+
+  &.is-active::after {
+    background: $vyuh-ember;
+  }
 }
 
 .landing-code-toolbar {
@@ -273,41 +323,9 @@ a {
   margin-left: $vyuh-space-4;
 }
 
-.landing-code-body {
-  display: grid;
-  grid-template-columns: 9.5rem minmax(0, 1fr);
-}
-
-.landing-code-tabs {
-  background: $vyuh-paper-deep;
-  border-right: 1px solid rgba($vyuh-ink, 0.1);
-  padding: $vyuh-space-4;
-}
-
-.landing-code-mobile-tabs {
-  display: none;
-}
-
-.landing-code-tab {
-  background: transparent;
-  border: 0;
-  border-radius: $vyuh-radius-sm;
-  color: rgba($vyuh-ink, 0.68);
-  cursor: pointer;
-  display: block;
-  padding: $vyuh-space-3 $vyuh-space-4;
-  text-align: left;
-  width: 100%;
-
-  &.is-active {
-    background: rgba($vyuh-ember, 0.1);
-    color: $vyuh-ember;
-  }
-}
-
 .landing-code-points {
   list-style: none;
-  margin: $vyuh-space-7 0 0;
+  margin: $vyuh-space-6 0 0;
   padding: 0;
 
   li {
@@ -328,7 +346,7 @@ a {
 
 .landing-console-shell {
   background:
-    radial-gradient(circle at 12% 12%, rgba($vyuh-ocean, 0.16), transparent 28%),
+    radial-gradient(circle at 12% 12%, rgba($vyuh-moss, 0.16), transparent 28%),
     linear-gradient(145deg, rgba($vyuh-ink, 0.98), rgba($vyuh-ink, 0.88));
   border-radius: $vyuh-radius-md;
   box-shadow: $vyuh-shadow-lift;
@@ -354,7 +372,7 @@ a {
 }
 
 .landing-console-inference {
-  border-left: 0.25rem solid $vyuh-ember;
+  border-left: 0.25rem solid $vyuh-moss;
   color: rgba($vyuh-white, 0.86);
   font-size: $vyuh-text-lg;
   font-weight: $vyuh-label-weight;
@@ -427,113 +445,134 @@ a {
   position: relative;
 }
 
-.landing-benchmark-section {
-  scroll-margin-top: 5.5rem;
-}
-
-.landing-benchmark-shell {
-  background:
-    linear-gradient(145deg, rgba($vyuh-white, 0.84), rgba($vyuh-paper, 0.72)),
-    radial-gradient(circle at 100% 100%, rgba($vyuh-ember, 0.13), transparent 32%);
+.landing-capability {
+  --landing-accent: #{$vyuh-ember};
+  --landing-accent-soft: #{rgba($vyuh-ember, 0.12)};
+  --landing-accent-muted: #{rgba($vyuh-ember, 0.08)};
+  --landing-accent-border: #{rgba($vyuh-ember, 0.24)};
+  background: rgba($vyuh-white, 0.78);
   border: $vyuh-border-subtle;
   border-radius: $vyuh-radius-md;
-  box-shadow: $vyuh-shadow-lift;
+  box-shadow: $vyuh-shadow-raised;
   display: grid;
-  gap: clamp($vyuh-space-6, 4vw, $vyuh-space-8);
-  grid-template-columns: minmax(18rem, 0.42fr) minmax(0, 0.58fr);
+  gap: 0;
+  grid-template-columns: minmax(18rem, 0.4fr) minmax(0, 0.6fr);
   overflow: hidden;
-  padding: clamp($vyuh-space-6, 4vw, $vyuh-space-8);
 }
 
-.landing-benchmark-copy {
+.landing-capability-copy {
   align-self: center;
+  background:
+    linear-gradient(135deg, var(--landing-accent-soft), rgba($vyuh-white, 0.76)),
+    radial-gradient(circle at 0% 100%, var(--landing-accent-soft), transparent 36%);
+  border-right: $vyuh-border-subtle;
+  min-height: 100%;
+  padding: clamp($vyuh-space-5, 3.5vw, $vyuh-space-7);
 }
 
-.landing-benchmark-inference {
-  border-left: 0.25rem solid $vyuh-ember;
-  color: rgba($vyuh-ink, 0.8);
-  font-size: $vyuh-text-lg;
+.landing-capability-proof {
+  border-left: 0.25rem solid var(--landing-accent);
+  color: rgba($vyuh-ink, 0.78);
   font-weight: $vyuh-label-weight;
   line-height: $vyuh-line-body;
-  margin: $vyuh-space-6 0 0;
+  margin: $vyuh-space-5 0 0;
   padding-left: $vyuh-space-4;
 }
 
-.landing-benchmark-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $vyuh-space-2;
-  margin-top: $vyuh-space-6;
+.landing-capability-visual {
+  background:
+    linear-gradient(180deg, rgba($vyuh-white, 0.82), rgba($vyuh-paper, 0.5)),
+    radial-gradient(circle at 100% 0%, var(--landing-accent-muted), transparent 36%);
+  display: grid;
+  gap: $vyuh-space-4;
+  padding: clamp($vyuh-space-4, 2.5vw, $vyuh-space-6);
 }
 
-.landing-benchmark-control {
-  background: rgba($vyuh-white, 0.72);
+.landing-capability-flip .landing-capability-copy {
+  border-left: $vyuh-border-subtle;
+  border-right: 0;
+  order: 2;
+}
+
+.landing-capability-flip .landing-capability-visual {
+  order: 1;
+}
+
+.landing-capability-emitters,
+.landing-capability-bundles {
+  --landing-accent: #{$vyuh-saffron};
+  --landing-accent-soft: #{rgba($vyuh-saffron, 0.12)};
+  --landing-accent-muted: #{rgba($vyuh-saffron, 0.08)};
+  --landing-accent-border: #{rgba($vyuh-saffron, 0.24)};
+}
+
+.landing-capability-channels {
+  --landing-accent: #{$vyuh-moss};
+  --landing-accent-soft: #{rgba($vyuh-moss, 0.12)};
+  --landing-accent-muted: #{rgba($vyuh-moss, 0.08)};
+  --landing-accent-border: #{rgba($vyuh-moss, 0.24)};
+}
+
+.landing-capability-bundles .landing-capability-visual {
+  background:
+    linear-gradient(270deg, rgba($vyuh-saffron, 0.14), rgba($vyuh-white, 0.68)),
+    radial-gradient(circle at 70% 20%, rgba($vyuh-ember, 0.12), transparent 34%);
+}
+
+.landing-fact-icon {
+  align-items: center;
+  background: var(--landing-accent-muted);
+  border: 1px solid var(--landing-accent-border);
+  border-radius: $vyuh-radius-sm;
+  color: var(--landing-accent);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+
+  svg {
+    fill: none;
+    height: 1.125rem;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+    width: 1.125rem;
+  }
+}
+
+.landing-capability-facts {
+  display: grid;
+  gap: $vyuh-space-3;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.landing-capability-fact {
+  background: rgba($vyuh-white, 0.66);
   border: $vyuh-border-subtle;
-  border-radius: $vyuh-radius-pill;
-  color: rgba($vyuh-ink, 0.72);
-  cursor: pointer;
-  font-size: $vyuh-text-sm;
-  font-weight: $vyuh-label-weight;
-  padding: $vyuh-space-2 $vyuh-space-4;
-  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+  border-radius: $vyuh-radius-sm;
+  display: grid;
+  gap: $vyuh-space-2;
+  padding: $vyuh-space-4;
 
-  &:hover,
-  &.is-active {
-    background: $vyuh-ink;
-    color: $vyuh-white;
-    transform: translateY(-1px);
-  }
-}
-
-.landing-benchmark-scope {
-  color: rgba($vyuh-ink, 0.54);
-  font-size: $vyuh-text-sm;
-  line-height: $vyuh-line-body;
-  margin: $vyuh-space-5 0 0;
-}
-
-.landing-benchmark-deck {
-  align-self: center;
-  min-height: 27rem;
-  position: relative;
-}
-
-.landing-benchmark-slide {
-  inset: 0;
-  margin: 0;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  transform: translateY($vyuh-space-4) scale(0.98);
-  transition: opacity 260ms ease, transform 260ms ease;
-
-  &.is-active {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateY(0) scale(1);
+  h3 {
+    font-size: $vyuh-text-md;
+    line-height: $vyuh-line-heading;
+    margin: 0;
   }
 
-  img {
-    background: $vyuh-white;
-    border: $vyuh-border-subtle;
-    border-radius: $vyuh-radius-sm;
-    box-shadow: 0 18px 48px rgba($vyuh-ink, 0.1);
-    display: block;
-    padding: $vyuh-space-2;
-    width: 100%;
-  }
-
-  figcaption {
+  p {
     color: rgba($vyuh-ink, 0.62);
     font-size: $vyuh-text-sm;
     line-height: $vyuh-line-body;
-    margin-top: $vyuh-space-3;
-    text-align: center;
+    margin: 0;
   }
 }
 
 .landing-stack-card {
-  padding: clamp($vyuh-space-6, 4vw, $vyuh-space-8);
+  background: rgba($vyuh-white, 0.72);
+  padding: clamp($vyuh-space-5, 3vw, $vyuh-space-7);
 }
 
 .landing-stack-grid {
@@ -546,23 +585,34 @@ a {
 }
 
 .landing-stack-item {
-  background: rgba($vyuh-white, 0.58);
+  background: rgba($vyuh-white, 0.5);
   border-right: $vyuh-border-subtle;
-  padding: $vyuh-space-5;
+  padding: $vyuh-space-4;
   text-align: center;
 
   &:last-child {
     border-right: 0;
   }
 
+  h3 {
+    font-size: $vyuh-text-sm;
+    line-height: $vyuh-line-heading;
+    margin: $vyuh-space-2 0 0;
+  }
+
   p {
     color: rgba($vyuh-ink, 0.58);
+    font-size: $vyuh-text-xs;
     margin: $vyuh-space-1 0 0;
   }
 }
 
-.landing-stack-name {
-  font-size: $vyuh-text-stack;
+.landing-stack-logo {
+  display: block;
+  font-family: $vyuh-font-mono;
+  font-size: $vyuh-text-md;
+  font-weight: $vyuh-label-weight;
+  line-height: $vyuh-line-heading;
 }
 
 .landing-cta {
@@ -571,7 +621,7 @@ a {
   box-shadow: $vyuh-shadow-lift;
   margin-block: 0 clamp($vyuh-space-6, 4vw, $vyuh-space-9);
   overflow: hidden;
-  padding: clamp($vyuh-space-7, 5vw, $vyuh-space-9);
+  padding: clamp($vyuh-space-6, 4vw, $vyuh-space-8);
   position: relative;
 
   &::after {
@@ -590,7 +640,7 @@ a {
 .landing-cta-inner {
   align-items: center;
   display: grid;
-  gap: $vyuh-space-7;
+  gap: $vyuh-space-6;
   grid-template-columns: minmax(0, 1fr) auto;
   position: relative;
   z-index: 1;
@@ -635,20 +685,33 @@ a {
   }
 
   .landing-hero-grid,
-  .landing-code-layout,
+  .landing-runtime-code,
   .landing-console-shell,
-  .landing-benchmark-shell,
+  .landing-capability,
   .landing-cta-inner {
     grid-template-columns: 1fr;
+  }
+
+  .landing-runtime-panel {
+    border-bottom: $vyuh-border-subtle;
+    border-right: 0;
+  }
+
+  .landing-capability-copy,
+  .landing-capability-flip .landing-capability-copy {
+    border-left: 0;
+    border-bottom: $vyuh-border-subtle;
+    border-right: 0;
+    order: 0;
+  }
+
+  .landing-capability-flip .landing-capability-visual {
+    order: 1;
   }
 
   .landing-console-deck {
     min-height: clamp(22rem, 60vw, 35rem);
     order: 2;
-  }
-
-  .landing-benchmark-deck {
-    min-height: clamp(22rem, 60vw, 35rem);
   }
 
   .landing-cta-actions {
@@ -765,25 +828,24 @@ a {
     }
   }
 
-  .landing-code-body {
-    grid-template-columns: 1fr;
-  }
-
-  .landing-code-tabs {
-    display: none;
-  }
-
-  .landing-code-mobile-tabs {
-    background: $vyuh-white;
-    border-bottom: $vyuh-border-default;
+  .landing-runtime-tabs {
     display: flex;
-    gap: $vyuh-space-2;
     overflow-x: auto;
-    padding: $vyuh-space-3;
   }
 
   .landing-code-tab {
-    white-space: nowrap;
+    border-right: $vyuh-border-subtle;
+    flex: 0 0 auto;
+    min-width: 7rem;
+  }
+
+  .landing-code-body pre {
+    max-height: 28rem;
+    overflow: auto;
+  }
+
+  .landing-capability-facts {
+    grid-template-columns: 1fr;
   }
 
   .landing-console-shell {
@@ -798,15 +860,4 @@ a {
     font-size: $vyuh-text-md;
   }
 
-  .landing-benchmark-shell {
-    border-radius: $vyuh-radius-sm;
-  }
-
-  .landing-benchmark-deck {
-    min-height: clamp(18rem, 76vw, 28rem);
-  }
-
-  .landing-benchmark-inference {
-    font-size: $vyuh-text-md;
-  }
 }

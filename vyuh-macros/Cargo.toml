@@ -1,11 +1,11 @@
 [package]
 name = "vyuh-macros"
-version = "0.2.9"
+version = "0.2.10"
 edition = "2024"
 license = "MIT"
 description = "Procedural macros for the Vyuh web framework"
 readme = "../README.md"
-repository = "https://github.com/vivsh/vyuh"
+repository = "https://github.com/vyuh-rs/vyuh"
 documentation = "https://docs.rs/vyuh-macros"
 
 [lib]

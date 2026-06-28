@@ -1,0 +1,8 @@
+.git/
+target/
+**/.DS_Store
+vyuh-bench/.venv/
+vyuh-bench/results/raw/*/pgdata/
+vyuh-bench/results/raw/*/*.sqlite3
+vyuh-bench/results/raw/*/*.log
+vyuh-bench/results/raw/*/*.json

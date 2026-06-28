@@ -1,0 +1,12 @@
+.vyuh-table {
+  @include vyuh-surface(control, soft, md);
+  overflow: hidden;
+
+  table {
+    margin: 0;
+  }
+
+  caption {
+    padding: $vyuh-table-cell-padding-y $vyuh-table-cell-padding-x;
+  }
+}

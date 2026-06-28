@@ -1,0 +1,38 @@
+.vyuh-button {
+  @include vyuh-control;
+  border-color: transparent;
+  box-shadow: $vyuh-shadow-soft;
+  justify-content: center;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.vyuh-button-primary {
+  background: $vyuh-ember;
+  color: $vyuh-white;
+}
+
+.vyuh-button-secondary {
+  background: $vyuh-surface-control;
+  border-color: rgba($vyuh-ink, 0.2);
+  color: $vyuh-ink;
+}
+
+.vyuh-icon-button {
+  @include vyuh-surface(control, soft, sm);
+  color: $vyuh-ink;
+  display: inline-grid;
+  height: $vyuh-control-height;
+  place-items: center;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+  width: $vyuh-control-height;
+
+  &:hover {
+    background: $vyuh-white;
+    border-color: rgba($vyuh-ink, 0.28);
+    transform: translateY(-2px);
+  }
+}

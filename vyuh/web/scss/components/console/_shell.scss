@@ -1,0 +1,77 @@
+.vyuh-icon-sprite {
+  display: none;
+}
+
+.vyuh-console-shell {
+  display: grid;
+  grid-template-columns: 13rem minmax(0, 1fr) minmax(18rem, 24rem);
+  min-height: 34rem;
+}
+
+.vyuh-console-sidebar,
+.vyuh-console-detail {
+  background: $vyuh-surface-muted;
+  padding: $vyuh-space-4;
+}
+
+.vyuh-console-sidebar {
+  border-right: $vyuh-border-default;
+}
+
+.vyuh-console-detail {
+  border-left: $vyuh-border-default;
+}
+
+.vyuh-console-main {
+  padding: $vyuh-space-4;
+}
+
+.vyuh-console-app {
+  @include vyuh-surface(base, lift, lg);
+  background:
+    radial-gradient(circle at 0 75%, rgba($vyuh-ember, $vyuh-state-tint-soft), transparent 20rem),
+    linear-gradient(115deg, rgba($vyuh-white, 0.94), rgba($vyuh-paper, 0.78));
+  color: $vyuh-ink;
+  display: grid;
+  grid-template-columns: $vyuh-console-sidebar-width minmax(0, 1fr);
+  min-height: 64rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.vyuh-console-app svg {
+  fill: none;
+  height: 1.15em;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  width: 1.15em;
+}
+
+.vyuh-console-page {
+  display: grid;
+  gap: $vyuh-space-7;
+  padding: $vyuh-space-6 $vyuh-space-7 0;
+}
+
+.vyuh-console-screen {
+  border-bottom: $vyuh-border-subtle;
+  display: grid;
+  gap: $vyuh-console-screen-gap;
+  padding-bottom: $vyuh-space-6;
+}
+
+.vyuh-console-footer {
+  align-items: center;
+  color: $vyuh-muted;
+  display: flex;
+  gap: $vyuh-space-3;
+  justify-content: center;
+  padding: 0 0 $vyuh-space-6;
+}
+
+.vyuh-console-footer img {
+  height: $vyuh-space-5;
+  width: $vyuh-space-5;
+}

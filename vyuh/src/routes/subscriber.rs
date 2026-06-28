@@ -10,6 +10,7 @@ use crate::channels::{
     UserStream, WS,
 };
 use crate::errors::ErrorReport;
+use crate::notifiers::CancellationNotifier;
 use crate::{Error, Site};
 
 /// Route extractor that negotiates channel transport from the request.
@@ -22,6 +23,7 @@ pub struct Subscriber {
     mode: ChannelTransport,
     upgrade: Option<WebSocketUpgrade>,
     after: Option<ChannelCursor>,
+    shutdown: CancellationNotifier,
 }
 
 /// Pending attachment of a user stream to a negotiated subscriber.
@@ -74,8 +76,10 @@ impl ChannelAttach {
     ) -> Result<ChannelResponse, Error> {
         match subscriber.mode {
             WS => Self::websocket_response(subscriber, open),
-            SSE => Ok(ChannelResponse::Sse(open.into_sse())),
-            POLL => Ok(ChannelResponse::Poll(open.into_poll().await)),
+            SSE => Ok(ChannelResponse::Sse(open.into_sse(subscriber.shutdown))),
+            POLL => Ok(ChannelResponse::Poll(
+                open.into_poll(subscriber.shutdown).await,
+            )),
             _ => Err(Error::from(ChannelError::TransportNotAllowed)),
         }
     }
@@ -85,7 +89,9 @@ impl ChannelAttach {
         open: crate::channels::OpenStream,
     ) -> Result<ChannelResponse, Error> {
         match subscriber.upgrade {
-            Some(upgrade) => Ok(ChannelResponse::WebSocket(open.into_websocket(upgrade))),
+            Some(upgrade) => Ok(ChannelResponse::WebSocket(
+                open.into_websocket(upgrade, subscriber.shutdown),
+            )),
             None => Err(Error::bad_request("websocket upgrade is required")),
         }
     }
@@ -115,6 +121,7 @@ impl FromRequestParts<Site> for Subscriber {
             mode,
             upgrade,
             after,
+            shutdown: state.shutdown_notifier(),
         })
     }
 }

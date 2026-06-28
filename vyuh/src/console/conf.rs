@@ -32,8 +32,8 @@ pub struct ConsoleConf {
 impl Default for ConsoleConf {
     fn default() -> Self {
         Self {
-            enabled: false,
-            path: "/_console".to_string(),
+            enabled: cfg!(debug_assertions),
+            path: "/console".to_string(),
             bootstrap_token_ttl_seconds: 300,
             session_ttl_seconds: 28_800,
             print_bootstrap_url: ConsoleBootstrapMode::LocalOnly,
@@ -99,14 +99,14 @@ impl ConsoleConf {
             errors.push(ConfError::InvalidValue {
                 field: "console.path".into(),
                 reason: "must be an absolute non-root path".into(),
-                expected: Some("a path such as /_console".into()),
+                expected: Some("a path such as /console".into()),
             });
         }
         if self.path.ends_with('/') {
             errors.push(ConfError::InvalidValue {
                 field: "console.path".into(),
                 reason: "must not end with '/'".into(),
-                expected: Some("a path such as /_console".into()),
+                expected: Some("a path such as /console".into()),
             });
         }
         if self.bootstrap_token_ttl_seconds == 0 {

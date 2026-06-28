@@ -64,7 +64,7 @@ let conf = SiteConf::default()
         base_url: Some("/media/uploads".into()),
         ..UploadConf::default()
     })
-    .console(ConsoleConf::default().enabled(true))
+    .console(ConsoleConf::default())
     .timezone("UTC");
 ```
 
@@ -261,10 +261,20 @@ tokio::select! {
 }
 ```
 
-`Site::serve` and `site.start()` install graceful server shutdown.
-`shutdown_and_wait()` can be
-used by tests or embedding code that needs to notify background tasks and abort
-remaining join handles.
+`Site::serve` and `site.start()` install bounded graceful server shutdown. The
+first `Ctrl+C` starts graceful shutdown and prints a message explaining that a
+second `Ctrl+C` will force shutdown. `SIGTERM`, touch-reload, and
+`site.shutdown()` also start graceful shutdown. If active requests do not drain
+within `conf.http.shutdown.grace_period_ms`, Vyuh forces server shutdown and
+returns from `Site::serve` or `site.start()`.
+
+Channel transports are shutdown-aware: SSE streams end, WebSockets close, and
+long-poll requests return promptly when shutdown starts. Long-lived service
+workers should still select on `site.shutdown_notifier()` so they can stop
+their own work cleanly before the grace period expires.
+
+`shutdown_and_wait()` can be used by tests or embedding code that needs to
+notify background tasks and abort remaining join handles.
 
 ## Failure Modes
 

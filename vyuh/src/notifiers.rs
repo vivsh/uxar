@@ -17,4 +17,9 @@ impl CancellationNotifier {
     pub async fn notified(&self) {
         self.0.cancelled().await;
     }
+
+    #[cfg(test)]
+    pub(crate) fn is_notified(&self) -> bool {
+        self.0.is_cancelled()
+    }
 }

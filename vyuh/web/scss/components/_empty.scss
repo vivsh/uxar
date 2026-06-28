@@ -1,0 +1,9 @@
+.vyuh-empty {
+  border: $vyuh-border-dashed;
+  border-radius: $vyuh-radius-md;
+  background: $vyuh-surface-soft;
+  color: $vyuh-muted;
+  display: grid;
+  gap: $vyuh-space-1;
+  padding: $vyuh-card-padding;
+}

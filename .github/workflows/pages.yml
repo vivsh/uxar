@@ -19,6 +19,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vyuh/web/package-lock.json
+
+      - name: Install web dependencies
+        run: npm --prefix vyuh/web ci
+
       - name: Install mdBook
         run: cargo install mdbook --version 0.5.3 --locked
 

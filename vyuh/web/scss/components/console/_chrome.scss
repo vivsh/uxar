@@ -1,0 +1,78 @@
+.vyuh-console-topbar {
+  align-items: start;
+  display: flex;
+  gap: $vyuh-space-6;
+  justify-content: space-between;
+}
+
+.vyuh-console-topbar h1 {
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-3xl;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.vyuh-console-topbar p,
+.vyuh-console-captured {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-sm;
+  margin: $vyuh-space-2 0 0;
+}
+
+.vyuh-console-actions {
+  align-items: center;
+  display: flex;
+  gap: $vyuh-space-3;
+  justify-content: end;
+}
+
+.vyuh-console-icon-button,
+.vyuh-console-site-button,
+.vyuh-console-select,
+.vyuh-console-toolbar button,
+.vyuh-console-card header button {
+  @include vyuh-control;
+  background: $vyuh-surface-control;
+  box-shadow: $vyuh-shadow-control;
+}
+
+.vyuh-console-icon-button {
+  justify-content: center;
+  padding: 0;
+  width: $vyuh-control-height;
+}
+
+.vyuh-console-site-button {
+  background: $vyuh-ember;
+  border-color: $vyuh-ember;
+  color: $vyuh-white;
+}
+
+.vyuh-console-reset {
+  @include vyuh-control;
+  background: $vyuh-surface-control;
+}
+
+.vyuh-console-select select {
+  background: transparent;
+  border: 0;
+  color: $vyuh-ink;
+  min-width: $vyuh-space-10;
+}
+
+.vyuh-console-sidebar-footer i,
+.vyuh-console-status {
+  background: $vyuh-success;
+  border-radius: $vyuh-radius-pill;
+  display: inline-block;
+  height: $vyuh-space-2;
+  width: $vyuh-space-2;
+}
+
+.vyuh-console-status.is-warning {
+  background: $vyuh-saffron;
+}
+
+.vyuh-console-status.is-danger {
+  background: $vyuh-danger;
+}

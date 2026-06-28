@@ -10,7 +10,6 @@
     <div class="vyuh-console-actions">
       <a class="vyuh-console-icon-button" href="{{ base_path }}/operations" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
       <label class="vyuh-console-select"><span>Auto refresh</span><select><option>Off</option><option>30s</option></select></label>
-      <a class="vyuh-console-site-button" href="{{ base_path }}/api/operations">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
     </div>
   </header>
 
@@ -19,7 +18,7 @@
     <article class="vyuh-console-stat"><span class="vyuh-console-icon is-green"><svg><use href="#vyuh-icon-check"></use></svg></span><div><h3>Visible</h3><strong>{{ page.items | length }}</strong><p>Current result set</p></div></article>
     <article class="vyuh-console-stat"><span class="vyuh-console-icon is-yellow"><svg><use href="#vyuh-icon-clock"></use></svg></span><div><h3>Filtered</h3><strong>{% if query.kind %}1{% else %}All{% endif %}</strong><p>Kind filter</p></div></article>
     <article class="vyuh-console-stat"><span class="vyuh-console-icon is-violet"><svg><use href="#vyuh-icon-docs"></use></svg></span><div><h3>Schema</h3><strong>OpenAPI</strong><p>Request/response metadata</p></div></article>
-    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-blue"><svg><use href="#vyuh-icon-gear"></use></svg></span><div><h3>Hidden</h3><strong>Off</strong><p>Console paths omitted</p></div></article>
+    <article class="vyuh-console-stat"><span class="vyuh-console-icon is-blue"><svg><use href="#vyuh-icon-gear"></use></svg></span><div><h3>Hidden</h3><strong>No</strong><p>Console paths omitted</p></div></article>
   </div>
 
   <form class="vyuh-console-toolbar" method="get" action="{{ base_path }}/operations">
@@ -38,7 +37,7 @@
 
   <div class="vyuh-console-data-grid">
     <article class="vyuh-console-card">
-      <header><h2>Recent Operations</h2><a href="{{ base_path }}/api/operations"><svg><use href="#vyuh-icon-download"></use></svg>JSON</a></header>
+      <header><h2>Recent Operations</h2></header>
       <div class="vyuh-console-table">
         <table>
           <thead><tr><th>Kind</th><th>Name</th><th>Methods</th><th>Path</th><th>Owner</th><th>Hidden</th><th></th></tr></thead>
@@ -46,7 +45,7 @@
             {% for op in page.items %}
             <tr {% if selected_operation and selected_operation.id == op.id %}aria-selected="true"{% endif %}>
               <td><span class="vyuh-console-badge is-info">{{ op.kind }}</span></td>
-              <td>{% if op.summary %}<strong>{{ op.summary }}</strong>{% else %}<strong>{{ op.name }}</strong>{% endif %}</td>
+              <td><a class="vyuh-console-row-title" href="{{ base_path }}/operations?selected={{ op.id }}">{% if op.summary %}{{ op.summary }}{% else %}{{ op.name }}{% endif %}</a></td>
               <td>{% for method in op.methods %}<span class="vyuh-console-badge is-method">{{ method }}</span>{% endfor %}</td>
               <td><code>{{ op.path }}</code></td>
               <td>{% if op.owner %}{{ op.owner }}{% else %}-{% endif %}</td>
@@ -78,15 +77,34 @@
         <div><dt>Owner</dt><dd>{% if selected_operation.owner %}{{ selected_operation.owner }}{% else %}-{% endif %}</dd></div>
         <div><dt>Hidden</dt><dd>{{ selected_operation.hidden }}</dd></div>
       </dl>
-      <nav class="vyuh-console-tabs is-compact"><a aria-current="page">Request</a><a>Response</a><a>Metadata</a></nav>
-      {% for arg in selected_operation.args %}
-      <article class="vyuh-console-code"><header><strong>{{ arg.name }}</strong><span>{{ arg.location }}</span></header>{% if arg.schema %}<pre><code>{{ arg.schema }}</code></pre>{% else %}<pre><code>No schema registered</code></pre>{% endif %}</article>
-      {% else %}
-      <article class="vyuh-console-muted-panel"><strong>Request</strong><code>No request inputs registered.</code></article>
-      {% endfor %}
-      {% for ret in selected_operation.returns %}
-      <article class="vyuh-console-code"><header><strong>{% if ret.status_code %}{{ ret.status_code }}{% else %}response{% endif %}</strong><span>{{ ret.location }}</span></header>{% if ret.schema %}<pre><code>{{ ret.schema }}</code></pre>{% else %}<pre><code>No response schema registered</code></pre>{% endif %}</article>
-      {% endfor %}
+      <nav class="vyuh-console-tabs is-compact" role="tablist" data-console-tabs aria-label="Operation detail sections">
+        <button type="button" role="tab" id="operation-request-tab" aria-controls="operation-request-panel" aria-selected="true">Request</button>
+        <button type="button" role="tab" id="operation-response-tab" aria-controls="operation-response-panel" aria-selected="false" tabindex="-1">Response</button>
+        <button type="button" role="tab" id="operation-metadata-tab" aria-controls="operation-metadata-panel" aria-selected="false" tabindex="-1">Metadata</button>
+      </nav>
+      <section class="vyuh-console-tab-panel" role="tabpanel" id="operation-request-panel" aria-labelledby="operation-request-tab">
+        {% for arg in selected_operation.args %}
+        {% include "console/partials/schema_card.html" %}
+        {% else %}
+        <article class="vyuh-console-muted-panel"><strong>Request</strong><code>No request inputs registered.</code></article>
+        {% endfor %}
+      </section>
+      <section class="vyuh-console-tab-panel" role="tabpanel" id="operation-response-panel" aria-labelledby="operation-response-tab" hidden>
+        {% for ret in selected_operation.returns %}
+        {% set arg = ret %}
+        {% include "console/partials/schema_card.html" %}
+        {% else %}
+        <article class="vyuh-console-muted-panel"><strong>Response</strong><code>No response schema registered.</code></article>
+        {% endfor %}
+      </section>
+      <section class="vyuh-console-tab-panel" role="tabpanel" id="operation-metadata-panel" aria-labelledby="operation-metadata-tab" hidden>
+        <dl class="vyuh-console-kv">
+          <div><dt>Registered As</dt><dd>{{ selected_operation.name }}</dd></div>
+          <div><dt>Kind</dt><dd>{{ selected_operation.kind }}</dd></div>
+          <div><dt>Route</dt><dd>{{ selected_operation.path }}</dd></div>
+          <div><dt>Tags</dt><dd>{% if selected_operation.tags %}{{ selected_operation.tags | join(", ") }}{% else %}-{% endif %}</dd></div>
+        </dl>
+      </section>
       {% else %}
       <header><h2>Operation Details</h2></header>
       <p>Select an operation row to inspect request and response schema details without leaving this page.</p>

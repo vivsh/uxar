@@ -1,0 +1,313 @@
+.vyuh-console-badge {
+  align-items: center;
+  border-radius: $vyuh-radius-xs;
+  display: inline-flex;
+  font-size: $vyuh-text-2xs;
+  font-weight: $vyuh-label-weight;
+  gap: $vyuh-space-1;
+  padding: $vyuh-space-1 $vyuh-space-2;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.vyuh-console-badge.is-success,
+.vyuh-console-badge.is-method-get,
+.vyuh-console-badge.is-succeeded {
+  @include vyuh-status(success, 0.11);
+}
+
+.vyuh-console-badge.is-info,
+.vyuh-console-badge.is-method-post,
+.vyuh-console-badge.is-running {
+  @include vyuh-status(info, 0.12);
+}
+
+.vyuh-console-badge.is-warning,
+.vyuh-console-badge.is-pending,
+.vyuh-console-badge.is-suspended {
+  @include vyuh-status(warning, $vyuh-state-tint-strong);
+}
+
+.vyuh-console-badge.is-danger,
+.vyuh-console-badge.is-method-delete,
+.vyuh-console-badge.is-failed {
+  @include vyuh-status(danger);
+}
+
+.vyuh-console-badge i {
+  background: currentColor;
+  border-radius: $vyuh-radius-pill;
+  height: $vyuh-space-2;
+  width: $vyuh-space-2;
+}
+
+.vyuh-console-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: $vyuh-space-3;
+}
+
+.vyuh-console-toolbar label {
+  @include vyuh-control;
+  background: rgba($vyuh-white, 0.76);
+  min-width: min(100%, 22rem);
+  padding-block: 0;
+}
+
+.vyuh-console-toolbar input,
+.vyuh-console-toolbar select {
+  background: rgba($vyuh-white, 0.76);
+  border: $vyuh-border-default;
+  border-radius: $vyuh-radius-sm;
+  color: $vyuh-ink;
+  min-height: $vyuh-control-height;
+  padding: $vyuh-control-padding-y $vyuh-control-padding-x;
+}
+
+.vyuh-console-toolbar label input {
+  background: transparent;
+  border: 0;
+  min-height: auto;
+  padding: 0;
+  width: 100%;
+}
+
+.vyuh-console-table {
+  overflow: auto;
+}
+
+.vyuh-console-table table {
+  border-collapse: collapse;
+  min-width: 46rem;
+  width: 100%;
+}
+
+.vyuh-console-table th,
+.vyuh-console-table td {
+  border-bottom: $vyuh-border-subtle;
+  padding: $vyuh-table-cell-padding-compact-y $vyuh-table-cell-padding-compact-x;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.vyuh-console-table td {
+  max-width: 22rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.vyuh-console-table a {
+  color: $vyuh-ink;
+  font-size: $vyuh-text-sm;
+  text-decoration: none;
+}
+
+.vyuh-console-row-title {
+  font-weight: $vyuh-heading-weight;
+  text-decoration: none;
+}
+
+.vyuh-console-table th {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-xs;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.vyuh-console-table tr[aria-selected="true"] {
+  background: $vyuh-state-selected-bg;
+}
+
+.vyuh-console-code {
+  @include vyuh-surface(base, none, sm);
+  overflow: hidden;
+}
+
+.vyuh-console-code header {
+  border-bottom: $vyuh-border-subtle;
+  display: flex;
+  justify-content: space-between;
+  padding: $vyuh-space-3 $vyuh-space-4;
+}
+
+.vyuh-console-code pre {
+  color: $vyuh-code-blue;
+  counter-reset: line;
+  font-size: $vyuh-text-code-compact;
+  line-height: $vyuh-line-code-compact;
+  margin: 0;
+  max-height: 23rem;
+  overflow: auto;
+  padding: $vyuh-space-4;
+}
+
+.vyuh-console-code code {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.vyuh-console-schema-card {
+  background: $vyuh-surface-raised;
+  border: $vyuh-border-subtle;
+  border-radius: $vyuh-radius-md;
+  display: grid;
+  gap: $vyuh-space-3;
+  margin-top: $vyuh-space-4;
+  padding: $vyuh-space-4;
+}
+
+.vyuh-console-schema-card > header {
+  align-items: flex-start;
+  display: flex;
+  gap: $vyuh-space-3;
+  justify-content: space-between;
+}
+
+.vyuh-console-schema-card > header div {
+  display: grid;
+  gap: $vyuh-space-1;
+}
+
+.vyuh-console-schema-card > header strong {
+  color: $vyuh-ink;
+  font-family: $vyuh-font-display;
+  font-weight: $vyuh-heading-weight;
+}
+
+.vyuh-console-schema-card > header span,
+.vyuh-console-schema-card > p,
+.vyuh-console-schema-table small {
+  color: $vyuh-muted;
+  font-size: $vyuh-text-xs;
+}
+
+.vyuh-console-schema-card > header code,
+.vyuh-console-schema-table code {
+  background: $vyuh-surface-muted;
+  border-radius: $vyuh-radius-xs;
+  color: $vyuh-ink;
+  font-size: $vyuh-text-code-compact;
+  padding: $vyuh-space-1 $vyuh-space-2;
+}
+
+.vyuh-console-schema-table {
+  border-collapse: collapse;
+  font-size: $vyuh-text-xs;
+  width: 100%;
+}
+
+.vyuh-console-schema-table caption {
+  caption-side: top;
+  color: $vyuh-muted;
+  font-size: $vyuh-text-xs;
+  padding: 0 0 $vyuh-space-2;
+  text-align: left;
+}
+
+.vyuh-console-schema-table th,
+.vyuh-console-schema-table td {
+  border-top: $vyuh-border-subtle;
+  padding: $vyuh-space-2;
+  vertical-align: top;
+}
+
+.vyuh-console-schema-table th {
+  color: $vyuh-muted;
+  font-weight: $vyuh-label-weight;
+}
+
+.vyuh-console-schema-table td:first-child {
+  display: grid;
+  gap: $vyuh-space-1;
+}
+
+.vyuh-console-raw-schema {
+  border-top: $vyuh-border-subtle;
+  padding-top: $vyuh-space-3;
+}
+
+.vyuh-console-raw-schema summary {
+  color: $vyuh-ember;
+  cursor: pointer;
+  font-size: $vyuh-text-xs;
+  font-weight: $vyuh-label-weight;
+}
+
+.vyuh-console-raw-schema pre {
+  background: $vyuh-code-panel-deep;
+  border-radius: $vyuh-radius-sm;
+  color: $vyuh-paper;
+  font-size: $vyuh-text-code-compact;
+  margin: $vyuh-space-3 0 0;
+  overflow: auto;
+  padding: $vyuh-space-3;
+}
+
+.vyuh-console-empty {
+  border: $vyuh-border-dashed;
+  border-radius: $vyuh-radius-md;
+  color: $vyuh-muted;
+  display: grid;
+  gap: $vyuh-space-1;
+  padding: $vyuh-card-padding;
+}
+
+.vyuh-console-empty span {
+  color: $vyuh-muted;
+}
+
+.vyuh-console-muted-panel {
+  border: $vyuh-border-subtle;
+  border-radius: $vyuh-radius-sm;
+  display: grid;
+  gap: $vyuh-space-2;
+  margin-top: $vyuh-space-4;
+  padding: $vyuh-space-4;
+}
+
+.vyuh-console-tabs {
+  border-bottom: 1px solid rgba($vyuh-ink, 0.11);
+  display: flex;
+  gap: $vyuh-space-6;
+  overflow-x: auto;
+}
+
+.vyuh-console-tabs a,
+.vyuh-console-tabs button {
+  background: transparent;
+  border: 0;
+  color: $vyuh-ink-soft;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  padding: $vyuh-space-3 $vyuh-space-1 $vyuh-space-4;
+  position: relative;
+  white-space: nowrap;
+}
+
+.vyuh-console-tabs a[aria-current="page"],
+.vyuh-console-tabs button[aria-selected="true"] {
+  color: $vyuh-ember;
+}
+
+.vyuh-console-tabs a[aria-current="page"]::after,
+.vyuh-console-tabs button[aria-selected="true"]::after {
+  background: $vyuh-ember;
+  bottom: -1px;
+  content: "";
+  height: 2px;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.vyuh-console-tabs.is-compact {
+  gap: $vyuh-space-4;
+  margin: $vyuh-space-2 0 $vyuh-space-4;
+}
+
+.vyuh-console-tab-panel[hidden] {
+  display: none;
+}

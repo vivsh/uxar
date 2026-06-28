@@ -1,0 +1,12 @@
+.vyuh-card {
+  @include vyuh-surface(base, soft, md);
+  padding: $vyuh-card-padding;
+}
+
+.vyuh-alert {
+  @include vyuh-surface(base, none, md);
+  background: rgba($vyuh-ocean, $vyuh-state-tint-soft);
+  border-color: rgba($vyuh-ocean, 0.18);
+  color: $vyuh-ink;
+  padding: $vyuh-space-4 $vyuh-space-5;
+}

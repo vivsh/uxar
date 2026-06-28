@@ -23,7 +23,6 @@
         <a href="../../../docs/book/book/index.html">Docs</a>
         <a href="#code">Examples</a>
         <a href="#console">Console</a>
-        <a href="#benchmarks">Benchmarks</a>
         <a href="../../../docs/book/book/philosophy.html">Philosophy</a>
         <a href="#stack">Stack</a>
         <a href="https://github.com/vyuh-rs/vyuh">GitHub</a>
@@ -46,8 +45,8 @@
         <div class="landing-hero-grid">
           <article class="landing-hero-main">
             <strong class="vyuh-kicker">Rust application framework</strong>
-            <h1 class="vyuh-display mt-3">Axum performance.<br>FastAPI <span>ergonomics.</span><br>Runtime <span>visibility.</span></h1>
-            <p class="vyuh-copy landing-hero-copy mt-4 mb-0">Vyuh is a handler-first Rust framework for building typed APIs and application runtimes with routes, tasks, cron, channels, OpenAPI, and console visibility in one coherent model.</p>
+            <h1 class="vyuh-display mt-3">Handler-first.<br>Runtime-aware.<br><span>Application-ready.</span></h1>
+            <p class="vyuh-copy landing-hero-copy mt-4 mb-0">Build typed Rust APIs, background work, cron, channels, commands, services, OpenAPI, and console visibility from one coherent application model.</p>
 
             <div class="landing-action-row mt-4">
               <a class="vyuh-button vyuh-button-primary" href="#start">Get Started</a>
@@ -61,48 +60,48 @@
         </div>
 
         <section id="philosophy" class="landing-philosophy" aria-labelledby="philosophy-title">
-          <h2 id="philosophy-title" class="visually-hidden">Vyuh philosophy</h2>
+          <h2 id="philosophy-title" class="visually-hidden">Vyuh proof points</h2>
           <ol class="landing-philosophy-strip">
             <li class="landing-philosophy-item">
-              <span class="landing-philosophy-mark landing-tone-ember" aria-hidden="true">↘</span>
+              <span class="landing-philosophy-mark landing-tone-ember" aria-hidden="true">⚡</span>
               <article>
-                <h3>Ergonomic</h3>
-                <p>Direct APIs and fewer rituals between intent and implementation.</p>
+                <h3>Rust-native</h3>
+                <p>Typed async handlers with explicit data and error boundaries.</p>
               </article>
             </li>
             <li class="landing-philosophy-item">
-              <span class="landing-philosophy-mark landing-tone-moss" aria-hidden="true">∞</span>
+              <span class="landing-philosophy-mark landing-tone-moss" aria-hidden="true">&lt;/&gt;</span>
               <article>
-                <h3>Cohesive</h3>
-                <p>Every runtime path shares the same application core.</p>
+                <h3>Handler-first</h3>
+                <p>Typed inputs, validation, and responses stay together.</p>
               </article>
             </li>
             <li class="landing-philosophy-item">
-              <span class="landing-philosophy-mark landing-tone-ocean" aria-hidden="true">↗</span>
+              <span class="landing-philosophy-mark landing-tone-saffron" aria-hidden="true">↔</span>
               <article>
-                <h3>Scalable</h3>
-                <p>Grow by composing bundles without reshaping the project.</p>
-              </article>
-            </li>
-            <li class="landing-philosophy-item">
-              <span class="landing-philosophy-mark landing-tone-violet" aria-hidden="true">◎</span>
-              <article>
-                <h3>Observable</h3>
-                <p>Registered paths and services expose inspectable metadata.</p>
+                <h3>Runtime paths</h3>
+                <p>Routes, tasks, cron, channels, commands, and services share a model.</p>
               </article>
             </li>
             <li class="landing-philosophy-item">
               <span class="landing-philosophy-mark landing-tone-ember" aria-hidden="true">{}</span>
               <article>
-                <h3>Safe by Type</h3>
-                <p>Data, validation, schemas, and service access stay explicit.</p>
+                <h3>OpenAPI</h3>
+                <p>Schemas and docs come from registered handlers.</p>
+              </article>
+            </li>
+            <li class="landing-philosophy-item">
+              <span class="landing-philosophy-mark landing-tone-moss" aria-hidden="true">◎</span>
+              <article>
+                <h3>Console</h3>
+                <p>Operations, config, runtime health, and tasks are inspectable.</p>
               </article>
             </li>
             <li class="landing-philosophy-item">
               <span class="landing-philosophy-mark landing-tone-saffron" aria-hidden="true">⬢</span>
               <article>
-                <h3>Complete</h3>
-                <p>APIs, tasks, operations, assets, OpenAPI, and console live together.</p>
+                <h3>Bundles</h3>
+                <p>Application features compose without scattered registries.</p>
               </article>
             </li>
           </ol>
@@ -110,72 +109,12 @@
       </div>
     </section>
 
-    <section id="features" class="container-xxl landing-section">
-      <header class="landing-section-head">
-        <strong class="vyuh-kicker">Subsystems</strong>
-        <h2 class="vyuh-section-title mt-2">Everything you need. Built-in.</h2>
-        <p class="vyuh-copy mt-3 mb-0">Vyuh gives each application concern a direct, documented place to live, so teams can grow without inventing framework glue.</p>
-        <div class="landing-rule" aria-hidden="true"></div>
-      </header>
-
-      <div class="row g-4 mt-4">
-        <div class="col-md-6 col-lg-4">
-          <article class="vyuh-card landing-feature h-100">
-            <span class="landing-icon-box landing-tone-ember" aria-hidden="true">&lt;/&gt;</span>
-            <h3 class="h5 mt-4">Routes</h3>
-            <p class="vyuh-copy mb-4">Extractor-driven handlers with direct, readable registration and no hidden controller layer.</p>
-            <strong class="vyuh-kicker">Request path</strong>
-          </article>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <article class="vyuh-card landing-feature h-100">
-            <span class="landing-icon-box landing-tone-moss" aria-hidden="true">↻</span>
-            <h3 class="h5 mt-4">Tasks</h3>
-            <p class="vyuh-copy mb-4">Background work with app context, retries, and explicit boundaries.</p>
-            <strong class="vyuh-kicker landing-tone-moss">Queued work</strong>
-          </article>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <article class="vyuh-card landing-feature h-100">
-            <span class="landing-icon-box landing-tone-ocean" aria-hidden="true">~</span>
-            <h3 class="h5 mt-4">Signals</h3>
-            <p class="vyuh-copy mb-4">Typed in-process events for domain changes and lifecycle hooks.</p>
-            <strong class="vyuh-kicker landing-tone-ocean">Local events</strong>
-          </article>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <article class="vyuh-card landing-feature h-100">
-            <span class="landing-icon-box landing-tone-violet" aria-hidden="true">↑</span>
-            <h3 class="h5 mt-4">Emitters</h3>
-            <p class="vyuh-copy mb-4">Turn schedules and external notifications into typed application data.</p>
-            <strong class="vyuh-kicker landing-tone-violet">Outbound flow</strong>
-          </article>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <article class="vyuh-card landing-feature h-100">
-            <span class="landing-icon-box landing-tone-ember" aria-hidden="true">&gt;_</span>
-            <h3 class="h5 mt-4">Commands</h3>
-            <p class="vyuh-copy mb-4">CLI commands with access to the same application services.</p>
-            <strong class="vyuh-kicker">Ops entrypoint</strong>
-          </article>
-        </div>
-        <div class="col-md-6 col-lg-4">
-          <article class="vyuh-card landing-feature h-100">
-            <span class="landing-icon-box landing-tone-saffron" aria-hidden="true">◆</span>
-            <h3 class="h5 mt-4">Services</h3>
-            <p class="vyuh-copy mb-4">Long-running runtime components registered beside your web app.</p>
-            <strong class="vyuh-kicker landing-tone-saffron">Runtime process</strong>
-          </article>
-        </div>
-      </div>
-    </section>
-
     <section id="console" class="container-xxl landing-section landing-console-section" aria-labelledby="console-title">
       <div class="landing-console-shell">
         <header class="landing-console-copy">
           <strong class="vyuh-kicker">Console</strong>
-          <h2 id="console-title" class="vyuh-section-title mt-2">A runtime console comes with the framework.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Vyuh registers routes, tasks, signals, emitters, services, schemas, OpenAPI, and runtime config into one inspectable surface.</p>
+          <h2 id="console-title" class="vyuh-section-title mt-2">If Vyuh can run it, Vyuh can describe it.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Routes, tasks, signals, emitters, services, schemas, OpenAPI, runtime config, and system health are registered into one inspectable surface.</p>
           <p id="console-inference" class="landing-console-inference">See the whole application shape without stitching together separate dashboards for routes, workers, docs, and services.</p>
           <div class="landing-console-actions" aria-label="Console image controls">
             <button class="landing-console-control is-active" type="button" data-console-slide="0">Overview</button>
@@ -211,85 +150,270 @@
       </div>
     </section>
 
-    <section id="code" class="container-xxl landing-code-layout">
-      <article class="vyuh-code-window">
-        <header class="landing-code-toolbar">
-          <span class="landing-dot landing-dot-danger" aria-hidden="true"></span>
-          <span class="landing-dot landing-dot-warning" aria-hidden="true"></span>
-          <span class="landing-dot landing-dot-success" aria-hidden="true"></span>
-          <span id="code-file" class="landing-code-file">src/routes/users.rs</span>
+    <section id="code" class="container-xxl landing-section">
+      <header class="landing-section-head">
+        <strong class="vyuh-kicker">Runtime paths</strong>
+        <h2 class="vyuh-section-title mt-2">One handler model. Many runtime paths.</h2>
+        <p class="vyuh-copy mt-3 mb-0">Vyuh treats application behavior as typed handlers, not scattered subsystems. The same signatures, data model, errors, auth, validation, and observability apply across them.</p>
+        <div class="landing-rule" aria-hidden="true"></div>
+      </header>
+
+      <div class="landing-runtime-code">
+        <nav class="landing-runtime-tabs" aria-label="Runtime path examples">
+          <button class="landing-code-tab is-active" type="button" data-key="routes">Routes</button>
+          <button class="landing-code-tab" type="button" data-key="tasks">Tasks</button>
+          <button class="landing-code-tab" type="button" data-key="signals">Signals</button>
+          <button class="landing-code-tab" type="button" data-key="emitters">Emitters</button>
+          <button class="landing-code-tab" type="button" data-key="commands">Commands</button>
+          <button class="landing-code-tab" type="button" data-key="channels">Channels</button>
+          <button class="landing-code-tab" type="button" data-key="services">Services</button>
+        </nav>
+
+        <aside class="landing-runtime-panel">
+          <article class="landing-runtime-copy">
+            <strong id="code-eyebrow" class="vyuh-kicker">Routes</strong>
+            <h3 id="code-title" class="vyuh-section-title mt-2">Handler-first APIs without hiding the Rust.</h3>
+            <p id="code-copy" class="vyuh-copy mt-3 mb-0">Keep validation, permissions, and typed request handling visible where the behavior actually happens.</p>
+            <ul class="landing-code-points">
+              <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-a">Less boilerplate, more clarity</span></li>
+              <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-b">Compiler-verified request handling</span></li>
+              <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-c">Built for long-term maintainability</span></li>
+            </ul>
+          </article>
+        </aside>
+
+        <article class="vyuh-code-window">
+          <header class="landing-code-toolbar">
+            <span class="landing-dot landing-dot-danger" aria-hidden="true"></span>
+            <span class="landing-dot landing-dot-warning" aria-hidden="true"></span>
+            <span class="landing-dot landing-dot-success" aria-hidden="true"></span>
+            <span id="code-file" class="landing-code-file">src/routes/users.rs</span>
+          </header>
+
+          <div class="landing-code-body">
+            <pre><code id="code-snippet"></code></pre>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="tasks" class="container-xxl landing-section landing-section-tight">
+      <article class="landing-capability landing-capability-tasks">
+        <header class="landing-capability-copy">
+          <strong class="vyuh-kicker">Tasks</strong>
+          <h2 class="vyuh-section-title mt-2">Durable background work, without a second application.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Run emails, imports, reports, webhook retries, approvals, polling, and long-running business work as typed handlers registered through the same bundle model as your APIs.</p>
+          <p class="landing-capability-proof">Tasks can complete, sleep, suspend, resume, retry, fail, and store typed results while remaining visible through the task store and console.</p>
         </header>
 
-        <div class="landing-code-body">
-          <nav class="landing-code-tabs" aria-label="Code examples">
-            <button class="landing-code-tab is-active" type="button" data-key="routes">Routes</button>
-            <button class="landing-code-tab" type="button" data-key="tasks">Tasks</button>
-            <button class="landing-code-tab" type="button" data-key="signals">Signals</button>
-            <button class="landing-code-tab" type="button" data-key="emitters">Emitters</button>
-            <button class="landing-code-tab" type="button" data-key="commands">Commands</button>
-            <button class="landing-code-tab" type="button" data-key="channels">Channels</button>
-            <button class="landing-code-tab" type="button" data-key="services">Services</button>
-            <button class="landing-code-tab" type="button" data-key="bundles">Bundles</button>
-          </nav>
-
-          <div>
-            <nav class="landing-code-mobile-tabs" aria-label="Code examples">
-              <button class="landing-code-tab is-active" type="button" data-key="routes">Routes</button>
-              <button class="landing-code-tab" type="button" data-key="tasks">Tasks</button>
-              <button class="landing-code-tab" type="button" data-key="signals">Signals</button>
-              <button class="landing-code-tab" type="button" data-key="emitters">Emitters</button>
-              <button class="landing-code-tab" type="button" data-key="commands">Commands</button>
-              <button class="landing-code-tab" type="button" data-key="channels">Channels</button>
-              <button class="landing-code-tab" type="button" data-key="services">Services</button>
-              <button class="landing-code-tab" type="button" data-key="bundles">Bundles</button>
-            </nav>
-            <pre><code id="code-snippet"></code></pre>
+        <div class="landing-capability-visual" aria-label="Task capabilities">
+          <div class="landing-capability-facts">
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></svg>
+              </span>
+              <h3>Typed input</h3>
+              <p>Submit Data&lt;T&gt; by registered task type; handlers use the same explicit data model as routes.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M8 6v6l4 3M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"></path></svg>
+              </span>
+              <h3>Continuation state</h3>
+              <p>Sleep or suspend work without keeping a Rust future alive.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M7 7h9a4 4 0 0 1 0 8H8"></path><path d="M10 11 7 15l3 4"></path></svg>
+              </span>
+              <h3>Explicit retry</h3>
+              <p>Return TaskState::retry(...) when work should be tried again later.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"></path><path d="M7 10h4M7 14h7"></path></svg>
+              </span>
+              <h3>Console visible</h3>
+              <p>Inspect task records, state, payloads, retries, and outcomes from the console.</p>
+            </article>
           </div>
         </div>
       </article>
-
-      <aside class="align-self-center">
-        <strong id="code-eyebrow" class="vyuh-kicker">Routes</strong>
-        <h2 id="code-title" class="vyuh-section-title mt-2">Handler-first APIs without hiding the Rust.</h2>
-        <p id="code-copy" class="vyuh-copy mt-3 mb-0">Keep validation, permissions, and typed request handling visible where the behavior actually happens.</p>
-        <ul class="landing-code-points">
-          <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-a">Less boilerplate, more clarity</span></li>
-          <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-b">Compiler-verified request handling</span></li>
-          <li><span class="landing-code-bullet" aria-hidden="true">●</span><span id="code-point-c">Built for long-term maintainability</span></li>
-        </ul>
-      </aside>
     </section>
 
-    <section id="benchmarks" class="container-xxl landing-section landing-benchmark-section" aria-labelledby="benchmark-title">
-      <div class="landing-benchmark-shell">
-        <header class="landing-benchmark-copy">
-          <strong class="vyuh-kicker">Benchmarks</strong>
-          <h2 id="benchmark-title" class="vyuh-section-title mt-2">Axum-class HTTP. Less operations glue.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Single-process baselines with Postgres-backed live workloads, raw results, and generated SVG/PNG charts.</p>
-          <p id="benchmark-inference" class="landing-benchmark-inference">Vyuh keeps Postgres writes competitive while scheduling, signals, channels, and introspection stay in one framework model.</p>
-          <div class="landing-benchmark-actions" aria-label="Benchmark chart controls">
-            <button class="landing-benchmark-control" type="button" data-benchmark-slide="0">HTTP baseline</button>
-            <button class="landing-benchmark-control is-active" type="button" data-benchmark-slide="1">Postgres writes</button>
-            <button class="landing-benchmark-control" type="button" data-benchmark-slide="2">Source tokens</button>
-          </div>
-          <p class="landing-benchmark-scope">Scope note: these are honest single-process baselines. Multi-worker profiles need shared scheduler/fanout infrastructure for frameworks that rely on in-process queues.</p>
+    <section id="emitters" class="container-xxl landing-section landing-section-tight">
+      <article class="landing-capability landing-capability-emitters landing-capability-flip">
+        <header class="landing-capability-copy">
+          <strong class="vyuh-kicker">Emitters</strong>
+          <h2 class="vyuh-section-title mt-2">Schedules and triggers become typed runtime inputs.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Run cron, intervals, polling, webhook retries, and external notifications as registered emitters that produce typed application data instead of ad-hoc loops.</p>
+          <p class="landing-capability-proof">Emitters keep trigger logic close to the bundle, then hand off to tasks, signals, or channels with metadata visible through the same runtime model.</p>
         </header>
 
-        <div class="landing-benchmark-deck" aria-live="polite">
-          <figure class="landing-benchmark-slide" data-inference="Vyuh stays close to Axum on typed HTTP while carrying the runtime surfaces production apps usually assemble by hand.">
-            <img src="../public/img/benchmarks/t1-echo-c64-rps.svg" alt="Tier 1 echo throughput chart comparing Vyuh, Axum, Rocket, Actix, FastAPI, and DRF">
-            <figcaption>Slide 1 of 3: typed JSON echo at concurrency 64.</figcaption>
-          </figure>
-          <figure class="landing-benchmark-slide is-active" data-inference="Vyuh keeps Postgres writes competitive while scheduling, signals, channels, and introspection stay in one framework model.">
-            <img src="../public/img/benchmarks/t2-write-c256-rps.svg" alt="Tier 2 Postgres write throughput chart comparing Vyuh, Axum, Rocket, Actix, FastAPI, and DRF">
-            <figcaption>Slide 2 of 3: Postgres event writes at concurrency 256.</figcaption>
-          </figure>
-          <figure class="landing-benchmark-slide" data-inference="The point is not just speed: Vyuh’s scheduler, signals, channels, and introspection stay in one app model.">
-            <img src="../public/img/benchmarks/t2-source-tokens.svg" alt="Tier 2 source token count chart comparing implementations">
-            <figcaption>Slide 3 of 3: implementation source-token count for the Tier 2 app.</figcaption>
-          </figure>
+        <div class="landing-capability-visual" aria-label="Emitter capabilities">
+          <div class="landing-capability-facts">
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 9h16M8 5v4M16 5v4M6 5h12v15H6z"></path></svg>
+              </span>
+              <h3>Cron and intervals</h3>
+              <p>Register recurring work as named runtime behavior instead of hidden process loops.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 4v16M5 12h14"></path></svg>
+              </span>
+              <h3>Typed emissions</h3>
+              <p>Produce typed data that can feed tasks, signals, channels, or services.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4Z"></path><path d="m4 12 8 4 8-4"></path></svg>
+              </span>
+              <h3>Bundle-owned</h3>
+              <p>Keep schedules beside the feature that owns the business behavior.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"></path><path d="M8 10h8M8 14h5"></path></svg>
+              </span>
+              <h3>Console visible</h3>
+              <p>Inspect registered emitters and their operational metadata from the console.</p>
+            </article>
+          </div>
         </div>
-      </div>
+      </article>
+    </section>
+
+    <section id="channels" class="container-xxl landing-section landing-section-tight">
+      <article class="landing-capability landing-capability-channels">
+        <header class="landing-capability-copy">
+          <strong class="vyuh-kicker">Channels</strong>
+          <h2 class="vyuh-section-title mt-2">Live application streams, without a second realtime stack.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Publish typed events to browser clients, service consumers, and internal subscribers through channels that sit beside routes, signals, tasks, and services.</p>
+          <p class="landing-capability-proof">Channels make pub/sub and SSE-style delivery part of the application model, so subscriptions, payloads, permissions, and routes remain explicit.</p>
+        </header>
+
+        <div class="landing-capability-visual" aria-label="Channel capabilities">
+          <div class="landing-capability-facts">
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4Z"></path><path d="m4 12 8 4 8-4"></path></svg>
+              </span>
+              <h3>Typed messages</h3>
+              <p>Keep live payloads in the same typed data model as the rest of the app.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M8 9h8M8 13h5"></path></svg>
+              </span>
+              <h3>Subscriber routes</h3>
+              <p>Expose stream endpoints as part of the same application routing surface.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 5v14M12 12H5M12 12h7"></path><path d="M5 9v6M19 9v6"></path></svg>
+              </span>
+              <h3>Fan-out targets</h3>
+              <p>Connect signals, tasks, emitters, and external clients without bespoke glue.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M3 12s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6Z"></path><path d="M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"></path></svg>
+              </span>
+              <h3>Runtime visibility</h3>
+              <p>Keep channels discoverable beside routes, tasks, commands, and services.</p>
+            </article>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="openapi" class="container-xxl landing-section landing-section-tight">
+      <article class="landing-capability landing-capability-openapi landing-capability-flip">
+        <header class="landing-capability-copy">
+          <strong class="vyuh-kicker">OpenAPI</strong>
+          <h2 class="vyuh-section-title mt-2">Docs generated from the runtime model.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Vyuh can generate OpenAPI metadata from registered handlers, schemas, auth, permissions, and middleware, then lets you override the result where the public contract needs extra precision.</p>
+        </header>
+
+        <div class="landing-capability-visual" aria-label="Vyuh OpenAPI capabilities">
+          <div class="landing-capability-facts">
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h5"></path></svg>
+              </span>
+              <h3>Automatic by default</h3>
+              <p>Routes, inputs, outputs, validation, and JSON schemas feed the document from the same handlers the app runs.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16v4Z"></path></svg>
+              </span>
+              <h3>Override when needed</h3>
+              <p>Use macros for concise metadata or direct APIs when a route needs explicit operation details.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3"></path><path d="M5 11h14v9H5z"></path></svg>
+              </span>
+              <h3>Security included</h3>
+              <p>API key and JWT schemes are modeled alongside route metadata instead of bolted on later.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+              </span>
+              <h3>Runtime context</h3>
+              <p>Permissions and middleware can be surfaced so docs reflect how the operation is actually protected.</p>
+            </article>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="bundles" class="container-xxl landing-section landing-section-tight">
+      <article class="landing-capability landing-capability-bundles">
+        <header class="landing-capability-copy">
+          <strong class="vyuh-kicker">Bundles</strong>
+          <h2 class="vyuh-section-title mt-2">One feature. One bundle. Every runtime surface.</h2>
+          <p class="vyuh-copy mt-3 mb-0">Instead of widening one central setup file, each domain feature owns its handlers, assets, templates, docs, and operations metadata near the code that defines them.</p>
+          <p class="landing-capability-proof">Bundles can be merged, prefixed, tagged, layered, validated, and passed to Site startup.</p>
+        </header>
+
+        <div class="landing-capability-visual landing-bundle-visual" aria-label="Bundle composition model">
+          <div class="landing-capability-facts">
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4Z"></path><path d="m4 12 8 4 8-4"></path></svg>
+              </span>
+              <h3>Feature-owned</h3>
+              <p>Keep handlers, docs, assets, and operations metadata near the domain code.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M8 12h8M12 8v8"></path><path d="M4 4h16v16H4z"></path></svg>
+              </span>
+              <h3>Composable</h3>
+              <p>Merge, prefix, tag, layer, and validate bundles before Site startup.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M7 9h5M7 13h8"></path></svg>
+              </span>
+              <h3>Delivery included</h3>
+              <p>Carry assets, templates, services, and migrations with the feature that owns them.</p>
+            </article>
+            <article class="landing-capability-fact">
+              <span class="landing-fact-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+              </span>
+              <h3>Operations metadata</h3>
+              <p>Attach OpenAPI, permissions, middleware metadata, and console introspection as one unit.</p>
+            </article>
+          </div>
+        </div>
+      </article>
     </section>
 
     <section id="stack" class="container-xxl landing-section landing-section-tight">
@@ -301,27 +425,33 @@
 
         <div class="landing-stack-grid">
           <section class="landing-stack-item">
-            <h3 class="landing-stack-name landing-tone-violet">axum</h3>
+            <span class="landing-stack-logo landing-tone-ember">axum</span>
+            <h3>HTTP</h3>
             <p>Web framework</p>
           </section>
           <section class="landing-stack-item">
-            <h3 class="landing-stack-name landing-tone-ocean">SQLx</h3>
+            <span class="landing-stack-logo landing-tone-moss">SQLx</span>
+            <h3>Persistence</h3>
             <p>Async SQL toolkit</p>
           </section>
           <section class="landing-stack-item">
-            <h3 class="landing-stack-name landing-tone-ocean">tokio</h3>
+            <span class="landing-stack-logo landing-tone-saffron">tokio</span>
+            <h3>Runtime</h3>
             <p>Async runtime</p>
           </section>
           <section class="landing-stack-item">
-            <h3 class="landing-stack-name">serde</h3>
+            <span class="landing-stack-logo landing-tone-moss">serde</span>
+            <h3>Data</h3>
             <p>Serialization</p>
           </section>
           <section class="landing-stack-item">
-            <h3 class="landing-stack-name landing-tone-ember">minijinja</h3>
+            <span class="landing-stack-logo landing-tone-ember">minijinja</span>
+            <h3>Views</h3>
             <p>Templates</p>
           </section>
           <section class="landing-stack-item">
-            <h3 class="landing-stack-name landing-tone-moss">schemars</h3>
+            <span class="landing-stack-logo landing-tone-moss">schemars</span>
+            <h3>Schemas</h3>
             <p>JSON Schema</p>
           </section>
         </div>

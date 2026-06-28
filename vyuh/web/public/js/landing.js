@@ -220,37 +220,6 @@ async fn search(
     Json(index.stats().await)
 }`,
   },
-  bundles: {
-    file: "src/app.rs",
-    eyebrow: "Bundles",
-    title: "Compose features as one runtime unit.",
-    copy: "Bundles collect macro-registered routes, tasks, signals, emitters, services, assets, docs, and console metadata.",
-    points: [
-      "Feature-level composition",
-      "Shared prefixing, tagging, and OpenAPI",
-      "Validation before site startup",
-    ],
-    code: `use vyuh::prelude::*;
-
-#[bundles::route(path = "/orders")]
-async fn list_orders() -> Json<Vec<OrderOut>> {
-    Json(Vec::new())
-}
-
-#[bundles::task(name = "send_receipt")]
-async fn send_receipt(Data(job): Data<ReceiptJob>) {
-    println!("receipt for {}", job.order_id);
-}
-
-pub fn orders_bundle() -> vyuh::bundles::Bundle {
-    bundles::bundle! {
-        list_orders,
-        send_receipt,
-    }
-    .with_prefix("/api")
-    .with_tags(["orders"])
-}`,
-  },
 };
 
 const snippet = document.querySelector("#code-snippet");
@@ -262,9 +231,6 @@ const pointA = document.querySelector("#code-point-a");
 const pointB = document.querySelector("#code-point-b");
 const pointC = document.querySelector("#code-point-c");
 const tabs = document.querySelectorAll(".landing-code-tab");
-const benchmarkControls = document.querySelectorAll(".landing-benchmark-control");
-const benchmarkSlides = document.querySelectorAll(".landing-benchmark-slide");
-const benchmarkInference = document.querySelector("#benchmark-inference");
 const consoleControls = document.querySelectorAll(".landing-console-control");
 const consoleSlides = document.querySelectorAll(".landing-console-slide");
 const consoleInference = document.querySelector("#console-inference");
@@ -286,28 +252,6 @@ function setExample(key) {
 
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => setExample(tab.dataset.key));
-});
-
-function setBenchmarkSlide(index) {
-  benchmarkSlides.forEach((slide, slideIndex) => {
-    const active = slideIndex === index;
-    slide.classList.toggle("is-active", active);
-    if (active && benchmarkInference) {
-      benchmarkInference.textContent = slide.dataset.inference;
-    }
-  });
-  benchmarkControls.forEach((control, controlIndex) => {
-    control.classList.toggle("is-active", controlIndex === index);
-  });
-}
-
-benchmarkControls.forEach((control) => {
-  control.addEventListener("click", () => {
-    const index = Number.parseInt(control.dataset.benchmarkSlide, 10);
-    if (Number.isFinite(index)) {
-      setBenchmarkSlide(index);
-    }
-  });
 });
 
 function setConsoleSlide(index) {
@@ -341,4 +285,3 @@ consoleControls.forEach((control) => {
 
 setExample("routes");
 setConsoleSlide(0);
-setBenchmarkSlide(1);

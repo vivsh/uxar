@@ -1,0 +1,12 @@
+services:
+  vyuh-bench:
+    build:
+      context: ..
+      dockerfile: vyuh-bench/Dockerfile
+    working_dir: /work
+    environment:
+      BENCH_DURATION: ${BENCH_DURATION:-3}
+      BENCH_WARMUP: ${BENCH_WARMUP:-1}
+      BENCH_TIERS: ${BENCH_TIERS:-t2}
+    volumes:
+      - ./results:/work/vyuh-bench/results

@@ -1,5 +1,9 @@
 use std::{convert::Infallible, time::Duration};
 
+use crate::{
+    callables::{IntoReturnPart, ReturnPart, TypeSchema},
+    notifiers::CancellationNotifier,
+};
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     response::{
@@ -9,9 +13,6 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt, stream};
 use serde::{Deserialize, Serialize};
-use tokio_stream::wrappers::ReceiverStream;
-
-use crate::callables::{IntoReturnPart, ReturnPart, TypeSchema};
 
 use super::{ChannelCursor, ChannelError, ChannelEvent, ChannelReceiver};
 
@@ -51,6 +52,7 @@ pub struct ChannelSse {
     replay: Vec<ChannelEvent>,
     receiver: ChannelReceiver,
     keepalive: Duration,
+    shutdown: CancellationNotifier,
 }
 
 impl ChannelSse {
@@ -58,11 +60,13 @@ impl ChannelSse {
         replay: Vec<ChannelEvent>,
         receiver: ChannelReceiver,
         keepalive: Duration,
+        shutdown: CancellationNotifier,
     ) -> Self {
         Self {
             replay,
             receiver,
             keepalive,
+            shutdown,
         }
     }
 }
@@ -70,8 +74,7 @@ impl ChannelSse {
 impl IntoResponse for ChannelSse {
     fn into_response(self) -> Response {
         let replay = stream::iter(self.replay.into_iter().map(event_to_sse));
-        let live =
-            ReceiverStream::new(self.receiver.inner).map(|event| event_to_sse((*event).clone()));
+        let live = sse_live_stream(self.receiver, self.shutdown);
         let stream = replay.chain(live);
         Sse::new(stream)
             .keep_alive(KeepAlive::new().interval(self.keepalive))
@@ -83,6 +86,24 @@ impl IntoReturnPart for ChannelSse {
     fn into_return_part() -> ReturnPart {
         ReturnPart::Unknown
     }
+}
+
+fn sse_live_stream(
+    receiver: ChannelReceiver,
+    shutdown: CancellationNotifier,
+) -> impl futures::Stream<Item = Result<Event, Infallible>> {
+    stream::unfold(
+        (receiver, shutdown),
+        |(mut receiver, shutdown)| async move {
+            let shutdown_wait = shutdown.clone();
+            tokio::select! {
+                _ = shutdown_wait.notified() => None,
+                event = receiver.recv() => {
+                    event.map(|event| (event_to_sse((*event).clone()), (receiver, shutdown)))
+                },
+            }
+        },
+    )
 }
 
 fn event_to_sse(event: ChannelEvent) -> Result<Event, Infallible> {
@@ -105,6 +126,7 @@ pub struct ChannelWebSocket {
     upgrade: WebSocketUpgrade,
     replay: Vec<ChannelEvent>,
     receiver: ChannelReceiver,
+    shutdown: CancellationNotifier,
 }
 
 impl ChannelWebSocket {
@@ -112,11 +134,13 @@ impl ChannelWebSocket {
         upgrade: WebSocketUpgrade,
         replay: Vec<ChannelEvent>,
         receiver: ChannelReceiver,
+        shutdown: CancellationNotifier,
     ) -> Self {
         Self {
             upgrade,
             replay,
             receiver,
+            shutdown,
         }
     }
 }
@@ -124,7 +148,7 @@ impl ChannelWebSocket {
 impl IntoResponse for ChannelWebSocket {
     fn into_response(self) -> Response {
         self.upgrade
-            .on_upgrade(|socket| websocket_task(socket, self.replay, self.receiver))
+            .on_upgrade(|socket| websocket_task(socket, self.replay, self.receiver, self.shutdown))
             .into_response()
     }
 }
@@ -139,6 +163,7 @@ async fn websocket_task(
     socket: WebSocket,
     replay: Vec<ChannelEvent>,
     mut receiver: ChannelReceiver,
+    shutdown: CancellationNotifier,
 ) {
     let (mut sender, mut incoming) = socket.split();
     let incoming_task = tokio::spawn(async move { while incoming.next().await.is_some() {} });
@@ -150,9 +175,21 @@ async fn websocket_task(
         }
     }
 
-    while let Some(event) = receiver.recv().await {
-        if send_ws_event(&mut sender, event.as_ref()).await.is_err() {
-            break;
+    loop {
+        let shutdown_wait = shutdown.clone();
+        tokio::select! {
+            _ = shutdown_wait.notified() => {
+                let _ = sender.send(Message::Close(None)).await;
+                break;
+            },
+            event = receiver.recv() => {
+                let Some(event) = event else {
+                    break;
+                };
+                if send_ws_event(&mut sender, event.as_ref()).await.is_err() {
+                    break;
+                }
+            },
         }
     }
 
@@ -191,10 +228,16 @@ impl ChannelLongPoll {
     pub(crate) async fn wait(
         mut receiver: ChannelReceiver,
         timeout: Duration,
+        shutdown: CancellationNotifier,
     ) -> Vec<ChannelEvent> {
-        match tokio::time::timeout(timeout, receiver.recv()).await {
-            Ok(Some(event)) => vec![event.as_ref().clone()],
-            Ok(None) | Err(_) => Vec::new(),
+        tokio::select! {
+            _ = shutdown.notified() => Vec::new(),
+            event = tokio::time::timeout(timeout, receiver.recv()) => {
+                match event {
+                    Ok(Some(event)) => vec![event.as_ref().clone()],
+                    Ok(None) | Err(_) => Vec::new(),
+                }
+            },
         }
     }
 }
@@ -211,5 +254,43 @@ impl IntoReturnPart for ChannelLongPoll {
             TypeSchema::wrap::<ChannelLongPoll>(),
             "application/json".into(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tokio::sync::mpsc;
+
+    use super::*;
+    use crate::channels::ChannelEventId;
+
+    fn test_receiver() -> (mpsc::Sender<Arc<ChannelEvent>>, ChannelReceiver) {
+        let (tx, rx) = mpsc::channel(1);
+        (tx, ChannelReceiver { inner: rx })
+    }
+
+    #[tokio::test]
+    async fn long_poll_returns_on_shutdown() {
+        let (_tx, receiver) = test_receiver();
+        let shutdown = CancellationNotifier::new();
+        shutdown.notify_waiters();
+        let events = ChannelLongPoll::wait(receiver, Duration::from_secs(60), shutdown).await;
+        assert!(events.is_empty());
+    }
+
+    #[tokio::test]
+    async fn long_poll_returns_event_before_timeout() {
+        let (tx, receiver) = test_receiver();
+        let shutdown = CancellationNotifier::new();
+        let event = Arc::new(ChannelEvent::new(
+            ChannelEventId::new(1),
+            "TestEvent".to_string(),
+            serde_json::json!({"ok": true}),
+        ));
+        assert!(tx.send(event).await.is_ok());
+        let events = ChannelLongPoll::wait(receiver, Duration::from_secs(60), shutdown).await;
+        assert_eq!(events.len(), 1);
     }
 }

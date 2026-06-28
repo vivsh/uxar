@@ -1,0 +1,37 @@
+<article class="vyuh-console-schema-card">
+  <header>
+    <div>
+      <strong>{{ arg.display_name }}</strong>
+      <span>{% if arg.status_code %}{{ arg.status_code }} · {% endif %}{{ arg.location }}{% if arg.content_type %} · {{ arg.content_type }}{% endif %}</span>
+    </div>
+    <code>{{ arg.schema_type }}</code>
+  </header>
+  {% if arg.description %}
+  <p>{{ arg.description }}</p>
+  {% endif %}
+  {% if arg.unresolved_ref %}
+  <div class="vyuh-console-muted-panel"><strong>Unresolved reference</strong><code>{% if arg.ref_name %}{{ arg.ref_name }}{% else %}schema reference{% endif %}</code></div>
+  {% elif arg.properties %}
+  <table class="vyuh-console-schema-table">
+    <caption>Schema fields</caption>
+    <thead><tr><th>Field</th><th>Type</th><th>Required</th></tr></thead>
+    <tbody>
+      {% for prop in arg.properties %}
+      <tr>
+        <td><strong>{{ prop.name }}</strong>{% if prop.description %}<small>{{ prop.description }}</small>{% endif %}</td>
+        <td><code>{{ prop.type_label }}</code></td>
+        <td>{% if prop.required %}<span class="vyuh-console-badge is-danger">required</span>{% else %}<span class="vyuh-console-badge">optional</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="vyuh-console-muted-panel"><strong>No object fields</strong><code>{{ arg.schema_type }}</code></div>
+  {% endif %}
+  {% if arg.raw_schema %}
+  <details class="vyuh-console-raw-schema">
+    <summary>Raw JSON schema</summary>
+    <pre><code>{{ arg.raw_schema }}</code></pre>
+  </details>
+  {% endif %}
+</article>

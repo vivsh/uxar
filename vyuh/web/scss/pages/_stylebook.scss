@@ -1,0 +1,183 @@
+body {
+  background:
+    linear-gradient(120deg, rgba($vyuh-ocean, $vyuh-state-tint-soft), transparent 30%),
+    linear-gradient(240deg, rgba($vyuh-ember, 0.12), transparent 36%),
+    $vyuh-paper;
+}
+
+.stylebook-header {
+  backdrop-filter: blur(14px);
+  background: rgba($vyuh-paper, 0.9);
+  border-bottom: $vyuh-border-default;
+}
+
+.stylebook-nav {
+  min-height: 76px;
+}
+
+.stylebook-brand {
+  align-items: center;
+  color: $vyuh-ink;
+  display: inline-flex;
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-brand;
+  gap: $vyuh-space-3;
+  line-height: $vyuh-line-tight;
+
+  img {
+    height: $vyuh-control-height-sm;
+    width: $vyuh-control-height-sm;
+  }
+}
+
+.stylebook-section {
+  border-top: $vyuh-border-default;
+}
+
+.stylebook-section-title {
+  color: $vyuh-ink;
+  font-family: $vyuh-font-display;
+  font-size: $vyuh-text-stylebook-section;
+  letter-spacing: $vyuh-tracking-stylebook-section;
+  line-height: $vyuh-line-stylebook-section;
+}
+
+.stylebook-panel {
+  @include vyuh-surface(base, soft, lg);
+  padding: clamp($vyuh-space-5, 3vw, $vyuh-space-7);
+}
+
+.stylebook-rule {
+  background: $vyuh-ember;
+  border-radius: $vyuh-radius-pill;
+  height: $vyuh-space-1;
+  width: 2.75rem;
+}
+
+.stylebook-swatch {
+  @include vyuh-surface(base, soft, md);
+  min-height: 8rem;
+  overflow: hidden;
+}
+
+.stylebook-swatch-color {
+  min-height: 4.5rem;
+}
+
+.stylebook-swatch-body {
+  background: $vyuh-surface-control;
+  padding: $vyuh-space-3;
+}
+
+.stylebook-swatch-ink {
+  background: $vyuh-ink;
+}
+
+.stylebook-swatch-ember {
+  background: $vyuh-ember;
+}
+
+.stylebook-swatch-saffron {
+  background: $vyuh-saffron;
+}
+
+.stylebook-swatch-paper {
+  background: $vyuh-paper-deep;
+}
+
+.stylebook-swatch-moss {
+  background: $vyuh-moss;
+}
+
+.stylebook-swatch-ocean {
+  background: $vyuh-ocean;
+}
+
+.stylebook-swatch-violet {
+  background: $vyuh-violet;
+}
+
+.stylebook-swatch-danger {
+  background: $vyuh-danger;
+}
+
+.stylebook-token-grid {
+  display: grid;
+  gap: $vyuh-space-3;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+}
+
+.stylebook-token {
+  @include vyuh-surface(base, none, sm);
+  display: grid;
+  gap: $vyuh-space-2;
+  min-height: 5rem;
+  padding: $vyuh-space-3;
+}
+
+.stylebook-token span {
+  color: $vyuh-muted;
+  font-family: $vyuh-font-mono;
+  font-size: $vyuh-text-xs;
+}
+
+.stylebook-radius-sample {
+  background: rgba($vyuh-ember, $vyuh-state-tint);
+  border: $vyuh-border-default;
+  height: $vyuh-space-9;
+}
+
+.stylebook-shadow-sample {
+  @include vyuh-surface(base, soft, sm);
+  height: $vyuh-space-9;
+}
+
+.stylebook-shadow-sample.is-raised {
+  box-shadow: $vyuh-shadow-raised;
+}
+
+.stylebook-shadow-sample.is-lift {
+  box-shadow: $vyuh-shadow-lift;
+}
+
+.stylebook-hero-sample {
+  @include vyuh-surface(base, lift, lg);
+  background:
+    radial-gradient(circle at 80% 20%, rgba($vyuh-ember, 0.18), transparent 28%),
+    rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  padding: clamp($vyuh-space-6, 4vw, $vyuh-space-9);
+}
+
+.stylebook-doc-sample {
+  @include vyuh-surface(base, soft, md);
+  padding: $vyuh-space-6;
+
+  h3 {
+    color: $vyuh-ink;
+    font-family: $vyuh-font-display;
+  }
+
+  code {
+    color: $vyuh-ember;
+  }
+}
+
+.stylebook-console-intro {
+  align-items: end;
+  display: grid;
+  gap: $vyuh-space-6;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 28rem);
+  margin-bottom: $vyuh-space-7;
+}
+
+.stylebook-console-canvas {
+  max-width: 112rem;
+}
+
+@media (max-width: 768px) {
+  .stylebook-console-intro {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+}

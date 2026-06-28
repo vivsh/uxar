@@ -1,0 +1,33 @@
+.vyuh-code-window {
+  @include vyuh-surface(base, lift, md);
+  background: $vyuh-white;
+  overflow: hidden;
+
+  pre {
+    background: $vyuh-surface-code;
+    margin: 0;
+    overflow: auto;
+    padding: $vyuh-space-5;
+  }
+}
+
+.vyuh-schema-card {
+  @include vyuh-surface(muted, none, sm);
+  overflow: hidden;
+
+  header {
+    align-items: center;
+    border-bottom: $vyuh-border-subtle;
+    display: flex;
+    justify-content: space-between;
+    padding: $vyuh-space-2 $vyuh-space-3;
+  }
+
+  pre {
+    background: $vyuh-surface-code;
+    margin: 0;
+    max-height: 16rem;
+    overflow: auto;
+    padding: $vyuh-space-3;
+  }
+}

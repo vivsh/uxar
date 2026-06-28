@@ -1,4 +1,6 @@
-@import "bootstrap/scss/functions";
-@import "overrides";
-@import "components";
+@import "bootstrap";
+@import "typography";
+@import "layout";
+@import "components/core";
+@import "components/console";
 @import "console-page";

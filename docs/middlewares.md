@@ -52,6 +52,7 @@ Default behavior:
 | timeout | disabled |
 | body limit | disabled |
 | security headers | disabled |
+| shutdown grace period | `10000` ms |
 
 ## Request Ids And Panics
 
@@ -97,6 +98,28 @@ let conf = SiteConf::default().http(HttpConf {
 
 Timeout and body-limit failures flow through `ErrorReport` and the site error
 handler, so custom API or HTML error pages can render them consistently.
+
+## Shutdown
+
+Vyuh starts graceful shutdown on the first `Ctrl+C`, `SIGTERM`, touch-reload
+event, or programmatic `site.shutdown()`. The default grace period is 10
+seconds; after that Vyuh forces server shutdown so long-lived HTTP connections
+cannot keep the process alive forever.
+
+```rust
+use vyuh::prelude::*;
+use vyuh::middlewares::{HttpConf, ShutdownConf};
+
+let conf = SiteConf::default().http(HttpConf {
+    shutdown: ShutdownConf {
+        grace_period_ms: 5_000,
+    },
+    ..HttpConf::default()
+});
+```
+
+During graceful shutdown, channel transports close themselves: SSE streams end,
+WebSockets close, and long-poll requests return promptly.
 
 ## Security Headers
 

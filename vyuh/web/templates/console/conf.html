@@ -10,7 +10,6 @@
     <div class="vyuh-console-actions">
       <a class="vyuh-console-icon-button" href="{{ base_path }}/conf" aria-label="Refresh"><svg><use href="#vyuh-icon-refresh"></use></svg></a>
       <label class="vyuh-console-select"><span>Auto refresh</span><select><option>Off</option><option>30s</option></select></label>
-      <a class="vyuh-console-site-button" href="{{ base_path }}/api/conf">JSON <svg><use href="#vyuh-icon-external"></use></svg></a>
     </div>
   </header>
 
@@ -40,14 +39,12 @@
     <article class="vyuh-console-card">
       <header><h2>Actions</h2></header>
       <div class="vyuh-console-action-list is-flat">
-        <a href="{{ base_path }}/api/conf"><svg><use href="#vyuh-icon-download"></use></svg><span>Download as JSON</span></a>
-        <a href="{{ base_path }}/api/status"><svg><use href="#vyuh-icon-docs"></use></svg><span>View Status</span></a>
         <a href="{{ base_path }}/openapi"><svg><use href="#vyuh-icon-external"></use></svg><span>View OpenAPI</span></a>
       </div>
     </article>
 
     <article class="vyuh-console-card is-code">
-      <header><h2>SiteConf <span class="vyuh-console-badge is-warning">JSON</span></h2><a href="{{ base_path }}/api/conf">Open raw</a></header>
+      <header><h2>SiteConf</h2></header>
       <div class="vyuh-console-code"><pre><code>{{ payload }}</code></pre></div>
     </article>
 

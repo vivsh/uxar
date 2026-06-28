@@ -3,7 +3,7 @@
 members = [ 
   "vyuh", 
   "vyuh-macros",
-  "framework-bench"]
+  "vyuh-bench"]
 
 resolver = "3"
 

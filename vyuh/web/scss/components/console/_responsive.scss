@@ -1,0 +1,47 @@
+@media (max-width: 1200px) {
+  .vyuh-console-app {
+    grid-template-columns: 1fr;
+  }
+
+  .vyuh-console-app .vyuh-console-sidebar {
+    grid-template-rows: auto;
+  }
+
+  .vyuh-console-stat-grid,
+  .vyuh-console-stat-grid.is-five,
+  .vyuh-console-overview-grid,
+  .vyuh-console-info-grid,
+  .vyuh-console-config-grid,
+  .vyuh-console-data-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vyuh-console-summary-strip {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 992px) {
+  .vyuh-console-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .vyuh-console-sidebar,
+  .vyuh-console-detail {
+    border: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .vyuh-console-topbar,
+  .vyuh-console-actions,
+  .vyuh-console-pagination {
+    align-items: stretch;
+    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+
+  .vyuh-console-page {
+    padding: $vyuh-space-4;
+  }
+}

@@ -1,0 +1,7 @@
+.vyuh-pill {
+  @include vyuh-status(ember);
+  align-items: center;
+  border-radius: $vyuh-radius-pill;
+  display: inline-flex;
+  padding: $vyuh-space-1 $vyuh-space-3;
+}

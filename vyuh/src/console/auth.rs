@@ -252,6 +252,7 @@ fn error_response(site: &Site, status: StatusCode) -> Response {
     let context = serde_json::json!({
         "base_path": site.conf().console.path,
         "version": env!("CARGO_PKG_VERSION"),
+        "stylesheet_path": crate::console::stylesheet_path(),
         "status": status.as_u16(),
         "title": title,
         "message": message,
