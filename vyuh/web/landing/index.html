@@ -23,7 +23,6 @@
         <a href="../../../docs/book/book/index.html">Docs</a>
         <a href="#code">Examples</a>
         <a href="#console">Console</a>
-        <a href="../../../docs/book/book/philosophy.html">Philosophy</a>
         <a href="#stack">Stack</a>
         <a href="https://github.com/vyuh-rs/vyuh">GitHub</a>
       </div>
@@ -55,7 +54,7 @@
           </article>
 
           <figure class="landing-hero-art">
-            <img src="../public/img/landing/page2-runtime-infographic.svg" alt="Vyuh runtime model connecting routes, tasks, signals, emitters, services, channels, commands, and console visibility">
+            <img src="../public/img/landing/vyuh-equation-hero-exact.svg" alt="The Vyuh equation showing handlers, services, and assets forming bundles, then sites, OpenAPI, and console">
           </figure>
         </div>
 
@@ -202,8 +201,8 @@
         <header class="landing-capability-copy">
           <strong class="vyuh-kicker">Tasks</strong>
           <h2 class="vyuh-section-title mt-2">Durable background work, without a second application.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Run emails, imports, reports, webhook retries, approvals, polling, and long-running business work as typed handlers registered through the same bundle model as your APIs.</p>
-          <p class="landing-capability-proof">Tasks can complete, sleep, suspend, resume, retry, fail, and store typed results while remaining visible through the task store and console.</p>
+          <p class="vyuh-copy mt-3 mb-0">Run emails, imports, reports, retries, approvals, and polling as typed handlers registered beside your APIs.</p>
+          <p class="landing-capability-proof">Tasks can sleep, suspend, resume, retry, fail, and store typed results while staying visible in the console.</p>
         </header>
 
         <div class="landing-capability-visual" aria-label="Task capabilities">
@@ -213,7 +212,7 @@
                 <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"></path></svg>
               </span>
               <h3>Typed input</h3>
-              <p>Submit Data&lt;T&gt; by registered task type; handlers use the same explicit data model as routes.</p>
+              <p>Submit Data&lt;T&gt; by task type and reuse route-style data.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
@@ -227,14 +226,14 @@
                 <svg viewBox="0 0 24 24"><path d="M7 7h9a4 4 0 0 1 0 8H8"></path><path d="M10 11 7 15l3 4"></path></svg>
               </span>
               <h3>Explicit retry</h3>
-              <p>Return TaskState::retry(...) when work should be tried again later.</p>
+              <p>Return retry state when work should run again later.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"></path><path d="M7 10h4M7 14h7"></path></svg>
               </span>
               <h3>Console visible</h3>
-              <p>Inspect task records, state, payloads, retries, and outcomes from the console.</p>
+              <p>Inspect state, payloads, retries, results, and failures.</p>
             </article>
           </div>
         </div>
@@ -246,8 +245,8 @@
         <header class="landing-capability-copy">
           <strong class="vyuh-kicker">Emitters</strong>
           <h2 class="vyuh-section-title mt-2">Schedules and triggers become typed runtime inputs.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Run cron, intervals, polling, webhook retries, and external notifications as registered emitters that produce typed application data instead of ad-hoc loops.</p>
-          <p class="landing-capability-proof">Emitters keep trigger logic close to the bundle, then hand off to tasks, signals, or channels with metadata visible through the same runtime model.</p>
+          <p class="vyuh-copy mt-3 mb-0">Run cron, intervals, polling, retries, and external notifications as registered typed emitters.</p>
+          <p class="landing-capability-proof">Emitters keep trigger logic close to the bundle and hand off to tasks, signals, or channels.</p>
         </header>
 
         <div class="landing-capability-visual" aria-label="Emitter capabilities">
@@ -257,28 +256,28 @@
                 <svg viewBox="0 0 24 24"><path d="M4 9h16M8 5v4M16 5v4M6 5h12v15H6z"></path></svg>
               </span>
               <h3>Cron and intervals</h3>
-              <p>Register recurring work as named runtime behavior instead of hidden process loops.</p>
+              <p>Register recurring work as named runtime behavior.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 4v16M5 12h14"></path></svg>
               </span>
               <h3>Typed emissions</h3>
-              <p>Produce typed data that can feed tasks, signals, channels, or services.</p>
+              <p>Produce typed data for tasks, signals, channels, or services.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4Z"></path><path d="m4 12 8 4 8-4"></path></svg>
               </span>
               <h3>Bundle-owned</h3>
-              <p>Keep schedules beside the feature that owns the business behavior.</p>
+              <p>Keep schedules beside the feature that owns them.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 6h16v12H4z"></path><path d="M8 10h8M8 14h5"></path></svg>
               </span>
               <h3>Console visible</h3>
-              <p>Inspect registered emitters and their operational metadata from the console.</p>
+              <p>Inspect registered emitters from the same console.</p>
             </article>
           </div>
         </div>
@@ -290,8 +289,8 @@
         <header class="landing-capability-copy">
           <strong class="vyuh-kicker">Channels</strong>
           <h2 class="vyuh-section-title mt-2">Live application streams, without a second realtime stack.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Publish typed events to browser clients, service consumers, and internal subscribers through channels that sit beside routes, signals, tasks, and services.</p>
-          <p class="landing-capability-proof">Channels make pub/sub and SSE-style delivery part of the application model, so subscriptions, payloads, permissions, and routes remain explicit.</p>
+          <p class="vyuh-copy mt-3 mb-0">Publish typed events to browsers, services, and subscribers through channels beside routes and tasks.</p>
+          <p class="landing-capability-proof">Channels make pub/sub and SSE-style delivery part of the explicit application model.</p>
         </header>
 
         <div class="landing-capability-visual" aria-label="Channel capabilities">
@@ -301,28 +300,28 @@
                 <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4Z"></path><path d="m4 12 8 4 8-4"></path></svg>
               </span>
               <h3>Typed messages</h3>
-              <p>Keep live payloads in the same typed data model as the rest of the app.</p>
+              <p>Keep live payloads in the same typed data model.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M8 9h8M8 13h5"></path></svg>
               </span>
               <h3>Subscriber routes</h3>
-              <p>Expose stream endpoints as part of the same application routing surface.</p>
+              <p>Expose streams through the same routing surface.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M12 5v14M12 12H5M12 12h7"></path><path d="M5 9v6M19 9v6"></path></svg>
               </span>
               <h3>Fan-out targets</h3>
-              <p>Connect signals, tasks, emitters, and external clients without bespoke glue.</p>
+              <p>Connect signals, tasks, emitters, and external clients.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M3 12s3-6 9-6 9 6 9 6-3 6-9 6-9-6-9-6Z"></path><path d="M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"></path></svg>
               </span>
               <h3>Runtime visibility</h3>
-              <p>Keep channels discoverable beside routes, tasks, commands, and services.</p>
+              <p>Keep channels discoverable beside every runtime path.</p>
             </article>
           </div>
         </div>
@@ -334,7 +333,8 @@
         <header class="landing-capability-copy">
           <strong class="vyuh-kicker">OpenAPI</strong>
           <h2 class="vyuh-section-title mt-2">Docs generated from the runtime model.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Vyuh can generate OpenAPI metadata from registered handlers, schemas, auth, permissions, and middleware, then lets you override the result where the public contract needs extra precision.</p>
+          <p class="vyuh-copy mt-3 mb-0">Generate OpenAPI from handlers, schemas, auth, permissions, and middleware registered in the app.</p>
+          <p class="landing-capability-proof">Override generated docs through macros or direct APIs when contracts need extra precision.</p>
         </header>
 
         <div class="landing-capability-visual" aria-label="Vyuh OpenAPI capabilities">
@@ -344,28 +344,28 @@
                 <svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"></path><path d="M8 8h8M8 12h5"></path></svg>
               </span>
               <h3>Automatic by default</h3>
-              <p>Routes, inputs, outputs, validation, and JSON schemas feed the document from the same handlers the app runs.</p>
+              <p>Routes, inputs, outputs, and schemas feed the document.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16v4Z"></path></svg>
               </span>
               <h3>Override when needed</h3>
-              <p>Use macros for concise metadata or direct APIs when a route needs explicit operation details.</p>
+              <p>Use macros or direct APIs for exact operations.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3"></path><path d="M5 11h14v9H5z"></path></svg>
               </span>
               <h3>Security included</h3>
-              <p>API key and JWT schemes are modeled alongside route metadata instead of bolted on later.</p>
+              <p>Model API key and JWT schemes beside route metadata.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
               </span>
               <h3>Runtime context</h3>
-              <p>Permissions and middleware can be surfaced so docs reflect how the operation is actually protected.</p>
+              <p>Surface permissions and middleware in generated docs.</p>
             </article>
           </div>
         </div>
@@ -377,8 +377,8 @@
         <header class="landing-capability-copy">
           <strong class="vyuh-kicker">Bundles</strong>
           <h2 class="vyuh-section-title mt-2">One feature. One bundle. Every runtime surface.</h2>
-          <p class="vyuh-copy mt-3 mb-0">Instead of widening one central setup file, each domain feature owns its handlers, assets, templates, docs, and operations metadata near the code that defines them.</p>
-          <p class="landing-capability-proof">Bundles can be merged, prefixed, tagged, layered, validated, and passed to Site startup.</p>
+          <p class="vyuh-copy mt-3 mb-0">Package handlers, assets, templates, docs, and runtime surfaces near the feature code.</p>
+          <p class="landing-capability-proof">Bundles can be imported from crates, prefixed, layered, validated, and mounted.</p>
         </header>
 
         <div class="landing-capability-visual landing-bundle-visual" aria-label="Bundle composition model">
@@ -388,28 +388,28 @@
                 <svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4Z"></path><path d="m4 12 8 4 8-4"></path></svg>
               </span>
               <h3>Feature-owned</h3>
-              <p>Keep handlers, docs, assets, and operations metadata near the domain code.</p>
+              <p>Keep handlers, docs, assets, and surfaces together.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M8 12h8M12 8v8"></path><path d="M4 4h16v16H4z"></path></svg>
               </span>
               <h3>Composable</h3>
-              <p>Merge, prefix, tag, layer, and validate bundles before Site startup.</p>
+              <p>Merge, prefix, tag, layer, and validate before startup.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"></path><path d="M7 9h5M7 13h8"></path></svg>
               </span>
               <h3>Delivery included</h3>
-              <p>Carry assets, templates, services, and migrations with the feature that owns them.</p>
+              <p>Carry assets, templates, services, and migrations.</p>
             </article>
             <article class="landing-capability-fact">
               <span class="landing-fact-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
               </span>
-              <h3>Operations metadata</h3>
-              <p>Attach OpenAPI, permissions, middleware metadata, and console introspection as one unit.</p>
+              <h3>Modular</h3>
+              <p>Import from another crate without losing APIs or assets.</p>
             </article>
           </div>
         </div>

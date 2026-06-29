@@ -14524,7 +14524,7 @@ a {
 
 .landing-hero {
   background: radial-gradient(circle at 82% 16%, rgba(236, 91, 26, 0.14), transparent 30%), radial-gradient(circle at 18% 78%, rgba(85, 124, 69, 0.08), transparent 34%), linear-gradient(120deg, rgba(251, 246, 237, 0.98), rgba(247, 234, 217, 0.88) 58%, rgba(236, 91, 26, 0.1));
-  min-height: min(48rem, 100vh - 4.75rem);
+  min-height: calc(100vh - 4.75rem);
   overflow: hidden;
   position: relative;
 }
@@ -14533,7 +14533,11 @@ a {
 }
 
 .landing-hero-inner {
-  padding-block: clamp(2.5rem, 6vw, 5rem) 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100vh - 4.75rem);
+  padding-block: clamp(1.25rem, 3.6vw, 2.5rem) clamp(1rem, 2.6vw, 1.5rem);
   position: relative;
   z-index: 1;
 }
@@ -14564,7 +14568,7 @@ a {
 .landing-hero-art img {
   display: block;
   filter: drop-shadow(0 24px 48px rgba(16, 24, 39, 0.1));
-  max-height: clamp(18.75rem, 35vw, 27.5rem);
+  max-height: clamp(17rem, 31vw, 24.5rem);
   margin-inline: auto;
   object-fit: contain;
   width: min(100%, 45rem);
@@ -14581,7 +14585,7 @@ a {
 }
 
 .landing-philosophy {
-  margin-top: clamp(3rem, 7vw, 4.5rem);
+  margin-top: clamp(1.5rem, 4vw, 2.5rem);
   position: relative;
   z-index: 2;
 }
@@ -14599,8 +14603,8 @@ a {
 
 .landing-philosophy-item {
   display: grid;
-  gap: 0.75rem;
-  padding: 1.25rem;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
   position: relative;
 }
 .landing-philosophy-item + .landing-philosophy-item {
@@ -14610,7 +14614,7 @@ a {
   color: rgba(16, 24, 39, 0.58);
   font-size: 0.875rem;
   line-height: 1.72;
-  margin: 0.5rem 0 0;
+  margin: 0.25rem 0 0;
 }
 .landing-philosophy-item h3, .landing-philosophy-item .h3 {
   font-size: 1rem;
@@ -14625,9 +14629,9 @@ a {
   flex: 0 0 auto;
   font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
   font-size: 0.875rem;
-  height: 2rem;
+  height: 1.75rem;
   justify-content: center;
-  width: 2rem;
+  width: 1.75rem;
 }
 
 .landing-tone-ember {
@@ -14898,6 +14902,7 @@ a {
   display: grid;
   gap: 0;
   grid-template-columns: minmax(18rem, 0.4fr) minmax(0, 0.6fr);
+  min-height: 24rem;
   overflow: hidden;
 }
 
@@ -14905,6 +14910,9 @@ a {
   align-self: center;
   background: linear-gradient(135deg, var(--landing-accent-soft), rgba(255, 255, 255, 0.76)), radial-gradient(circle at 0% 100%, var(--landing-accent-soft), transparent 36%);
   border-right: 1px solid rgba(16, 24, 39, 0.08);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-height: 100%;
   padding: clamp(1.25rem, 3.5vw, 2rem);
 }
@@ -14922,6 +14930,7 @@ a {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(251, 246, 237, 0.5)), radial-gradient(circle at 100% 0%, var(--landing-accent-muted), transparent 36%);
   display: grid;
   gap: 1rem;
+  min-height: 100%;
   padding: clamp(1rem, 2.5vw, 1.5rem);
 }
 
@@ -14979,6 +14988,7 @@ a {
 .landing-capability-facts {
   display: grid;
   gap: 0.75rem;
+  grid-auto-rows: 1fr;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -14988,6 +14998,7 @@ a {
   border-radius: 0.5rem;
   display: grid;
   gap: 0.5rem;
+  grid-template-rows: auto auto 1fr;
   padding: 1rem;
 }
 .landing-capability-fact h3, .landing-capability-fact .h3 {
@@ -15112,6 +15123,9 @@ a {
   .landing-cta-inner {
     grid-template-columns: 1fr;
   }
+  .landing-capability {
+    min-height: 0;
+  }
   .landing-runtime-panel {
     border-bottom: 1px solid rgba(16, 24, 39, 0.08);
     border-right: 0;
@@ -15166,6 +15180,7 @@ a {
   }
   .landing-hero-inner {
     padding-block: 2rem;
+    min-height: auto;
   }
   .landing-hero-grid {
     gap: 1.25rem;
@@ -15200,6 +15215,7 @@ a {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .landing-philosophy-item {
+    padding: 1.25rem;
     border-bottom: 1px solid rgba(16, 24, 39, 0.1);
   }
   .landing-philosophy-item + .landing-philosophy-item {

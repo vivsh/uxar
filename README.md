@@ -41,6 +41,8 @@ before `1.0`.
   runtime status from the same application.
 - Bundle-based composition: keep routes, assets, tasks, services, signals, and
   docs together as one feature unit.
+- Crate-level feature packaging: a bundle can be exported from another Rust
+  crate and bring its handlers, services, assets, and metadata with it.
 
 ## How It Works
 
@@ -70,6 +72,11 @@ merged or prefixed into a larger application.
 That keeps application structure visible. Instead of scattering feature wiring
 across several registries and config surfaces, Vyuh keeps the moving parts near
 the code that defines them.
+
+Bundles are also the packaging boundary. A crate can export a `Bundle`, and an
+application can import it like any other Rust dependency. That imported feature
+can still participate in routing, OpenAPI, console inspection, assets,
+templates, and the rest of the site.
 
 From that model, the framework gives you typed APIs, generated OpenAPI, durable
 tasks, channels, emitters, commands, services, and the built-in console without

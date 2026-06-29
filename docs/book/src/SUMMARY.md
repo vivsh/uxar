@@ -1,9 +1,8 @@
 # Summary
 
 - [Introduction](introduction.md)
-- [Philosophy](philosophy.md)
+- [Overview](overview.md)
 - [Getting Started](getting-started.md)
-- [Concepts](concepts.md)
 
 # Application Model
 

@@ -58,7 +58,7 @@ a {
     radial-gradient(circle at 82% 16%, rgba($vyuh-ember, 0.14), transparent 30%),
     radial-gradient(circle at 18% 78%, rgba($vyuh-moss, 0.08), transparent 34%),
     linear-gradient(120deg, rgba($vyuh-paper, 0.98), rgba($vyuh-paper-deep, 0.88) 58%, rgba($vyuh-ember, 0.1));
-  min-height: min(48rem, calc(100vh - 4.75rem));
+  min-height: calc(100vh - 4.75rem);
   overflow: hidden;
   position: relative;
 
@@ -68,7 +68,11 @@ a {
 }
 
 .landing-hero-inner {
-  padding-block: clamp($vyuh-space-8, 6vw, $vyuh-space-11) $vyuh-space-8;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: calc(100vh - 4.75rem);
+  padding-block: clamp($vyuh-space-5, 3.6vw, $vyuh-space-8) clamp($vyuh-space-4, 2.6vw, $vyuh-space-6);
   position: relative;
   z-index: 1;
 }
@@ -100,7 +104,7 @@ a {
   img {
     display: block;
     filter: drop-shadow(0 24px 48px rgba($vyuh-ink, 0.1));
-    max-height: clamp(18.75rem, 35vw, 27.5rem);
+    max-height: clamp(17rem, 31vw, 24.5rem);
     margin-inline: auto;
     object-fit: contain;
     width: min(100%, 45rem);
@@ -118,7 +122,7 @@ a {
 }
 
 .landing-philosophy {
-  margin-top: clamp(3rem, 7vw, 4.5rem);
+  margin-top: clamp($vyuh-space-6, 4vw, $vyuh-space-8);
   position: relative;
   z-index: 2;
 }
@@ -136,8 +140,8 @@ a {
 
 .landing-philosophy-item {
   display: grid;
-  gap: $vyuh-space-3;
-  padding: $vyuh-space-5;
+  gap: $vyuh-space-2;
+  padding: $vyuh-space-4 $vyuh-space-5;
   position: relative;
 
   & + & {
@@ -148,7 +152,7 @@ a {
     color: rgba($vyuh-ink, 0.58);
     font-size: $vyuh-text-sm;
     line-height: $vyuh-line-body;
-    margin: $vyuh-space-2 0 0;
+    margin: $vyuh-space-1 0 0;
   }
 
   h3 {
@@ -165,9 +169,9 @@ a {
   flex: 0 0 auto;
   font-family: $vyuh-font-mono;
   font-size: $vyuh-text-sm;
-  height: 2rem;
+  height: 1.75rem;
   justify-content: center;
-  width: 2rem;
+  width: 1.75rem;
 }
 
 .landing-tone-ember {
@@ -457,6 +461,7 @@ a {
   display: grid;
   gap: 0;
   grid-template-columns: minmax(18rem, 0.4fr) minmax(0, 0.6fr);
+  min-height: 24rem;
   overflow: hidden;
 }
 
@@ -466,6 +471,9 @@ a {
     linear-gradient(135deg, var(--landing-accent-soft), rgba($vyuh-white, 0.76)),
     radial-gradient(circle at 0% 100%, var(--landing-accent-soft), transparent 36%);
   border-right: $vyuh-border-subtle;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   min-height: 100%;
   padding: clamp($vyuh-space-5, 3.5vw, $vyuh-space-7);
 }
@@ -485,6 +493,7 @@ a {
     radial-gradient(circle at 100% 0%, var(--landing-accent-muted), transparent 36%);
   display: grid;
   gap: $vyuh-space-4;
+  min-height: 100%;
   padding: clamp($vyuh-space-4, 2.5vw, $vyuh-space-6);
 }
 
@@ -545,6 +554,7 @@ a {
 .landing-capability-facts {
   display: grid;
   gap: $vyuh-space-3;
+  grid-auto-rows: 1fr;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -554,6 +564,7 @@ a {
   border-radius: $vyuh-radius-sm;
   display: grid;
   gap: $vyuh-space-2;
+  grid-template-rows: auto auto 1fr;
   padding: $vyuh-space-4;
 
   h3 {
@@ -692,6 +703,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .landing-capability {
+    min-height: 0;
+  }
+
   .landing-runtime-panel {
     border-bottom: $vyuh-border-subtle;
     border-right: 0;
@@ -760,6 +775,7 @@ a {
 
   .landing-hero-inner {
     padding-block: $vyuh-space-7;
+    min-height: auto;
   }
 
   .landing-hero-grid {
@@ -804,6 +820,7 @@ a {
   }
 
   .landing-philosophy-item {
+    padding: $vyuh-space-5;
     border-bottom: $vyuh-border-default;
 
     & + & {

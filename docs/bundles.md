@@ -135,6 +135,31 @@ let app = notes::bundle().merge(ops::bundle());
 Do not rely on `bundle!` to reach into another module's generated helper. Merge
 the other module's `Bundle` instead.
 
+## Bundles From Other Crates
+
+Bundles are not limited to local modules. A Rust crate can export a function
+that returns a `Bundle`, and an application can import and merge that bundle
+like any other dependency:
+
+```rust
+let app = bundles::bundle! {
+    local_health_check,
+}
+.merge(blog_feature::bundle())
+.merge(admin_feature::bundle());
+```
+
+This is useful when a feature should ship with more than routes. An imported
+bundle can bring its handlers, services, templates, assets, OpenAPI metadata,
+commands, signals, tasks, and emitters together. After it is merged, it remains
+part of the same site: prefixes, OpenAPI generation, console inspection,
+middleware layers, and validation all see it as normal bundle content.
+
+Use this boundary for reusable application capabilities: a blog, chat system,
+auth module, internal admin area, or shared operational tooling. The exporting
+crate should expose a small `bundle()` function and keep feature-owned assets
+and templates inside the crate's bundle resources.
+
 ## Composition
 
 `merge` combines two bundles, including routes, operations, services, signals,
